@@ -1582,20 +1582,15 @@ async def gofileupload(bot, msg: Message):
     c_time = time.time()
 
     try:
-        downloaded_file = await bot.download_media(media, file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name), progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))
-    except RPCError as e:
-        return await sts.edit(f"Download failed: {e}")
-
-    try:
         async with aiohttp.ClientSession() as session:
-            async with session.post("https://api.gofile.io/getServer") as resp:
+            async with session.get("https://api.gofile.io/getServer") as resp:
                 if resp.status != 200:
                     return await sts.edit(f"Failed to get server. Status code: {resp.status}")
 
                 data = await resp.json()
                 server = data["data"]["server"]
 
-            files = {"file": open(downloaded_file, "rb")}
+            files = {"file": await bot.download_media(media, file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name), progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))}
             async with session.post(f"https://{server}.gofile.io/uploadFile", data=files) as resp:
                 if resp.status != 200:
                     return await sts.edit(f"Upload failed: Status code {resp.status}")
@@ -1612,10 +1607,11 @@ async def gofileupload(bot, msg: Message):
 
     finally:
         try:
-            if os.path.exists(downloaded_file):
-                os.remove(downloaded_file)
+            if os.path.exists(files["file"]):
+                os.remove(files["file"])
         except Exception as e:
             print(f"Error deleting file: {e}")
+
 
 
 
