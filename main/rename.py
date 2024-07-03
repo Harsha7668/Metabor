@@ -1568,8 +1568,9 @@ async def set_photo(bot, msg):
         await msg.reply_text(f"Error saving photo: {e}")
 
 
+
 @Client.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
-async def linktofile(bot, msg: Message):
+async def gofiledownloader(bot, msg: Message):
     reply = msg.reply_to_message
     if len(msg.command) < 2 or not reply:
         return await msg.reply_text("Please reply to a file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
@@ -1633,7 +1634,7 @@ async def linktofile(bot, msg: Message):
             await msg.reply_text(
                 f"┏📥 **File Name:** {os.path.basename(new_name)}\n"
                 f"┠💾 **Size:** {filesize_human}\n"
-                f"┠♻️ **Mode:** Go File Download\n"
+                f"┠♻️ **Mode:** GoFile Download\n"
                 f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
                 f"❄ **File has been sent to your PM in the bot!**"
             )
@@ -1657,8 +1658,24 @@ async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
     c_time = time.time()
 
     try:
+        # Extract the file ID from the Gofile URL
+        file_id = link.split("/")[-1]
+
+        # Fetch the Gofile download link
         async with aiohttp.ClientSession() as session:
-            async with session.get(link) as resp:
+            async with session.get(f"https://api.gofile.io/getServer") as resp:
+                data = await resp.json()
+                server = data["data"]["server"]
+
+            async with session.get(f"https://{server}.gofile.io/getUpload?c={file_id}") as resp:
+                data = await resp.json()
+                if data["status"] == "ok":
+                    download_url = data["data"]["downloadPage"]
+                else:
+                    await sts.edit(f"Failed to get download link: {data['message']}")
+                    return
+
+            async with session.get(download_url) as resp:
                 if resp.status == 200:
                     with open(new_name, 'wb') as f:
                         f.write(await resp.read())
@@ -1711,6 +1728,8 @@ async def edit_message(message, new_text):
             await message.edit(new_text)
     except MessageNotModified:
         pass
+
+
 
 
 
