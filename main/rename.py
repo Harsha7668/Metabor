@@ -1654,6 +1654,17 @@ async def gofiledownloader(bot, msg: Message):
             await sts.delete()
 
 
+import aiohttp
+import os
+import time
+from pyrogram import Client, filters
+from pyrogram.errors import RPCError, TimeoutError, MessageNotModified
+from pyrogram.types import Message
+
+AUTH_USERS = ["your_auth_user_id"]  # Replace with your authorized user ID(s)
+CAPTION = "{file_name}\n\n🌟 Size: {file_size}"  # Modify the caption template if needed
+DOWNLOAD_LOCATION = "./downloads"  # Set your download location
+
 async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
     sts = await msg.reply_text("🚀 Downloading from Gofile...")
     c_time = time.time()
@@ -1661,6 +1672,7 @@ async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
     try:
         # Extract the file ID from the Gofile URL
         file_id = link.split("/")[-1]
+        await sts.edit(f"Extracted file ID: {file_id}")
 
         # Fetch the Gofile server
         async with aiohttp.ClientSession() as session:
@@ -1670,9 +1682,13 @@ async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
                     return
                 data = await resp.json()
                 server = data["data"]["server"]
+                await sts.edit(f"Using server: {server}")
 
             # Fetch the Gofile download link
-            async with session.get(f"https://{server}.gofile.io/getUpload?c={file_id}") as resp:
+            upload_url = f"https://{server}.gofile.io/getUpload?c={file_id}"
+            await sts.edit(f"Fetching upload URL: {upload_url}")
+
+            async with session.get(upload_url) as resp:
                 if resp.status != 200:
                     text = await resp.text()
                     await sts.edit(f"Failed to get download link. Status code: {resp.status}, response: {text}")
@@ -1738,6 +1754,15 @@ async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
         except Exception as e:
             print(f"Error deleting file: {e}")
         await sts.delete()
+
+async def edit_message(message, new_text):
+    try:
+        if message.text != new_text:
+            await message.edit(new_text)
+    except MessageNotModified:
+        pass
+
+
 
 
 if __name__ == '__main__':
