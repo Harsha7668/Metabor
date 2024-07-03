@@ -20,8 +20,6 @@ import aiohttp
 from pyrogram.errors import RPCError, FloodWait
 import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
-from pyrogram.errors import RPCError, TimeoutError
-
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
@@ -1653,17 +1651,6 @@ async def gofiledownloader(bot, msg: Message):
                 print(f"Error deleting files: {e}")
             await sts.delete()
 
-
-import aiohttp
-import os
-import time
-from pyrogram import Client, filters
-from pyrogram.errors import RPCError, TimeoutError, MessageNotModified
-from pyrogram.types import Message
-
-AUTH_USERS = ["your_auth_user_id"]  # Replace with your authorized user ID(s)
-CAPTION = "{file_name}\n\n🌟 Size: {file_size}"  # Modify the caption template if needed
-DOWNLOAD_LOCATION = "./downloads"  # Set your download location
 
 async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
     sts = await msg.reply_text("🚀 Downloading from Gofile...")
