@@ -1568,7 +1568,7 @@ async def set_photo(bot, msg):
 
 
 
-@app.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
+@Client.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
 async def gofileupload(bot, msg: Message):
     reply = msg.reply_to_message
     if not reply:
