@@ -1566,7 +1566,9 @@ async def set_photo(bot, msg):
         await msg.reply_text(f"Error saving photo: {e}")
 
 
-@Client.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
+
+
+@app.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
 async def gofileupload(bot, msg: Message):
     reply = msg.reply_to_message
     if not reply:
@@ -1580,7 +1582,7 @@ async def gofileupload(bot, msg: Message):
     c_time = time.time()
 
     try:
-        downloaded_file = await media.download(file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name), progress=progress_program, progress_args=("🚀 Download Started...", sts, c_time))
+        downloaded_file = await bot.download_media(media, file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name), progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))
     except RPCError as e:
         return await sts.edit(f"Download failed: {e}")
 
@@ -1615,15 +1617,6 @@ async def gofileupload(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
 
-async def progress_program(current, total, status, message, start_time):
-    # Update the progress message
-    elapsed_time = time.time() - start_time
-    progress = f"{current}/{total} ({current / total * 100:.2f}%)"
-    new_text = f"{status}\nProgress: {progress}\nElapsed Time: {elapsed_time:.2f} seconds"
-    try:
-        await message.edit(new_text)
-    except MessageNotModified:
-        pass
 
 
 if __name__ == '__main__':
