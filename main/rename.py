@@ -1565,20 +1565,8 @@ async def set_photo(bot, msg):
     except Exception as e:
         await msg.reply_text(f"Error saving photo: {e}")
 
-
-import aiohttp
-import os
-import time
-from pyrogram import Client, filters
-from pyrogram.errors import RPCError, TimeoutError, MessageNotModified
-from pyrogram.types import Message
-
-AUTH_USERS = ["your_auth_user_id"]  # Replace with your authorized user ID(s)
-CAPTION = "{file_name}\n\n🌟 Size: {file_size}"  # Modify the caption template if needed
-DOWNLOAD_LOCATION = "./downloads"  # Set your download location
-
-@Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
-async def linktofile(bot, msg: Message):
+@Client.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
+async def gofileupload(bot, msg: Message):
     reply = msg.reply_to_message
     if len(msg.command) < 2 or not reply:
         return await msg.reply_text("Please reply to a file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
