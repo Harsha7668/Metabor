@@ -1653,6 +1653,7 @@ async def gofiledownloader(bot, msg: Message):
                 print(f"Error deleting files: {e}")
             await sts.delete()
 
+
 async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
     sts = await msg.reply_text("🚀 Downloading from Gofile...")
     c_time = time.time()
@@ -1673,7 +1674,8 @@ async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
             # Fetch the Gofile download link
             async with session.get(f"https://{server}.gofile.io/getUpload?c={file_id}") as resp:
                 if resp.status != 200:
-                    await sts.edit(f"Failed to get download link. Status code: {resp.status}")
+                    text = await resp.text()
+                    await sts.edit(f"Failed to get download link. Status code: {resp.status}, response: {text}")
                     return
 
                 try:
@@ -1688,6 +1690,7 @@ async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
                     return
 
                 download_url = data["data"]["downloadPage"]
+                await sts.edit(f"Download URL: {download_url}")
 
             async with session.get(download_url) as resp:
                 if resp.status == 200:
@@ -1735,16 +1738,6 @@ async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
         except Exception as e:
             print(f"Error deleting file: {e}")
         await sts.delete()
-        
-async def edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit(new_text)
-    except MessageNotModified:
-        pass
-
-
-
 
 
 if __name__ == '__main__':
