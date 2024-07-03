@@ -1661,19 +1661,33 @@ async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
         # Extract the file ID from the Gofile URL
         file_id = link.split("/")[-1]
 
-        # Fetch the Gofile download link
+        # Fetch the Gofile server
         async with aiohttp.ClientSession() as session:
             async with session.get(f"https://api.gofile.io/getServer") as resp:
+                if resp.status != 200:
+                    await sts.edit(f"Failed to get server. Status code: {resp.status}")
+                    return
                 data = await resp.json()
                 server = data["data"]["server"]
 
+            # Fetch the Gofile download link
             async with session.get(f"https://{server}.gofile.io/getUpload?c={file_id}") as resp:
-                data = await resp.json()
-                if data["status"] == "ok":
-                    download_url = data["data"]["downloadPage"]
-                else:
+                if resp.status != 200:
+                    await sts.edit(f"Failed to get download link. Status code: {resp.status}")
+                    return
+
+                try:
+                    data = await resp.json()
+                except aiohttp.ContentTypeError:
+                    text = await resp.text()
+                    await sts.edit(f"Unexpected response format: {text}")
+                    return
+
+                if data["status"] != "ok":
                     await sts.edit(f"Failed to get download link: {data['message']}")
                     return
+
+                download_url = data["data"]["downloadPage"]
 
             async with session.get(download_url) as resp:
                 if resp.status == 200:
@@ -1721,7 +1735,7 @@ async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
         except Exception as e:
             print(f"Error deleting file: {e}")
         await sts.delete()
-
+        
 async def edit_message(message, new_text):
     try:
         if message.text != new_text:
