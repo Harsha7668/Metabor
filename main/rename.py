@@ -1566,9 +1566,19 @@ async def set_photo(bot, msg):
         await msg.reply_text(f"Error saving photo: {e}")
 
 
+import aiohttp
+import os
+import time
+from pyrogram import Client, filters
+from pyrogram.errors import RPCError, TimeoutError, MessageNotModified
+from pyrogram.types import Message
 
-@Client.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
-async def gofiledownloader(bot, msg: Message):
+AUTH_USERS = ["your_auth_user_id"]  # Replace with your authorized user ID(s)
+CAPTION = "{file_name}\n\n🌟 Size: {file_size}"  # Modify the caption template if needed
+DOWNLOAD_LOCATION = "./downloads"  # Set your download location
+
+@Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
+async def linktofile(bot, msg: Message):
     reply = msg.reply_to_message
     if len(msg.command) < 2 or not reply:
         return await msg.reply_text("Please reply to a file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
@@ -1582,7 +1592,7 @@ async def gofiledownloader(bot, msg: Message):
         return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
 
     if reply.text and "gofile.io" in reply.text:
-        await handle_gofile_download(bot, msg, reply.text, new_name)
+        await handle_gofile_upload(bot, msg, reply.text, new_name)
     else:
         if not media:
             return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
@@ -1615,132 +1625,38 @@ async def gofiledownloader(bot, msg: Message):
         else:
             file_thumb = thumbnail_path
 
-        await edit_message(sts, "💠 Uploading...")
+        await edit_message(sts, "💠 Uploading to Gofile...")
         c_time = time.time()
+        await handle_gofile_upload(bot, msg, new_name, sts, file_thumb)
+
+async def handle_gofile_upload(bot, msg: Message, file_path: str, sts, file_thumb):
+    async with aiohttp.ClientSession() as session:
         try:
-            await bot.send_document(
-                msg.chat.id,
-                document=downloaded,
-                thumb=file_thumb,
-                caption=cap,
-                progress=progress_message,
-                progress_args=("💠 Upload Started...", sts, c_time)
-            )
+            server_response = await session.get('https://api.gofile.io/getServer')
+            server_data = await server_response.json()
+            server = server_data['data']['server']
 
-            filesize = os.path.getsize(downloaded)
-            filesize_human = humanbytes(filesize)
-            await msg.reply_text(
-                f"┏📥 **File Name:** {os.path.basename(new_name)}\n"
-                f"┠💾 **Size:** {filesize_human}\n"
-                f"┠♻️ **Mode:** GoFile Download\n"
-                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄ **File has been sent to your PM in the bot!**"
-            )
+            upload_url = f'https://{server}.gofile.io/uploadFile'
 
-        except RPCError as e:
-            await sts.edit(f"Upload failed: {e}")
-        except TimeoutError as e:
-            await sts.edit(f"Upload timed out: {e}")
+            with open(file_path, 'rb') as file:
+                files = {'file': file}
+                upload_response = await session.post(upload_url, data=files)
+                upload_data = await upload_response.json()
+
+                if upload_data['status'] == 'ok':
+                    download_url = upload_data['data']['downloadPage']
+                    await sts.edit(f"✅ File uploaded to Gofile: {download_url}")
+                else:
+                    await sts.edit(f"❌ Failed to upload to Gofile: {upload_data['data']['message']}")
+        except Exception as e:
+            await sts.edit(f"Error during upload: {e}")
         finally:
             try:
-                if file_thumb and os.path.exists(file_thumb):
+                os.remove(file_path)
+                if file_thumb:
                     os.remove(file_thumb)
-                if os.path.exists(downloaded):
-                    os.remove(downloaded)
             except Exception as e:
                 print(f"Error deleting files: {e}")
-            await sts.delete()
-
-
-async def handle_gofile_download(bot, msg: Message, link: str, new_name: str):
-    sts = await msg.reply_text("🚀 Downloading from Gofile...")
-    c_time = time.time()
-
-    try:
-        # Extract the file ID from the Gofile URL
-        file_id = link.split("/")[-1]
-        await sts.edit(f"Extracted file ID: {file_id}")
-
-        # Fetch the Gofile server
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://api.gofile.io/getServer") as resp:
-                if resp.status != 200:
-                    await sts.edit(f"Failed to get server. Status code: {resp.status}")
-                    return
-                data = await resp.json()
-                server = data["data"]["server"]
-                await sts.edit(f"Using server: {server}")
-
-            # Fetch the Gofile download link
-            upload_url = f"https://{server}.gofile.io/getUpload?c={file_id}"
-            await sts.edit(f"Fetching upload URL: {upload_url}")
-
-            async with session.get(upload_url) as resp:
-                if resp.status != 200:
-                    text = await resp.text()
-                    await sts.edit(f"Failed to get download link. Status code: {resp.status}, response: {text}")
-                    return
-
-                try:
-                    data = await resp.json()
-                except aiohttp.ContentTypeError:
-                    text = await resp.text()
-                    await sts.edit(f"Unexpected response format: {text}")
-                    return
-
-                if data["status"] != "ok":
-                    await sts.edit(f"Failed to get download link: {data['message']}")
-                    return
-
-                download_url = data["data"]["downloadPage"]
-                await sts.edit(f"Download URL: {download_url}")
-
-            async with session.get(download_url) as resp:
-                if resp.status == 200:
-                    with open(new_name, 'wb') as f:
-                        f.write(await resp.read())
-                else:
-                    await sts.edit(f"Failed to download file from Gofile. Status code: {resp.status}")
-                    return
-    except Exception as e:
-        await sts.edit(f"Error during download: {e}")
-        return
-
-    if not os.path.exists(new_name):
-        await sts.edit("File not found after download. Please check the link and try again.")
-        return
-
-    filesize = os.path.getsize(new_name)
-    filesize_human = humanbytes(filesize)
-    cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
-
-    # Thumbnail handling
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    if not os.path.exists(thumbnail_path):
-        try:
-            file_thumb = None  # You can add thumbnail handling here if needed
-        except Exception as e:
-            print(f"Error handling thumbnail: {e}")
-            file_thumb = None
-    else:
-        file_thumb = thumbnail_path
-
-    await edit_message(sts, "💠 Uploading...")
-    c_time = time.time()
-    try:
-        await bot.send_document(msg.chat.id, document=new_name, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
-    except RPCError as e:
-        await sts.edit(f"Upload failed: {e}")
-    except TimeoutError as e:
-        await sts.edit(f"Upload timed out: {e}")
-    finally:
-        try:
-            if file_thumb:
-                os.remove(file_thumb)
-            os.remove(new_name)
-        except Exception as e:
-            print(f"Error deleting file: {e}")
-        await sts.delete()
 
 async def edit_message(message, new_text):
     try:
@@ -1748,7 +1664,6 @@ async def edit_message(message, new_text):
             await message.edit(new_text)
     except MessageNotModified:
         pass
-
 
 
 
