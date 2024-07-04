@@ -1662,6 +1662,9 @@ async def gofile_download(bot, msg: Message):
                     return await sts.edit(f"Error: {data['message']}")
 
                 file_info = data["data"]["contents"]
+                if not file_info:
+                    return await sts.edit("No file information found.")
+
                 download_link = list(file_info.values())[0]["link"]
                 file_name = list(file_info.values())[0]["name"]
 
@@ -1691,6 +1694,7 @@ async def gofile_download(bot, msg: Message):
 
     except Exception as e:
         await sts.edit(f"Error during download: {e}")
+
 
 
 if __name__ == '__main__':
