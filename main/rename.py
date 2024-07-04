@@ -1787,26 +1787,42 @@ async def gofile_upload(bot, msg: Message):
 
 
 
+
 STREAMTAPE_API_KEY = ""
+STREAMTAPE_LOGIN = ""
+STREAMTAPE_PASSWORD = ""
 
 
-# Command to set up Streamtape API key
-@Client.on_message(filters.command("streamtapesetup") & filters.chat(AUTH_USERS))
-async def streamtape_setup(bot, msg: Message):
-    global STREAMTAPE_API_KEY
+# Command to set up Gofile API key
+@Client.on_message(filters.command("gofilesetup") & filters.chat(AUTH_USERS))
+async def gofile_setup(bot, msg: Message):
+    global GOFILE_API_KEY
 
     if len(msg.command) < 2:
-        return await msg.reply_text("Please provide your Streamtape API key.")
+        return await msg.reply_text("Please provide your Gofile API key.")
+
+    GOFILE_API_KEY = msg.command[1]
+    await msg.reply_text("Gofile API key set successfully!")
+
+# Command to set up Streamtape API key and login credentials
+@Client.on_message(filters.command("streamtapesetup") & filters.chat(AUTH_USERS))
+async def streamtape_setup(bot, msg: Message):
+    global STREAMTAPE_API_KEY, STREAMTAPE_LOGIN, STREAMTAPE_PASSWORD
+
+    if len(msg.command) < 4:
+        return await msg.reply_text("Please provide your Streamtape API key, login, and password in the format: /streamtapesetup {api_key} {login} {password}")
 
     STREAMTAPE_API_KEY = msg.command[1]
-    await msg.reply_text("Streamtape API key set successfully!")
+    STREAMTAPE_LOGIN = msg.command[2]
+    STREAMTAPE_PASSWORD = msg.command[3]
+    await msg.reply_text("Streamtape API key and login credentials set successfully!")
 
 
 
 # Command to upload to Streamtape
 @Client.on_message(filters.command("streamtape") & filters.chat(AUTH_USERS))
 async def streamtape_upload(bot, msg: Message):
-    global STREAMTAPE_API_KEY
+    global STREAMTAPE_API_KEY, STREAMTAPE_LOGIN, STREAMTAPE_PASSWORD
 
     reply = msg.reply_to_message
     if not reply:
@@ -1824,10 +1840,9 @@ async def streamtape_upload(bot, msg: Message):
 
     try:
         async with aiohttp.ClientSession() as session:
-            if not STREAMTAPE_API_KEY:
-                return await sts.edit("Streamtape API key is not set. Use /streamtapesetup {your_api_key} to set it.")
+            if not STREAMTAPE_API_KEY or not STREAMTAPE_LOGIN or not STREAMTAPE_PASSWORD:
+                return await sts.edit("Streamtape API key and login credentials are not set. Use /streamtapesetup {api_key} {login} {password} to set them.")
 
-            # Download the media file
             downloaded_file = await bot.download_media(
                 media,
                 file_name=os.path.join(DOWNLOAD_LOCATION, custom_name),
@@ -1835,15 +1850,13 @@ async def streamtape_upload(bot, msg: Message):
                 progress_args=("🚀 Download Started...", sts, c_time)
             )
 
-            # Get the upload URL
-            async with session.get(f"https://api.streamtape.com/file/ul?login={YOUR_LOGIN}&key={STREAMTAPE_API_KEY}") as resp:
+            async with session.get(f"https://api.streamtape.com/file/ul?login={STREAMTAPE_LOGIN}&key={STREAMTAPE_API_KEY}") as resp:
                 if resp.status != 200:
                     return await sts.edit(f"Failed to get upload URL. Status code: {resp.status}")
 
                 response = await resp.json()
                 upload_url = response["result"]["url"]
 
-            # Upload the file to Streamtape
             with open(downloaded_file, "rb") as file:
                 form_data = aiohttp.FormData()
                 form_data.add_field("file1", file, filename=custom_name)
@@ -1868,6 +1881,7 @@ async def streamtape_upload(bot, msg: Message):
                 os.remove(downloaded_file)
         except Exception as e:
             print(f"Error deleting file: {e}")
+
 
 
 
