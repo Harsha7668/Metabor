@@ -36,7 +36,6 @@ from pyrogram.types import Message
 
 import os
 import pickle
-import time
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -44,6 +43,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from pyrogram import Client, filters
 from pyrogram.types import Message
+
 
 
 DOWNLOAD_LOCATION1 = "./screenshots"
@@ -1907,7 +1907,6 @@ async def setup_gdrive_id(bot, msg: Message):
 
 
 
-# If modifying these SCOPES, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 # Function to authenticate Google Drive
@@ -1930,53 +1929,13 @@ def authenticate_google_drive():
 creds = authenticate_google_drive()
 drive_service = build('drive', 'v3', credentials=creds)
 
-
-
 # Variable to store Google Drive folder ID
 GDRIVE_FOLDER_ID = None
 
-# Progress function for download and upload
-async def progress_message1(current, total, message, start_time):
-    now = time.time()
-    diff = now - start_time
-    if diff >= 1:  # update every 1 second
-        percentage = current * 100 / total
-        speed = current / diff
-        time_to_completion = (total - current) / speed
-        time_to_completion = round(time_to_completion)
-        progress_str = f"[{'■' * int(percentage / 5)}{'□' * (20 - int(percentage / 5))}]"
-        progress_message = (
-            f"{progress_str} {percentage:.1f}%\n"
-            f"Speed: {humanbytes(speed)}/s\n"
-            f"ETA: {time_to_completion}s"
-        )
-        try:
-            await message.edit_text(progress_message)
-        except Exception as e:
-            print(f"Error updating message: {e}")
 
-def humanbytes1(B):
-    'Return the given bytes as a human friendly KB, MB, GB, or TB string'
-    B = float(B)
-    KB = float(1024)
-    MB = float(KB ** 2) # 1,048,576
-    GB = float(KB ** 3) # 1,073,741,824
-    TB = float(KB ** 4) # 1,099,511,627,776
-
-    if B < KB:
-        return '{0} {1}'.format(B,'Bytes' if 0 == B > 1 else 'Byte')
-    elif KB <= B < MB:
-        return '{0:.2f} KB'.format(B/KB)
-    elif MB <= B < GB:
-        return '{0:.2f} MB'.format(B/MB)
-    elif GB <= B < TB:
-        return '{0:.2f} GB'.format(B/GB)
-    elif TB <= B:
-        return '{0:.2f} TB'.format(B/TB)
-
-# Command handler for /rename
+# Command handler for /mirror
 @Client.on_message(filters.private & filters.command("mirror"))
-async def rename_and_upload(bot, msg: Message):
+async def mirror_to_google_drive(bot, msg: Message):
     global GDRIVE_FOLDER_ID
     RENAME_ENABLED = True  # Set this according to your logic
     DOWNLOAD_LOCATION = "downloads"  # Set your download location
@@ -2001,48 +1960,23 @@ async def rename_and_upload(bot, msg: Message):
 
     try:
         sts = await msg.reply_text("🚀 Downloading...")
-        start_time = time.time()
-        downloaded_file = await bot.download_media(
-            message=reply, 
-            file_name=download_path,
-            progress=progress_message1,
-            progress_args=start_time
-        )
+        downloaded_file = await bot.download_media(message=reply, file_name=download_path)
         filesize = os.path.getsize(downloaded_file)
         await sts.edit("💠 Uploading...")
 
         # Upload file to Google Drive
         file_metadata = {'name': new_name, 'parents': [GDRIVE_FOLDER_ID]}
         media = MediaFileUpload(downloaded_file, resumable=True)
-        request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
-        response = None
-        while response is None:
-            status, response = request.next_chunk()
-            if status:
-                await progress_message1(status.resumable_progress, filesize, sts, start_time)
+        file = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
+        file_id = file.get('id')
+        file_link = file.get('webViewLink')
 
-        file_id = response.get('id')
-        file_link = response.get('webViewLink')
-
-        # Prepare caption for the uploaded file
-        if CAPTION:
-            caption_text = CAPTION.format(file_name=new_name, file_size=humanbytes1(filesize))
-        else:
-            caption_text = f"Uploaded File: {new_name}\nSize: {humanbytes1(filesize)}"
-
-        # Send file to user with caption
-        await bot.send_document(
-            chat_id=msg.from_user.id,
-            document=downloaded_file,
-            caption=caption_text,
-        )
-
+        # Send the Google Drive link to the user
         await msg.reply_text(
             f"File successfully renamed and uploaded to Google Drive!\n\n"
             f"Your drive link: [View File]({file_link})\n\n"
-            f"Uploaded File: {new_name}\n"
-            f"Size: {humanbytes1(filesize)}"
         )
+
         os.remove(downloaded_file)
         await sts.delete()
 
