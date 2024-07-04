@@ -23,20 +23,6 @@ from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
-
-
-
-from datetime import datetime
-import time
-import os
-
-from helper_funcs import gdriveTools
-from helper_funcs.bot_utils import sanitize_file_name, sanitize_text, get_readable_file_size
-from helper_funcs.display_progress import progress_for_pyrogram
-from plugins.gdriveupload import get_path_size
-from translation import Translation
-
-
 # Global dictionary to store user settings
 merge_state = {}
 
@@ -1794,85 +1780,6 @@ async def gofile_upload(bot, msg: Message):
                 os.remove(downloaded_file)
         except Exception as e:
             print(f"Error deleting file: {e}")
-
-
-@Client.on_message(filters.private & filters.command("mirror"))
-async def mirror_to_gdrive_upload(bot, msg):
-    global RENAME_ENABLED
-    if not RENAME_ENABLED:
-        return await msg.reply_text("The mirror feature is currently disabled.")
-
-    reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a file, video, or audio to mirror.")
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a file, video, or audio to mirror.")
-
-    c_time = time.time()
-    download_location = DOWNLOAD_LOCATION + "/"
-    reply_message = await msg.reply_text(Translation.DOWNLOAD_START)
-
-    # Downloading the file
-    try:
-        the_real_download_location = await bot.download_media(
-            message=reply,
-            file_name=download_location,
-            progress=progress_for_pyrogram,
-            progress_args=(Translation.DOWNLOAD_START, reply_message, c_time)
-        )
-    except Exception as e:
-        return await reply_message.edit_text("Failed to download the file.")
-
-    # Renaming the file if specified
-    txt = msg.text
-    if txt.find("rename") > -1 and len(txt[txt.find("rename") + 7:]) > 0:
-        custom_file_name = txt[txt.find("rename") + 7:]
-        custom_file_name = await sanitize_file_name(custom_file_name)
-        custom_file_name = await sanitize_text(custom_file_name)
-        new_file_name = download_location + custom_file_name
-        os.rename(the_real_download_location, new_file_name)
-        the_real_download_location = new_file_name
-
-    download_directory = the_real_download_location
-    if os.path.exists(download_directory):
-        try:
-            await reply_message.edit_text("Download completed! Uploading to your Cloud...")
-        except:
-            pass
-
-        # Uploading to Google Drive using GoogleDriveHelper
-        up_name = os.path.basename(download_directory)
-        size = get_readable_file_size(get_path_size(download_directory))
-
-        drive_helper = gdriveTools.GoogleDriveHelper(up_name)
-        try:
-            gd_url = drive_helper.upload_file(
-                file_path=download_directory,
-                file_name=up_name,
-                mime_type=media.mime_type,
-                parent_id=None  # Replace with parent folder ID if needed
-            )
-
-            # Sending the upload confirmation message
-            await bot.send_message(
-                chat_id=msg.chat.id,
-                text=f"🤖: <b>{up_name}</b> has been uploaded successfully to your Cloud! \n📀 Size: {size}\n🔗 Download Link: {gd_url}",
-                reply_to_message_id=msg.message_id
-            )
-            await reply_message.delete()
-
-        except Exception as e:
-            await reply_message.edit_text(f"Failed to upload to Google Drive: {str(e)}")
-
-    else:
-        await reply_message.edit_text("File not found or download failed.")
-
-    try:
-        os.remove(download_directory)
-    except:
-        pass
 
 
 
