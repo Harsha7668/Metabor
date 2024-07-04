@@ -1643,63 +1643,57 @@ async def gofileupload(bot, msg: Message):
 @Client.on_message(filters.command("gofiledownload") & filters.chat(AUTH_USERS))
 async def gofile_download(bot, msg: Message):
     reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a file or video to upload to Gofile.")
+    if not reply or not reply.text:
+        return await msg.reply_text("Please reply to a message containing a Gofile link.")
 
-    media = reply.document or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a valid file or video.")
-
-    sts = await msg.reply_text("🚀 Uploading to Gofile...")
-    c_time = time.time()
-
-    try:
-        downloaded_file = await media.download(file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name), progress=progress_message1, progress_args=("🚀 Download Started...", sts, c_time))
-    except RPCError as e:
-        return await sts.edit(f"Download failed: {e}")
+    gofile_link = reply.text.strip()
+    sts = await msg.reply_text("🚀 Fetching file information from Gofile...")
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post("https://api.gofile.io/getServer") as resp:
+            async with session.get(f"https://api.gofile.io/getContent?url={gofile_link}&token={GOFILE_API_KEY}") as resp:
                 if resp.status != 200:
-                    return await sts.edit(f"Failed to get server. Status code: {resp.status}")
+                    return await sts.edit(f"Failed to get file information. Status code: {resp.status}")
 
                 data = await resp.json()
-                server = data["data"]["server"]
+                if data["status"] != "ok":
+                    return await sts.edit(f"Error: {data['message']}")
 
-            files = {"file": open(downloaded_file, "rb")}
-            headers = {"Authorization": GOFILE_API_KEY}  # Add API key to headers
+                file_info = data["data"]["contents"]
+                download_link = list(file_info.values())[0]["link"]
+                file_name = list(file_info.values())[0]["name"]
 
-            async with session.post(f"https://{server}.gofile.io/uploadFile", data=files, headers=headers) as resp:
+            # Download the file
+            c_time = time.time()
+            async with session.get(download_link) as resp:
                 if resp.status != 200:
-                    return await sts.edit(f"Upload failed: Status code {resp.status}")
+                    return await sts.edit(f"Failed to download file. Status code: {resp.status}")
 
-                response = await resp.json()
-                if response["status"] == "ok":
-                    download_url = response["data"]["downloadPage"]
-                    await sts.edit(f"Upload successful!\nDownload link: {download_url}")
-                else:
-                    await sts.edit(f"Upload failed: {response['message']}")
+                downloaded_file = os.path.join(DOWNLOAD_LOCATION, file_name)
+                with open(downloaded_file, "wb") as f:
+                    total_size = int(resp.headers.get("Content-Length", 0))
+                    downloaded = 0
+                    async for chunk in resp.content.iter_chunked(1024):
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        await progress_message1(downloaded, total_size, "Downloading", sts, c_time)
+
+            await sts.edit(f"File downloaded successfully!\nFile path: {downloaded_file}")
 
     except Exception as e:
-        await sts.edit(f"Error during upload: {e}")
-
-    finally:
-        try:
-            if os.path.exists(downloaded_file):
-                os.remove(downloaded_file)
-        except Exception as e:
-            print(f"Error deleting file: {e}")
+        await sts.edit(f"Error during download: {e}")
 
 async def progress_message1(current, total, status, message, start_time):
     # Update the progress message
     elapsed_time = time.time() - start_time
-    progress = f"{current}/{total} ({current / total * 100:.2f}%)"
+    percentage = current * 100 / total
+    progress = f"{current}/{total} ({percentage:.2f}%)"
     new_text = f"{status}\nProgress: {progress}\nElapsed Time: {elapsed_time:.2f} seconds"
     try:
         await message.edit(new_text)
     except MessageNotModified:
         pass
+
 
 
 if __name__ == '__main__':
