@@ -35,8 +35,6 @@ from pyrogram.types import Message
 
 import os
 import pickle
-import time
-import math
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -1829,8 +1827,32 @@ def authenticate_google_drive():
 creds = authenticate_google_drive()
 drive_service = build('drive', 'v3', credentials=creds)
 
+
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+# Function to authenticate Google Drive
+def authenticate_google_drive():
+    creds = None
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+    return creds
+
+# Authenticate and create the Drive service
+creds = authenticate_google_drive()
+drive_service = build('drive', 'v3', credentials=creds)
+
 # Variable to store Google Drive folder ID
 GDRIVE_FOLDER_ID = None
+
 
 
 # Command handler for /mirror
@@ -1867,14 +1889,33 @@ async def mirror_to_google_drive(bot, msg: Message):
         # Upload file to Google Drive
         file_metadata = {'name': new_name, 'parents': [GDRIVE_FOLDER_ID]}
         media = MediaFileUpload(downloaded_file, resumable=True)
-        file = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
-        file_id = file.get('id')
-        file_link = file.get('webViewLink')
+        start_time = time.time()
+
+        # Upload with progress monitoring
+        request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                current_progress = status.progress() * 100
+                await progress_message(current_progress, 100, "Uploading to Google Drive...", sts, start_time)
+
+        file_id = response.get('id')
+        file_link = response.get('webViewLink')
+
+        # Prepare caption for the uploaded file
+        if CAPTION:
+            caption_text = CAPTION.format(file_name=new_name, file_size=filesize)
+        else:
+            caption_text = f"Uploaded File: {new_name}\nSize: {filesize}"
 
         # Send the Google Drive link to the user
         await msg.reply_text(
             f"File successfully renamed and uploaded to Google Drive!\n\n"
             f"Your drive link: [View File]({file_link})\n\n"
+            f"Uploaded File: {new_name}\n"
+            f"Size: {humanbytes(filesize)}",
+            disable_web_page_preview=True,
         )
 
         os.remove(downloaded_file)
@@ -1921,71 +1962,6 @@ drive_service = build('drive', 'v3', credentials=creds)
 # Variable to store Google Drive folder ID
 GDRIVE_FOLDER_ID = None
 
-"""
-# Function to send progress message with progress bar
-async def progress_message(current, total, ud_type, message, start):
-    now = time.time()
-    diff = now - start
-    if round(diff % 5.00) == 0 or current == total:
-        percentage = current * 100 / total
-        speed = humanbytes(current / diff) + "/s"
-        elapsed_time_ms = round(diff * 1000)
-        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
-        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
-
-        elapsed_time = TimeFormatter(elapsed_time_ms)
-        estimated_total_time = TimeFormatter(estimated_total_time_ms)
-
-        # Generate progress bar
-        progress = generate_progress_bar(percentage)
-
-        try:
-            await message.edit(
-                text=f"{ud_type}\n\n"
-                     f"Progress: {round(percentage, 2)}%\n"
-                     f"{humanbytes(current)} of {humanbytes(total)}\n"
-                     f"Speed: {speed}\n"
-                     f"ETA: {estimated_total_time if estimated_total_time != '' else '0 s'}",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Join Us 🌟", url="https://t.me/Sunrises24botupdates")]])
-            )
-        except Exception as e:
-            print(f"Error editing message: {e}")
-
-# Function to generate a progress bar
-def generate_progress_bar(percentage):
-    blocks = 20
-    progress = "📤 Uploading...\n"
-    completed_blocks = math.floor(percentage / (100 / blocks))
-    progress += "▬" * completed_blocks
-    progress += "🔘"
-    progress += "▬" * (blocks - completed_blocks - 1)
-    return progress + f" {round(percentage, 2)}%"
-
-# Function to format time in a human-readable format
-def TimeFormatter(milliseconds: int) -> str:
-    seconds, milliseconds = divmod(milliseconds, 1000)
-    minutes, seconds = divmod(seconds, 60)
-    hours, minutes = divmod(minutes, 60)
-    days, hours = divmod(hours, 24)
-    tmp = ((str(days) + "d, ") if days else "") + \
-          ((str(hours) + "h, ") if hours else "") + \
-          ((str(minutes) + "m, ") if minutes else "") + \
-          ((str(seconds) + "s, ") if seconds else "") + \
-          ((str(milliseconds) + "ms, ") if milliseconds else "")
-    return tmp[:-2]
-
-# Function to convert bytes to a human-readable format
-def humanbytes(size):
-    if not size:
-        return ""
-    power = 2**10
-    n = 0
-    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
-    while size > power:
-        size /= power
-        n += 1
-    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
-"""
 
 # Command handler for /mirror
 @Client.on_message(filters.private & filters.command("mirror"))
@@ -2013,15 +1989,21 @@ async def mirror_to_google_drive(bot, msg: Message):
     download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
 
     try:
+        # Show progress message for downloading
         sts = await msg.reply_text("🚀 Downloading...")
+        
+        # Download the file
         downloaded_file = await bot.download_media(message=reply, file_name=download_path)
         filesize = os.path.getsize(downloaded_file)
+        
+        # Once downloaded, update the message to indicate uploading
         await sts.edit("💠 Uploading...")
+        
+        start_time = time.time()
 
         # Upload file to Google Drive
         file_metadata = {'name': new_name, 'parents': [GDRIVE_FOLDER_ID]}
         media = MediaFileUpload(downloaded_file, resumable=True)
-        start_time = time.time()
 
         # Upload with progress monitoring
         request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
