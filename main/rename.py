@@ -23,6 +23,9 @@ from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
+GOFILE_API_KEY = "cA1IG8RSsuURhOEjIYAQu9J6i3AUGtyJ"  # Your Gofile API key
+
+
 # Global dictionary to store user settings
 merge_state = {}
 
@@ -1567,9 +1570,8 @@ async def set_photo(bot, msg):
 
 
 
-
 @Client.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
-async def gofileupload(bot, msg: Message):
+async def gofileuploaf(bot, msg: Message):
     reply = msg.reply_to_message
     if not reply:
         return await msg.reply_text("Please reply to a file or video to upload to Gofile.")
@@ -1583,6 +1585,7 @@ async def gofileupload(bot, msg: Message):
 
     try:
         async with aiohttp.ClientSession() as session:
+            # Get the server to upload the file
             async with session.get("https://api.gofile.io/getServer") as resp:
                 if resp.status != 200:
                     return await sts.edit(f"Failed to get server. Status code: {resp.status}")
@@ -1590,8 +1593,20 @@ async def gofileupload(bot, msg: Message):
                 data = await resp.json()
                 server = data["data"]["server"]
 
-            files = {"file": await bot.download_media(media, file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name), progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))}
-            async with session.post(f"https://{server}.gofile.io/uploadFile", data=files) as resp:
+            # Download the media file
+            downloaded_file = await bot.download_media(
+                media,
+                file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name),
+                progress=progress_message,
+                progress_args=("🚀 Download Started...", sts, c_time)
+            )
+
+            # Upload the file to Gofile
+            async with session.post(
+                f"https://{server}.gofile.io/uploadFile",
+                data={"token": GOFILE_API_KEY},
+                files={"file": open(downloaded_file, "rb")}
+            ) as resp:
                 if resp.status != 200:
                     return await sts.edit(f"Upload failed: Status code {resp.status}")
 
@@ -1607,11 +1622,10 @@ async def gofileupload(bot, msg: Message):
 
     finally:
         try:
-            if os.path.exists(files["file"]):
-                os.remove(files["file"])
+            if os.path.exists(downloaded_file):
+                os.remove(downloaded_file)
         except Exception as e:
             print(f"Error deleting file: {e}")
-
 
 
 
