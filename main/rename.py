@@ -1784,21 +1784,25 @@ async def gofile_upload(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
 
+
 # Initialize Streamtape API key and login credentials variables
 STREAMTAPE_API_KEY = ""
 STREAMTAPE_LOGIN = ""
 STREAMTAPE_PASSWORD = ""
+
+
 
 # Command to set up Streamtape API key and login credentials
 @Client.on_message(filters.command("streamtapesetup") & filters.chat(AUTH_USERS))
 async def streamtape_setup(bot, msg: Message):
     global STREAMTAPE_API_KEY, STREAMTAPE_LOGIN, STREAMTAPE_PASSWORD
 
-    if len(msg.text.split("|")) < 3:
-        return await msg.reply_text("Please provide your Streamtape API key, login, and password in the format: /streamtapesetup gmail | password | api")
+    # Validate the input format
+    if len(msg.text.split("|")) != 3:
+        return await msg.reply_text("Please provide your Streamtape API key, login, and password in the format: /streamtapesetup email | password | api_key")
 
     # Split the message text by "|"
-    _, email, password, api_key = msg.text.split("|", 3)
+    _, email, password, api_key = msg.text.split("|")
 
     # Trim any extra spaces
     STREAMTAPE_LOGIN = email.strip()
@@ -1829,7 +1833,7 @@ async def streamtape_upload(bot, msg: Message):
     try:
         async with aiohttp.ClientSession() as session:
             if not STREAMTAPE_API_KEY or not STREAMTAPE_LOGIN or not STREAMTAPE_PASSWORD:
-                return await sts.edit("Streamtape API key and login credentials are not set. Use /streamtapesetup gmail | password | api to set them.")
+                return await sts.edit("Streamtape API key and login credentials are not set. Use /streamtapesetup email | password | api_key to set them.")
 
             downloaded_file = await bot.download_media(
                 media,
@@ -1872,11 +1876,6 @@ async def streamtape_upload(bot, msg: Message):
                 os.remove(downloaded_file)
         except Exception as e:
             print(f"Error deleting file: {e}")
-
-
-
-
-
 
 
 if __name__ == '__main__':
