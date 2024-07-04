@@ -1825,7 +1825,7 @@ drive_service = build('drive', 'v3', credentials=creds)
 GDRIVE_FOLDER_ID = None
 
 # Command handler for /rename
-@Client.on_message(filters.private & filters.command("rename"))
+@Client.on_message(filters.private & filters.command("mirror"))
 async def rename_and_upload(bot, msg: Message):
     global GDRIVE_FOLDER_ID
     RENAME_ENABLED = True  # Set this according to your logic
