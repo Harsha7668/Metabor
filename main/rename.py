@@ -1645,7 +1645,7 @@ MIRRORED_API_KEY = "7e012abfeb541850bc15350db73f8ff3"
 
 
 # Command to handle uploading to Mirrored.to
-@app.on_message(filters.command("mirroredupload") & filters.chat(AUTH_USERS))
+@Client.on_message(filters.command("mirroredupload") & filters.chat(AUTH_USERS))
 async def mirroredupload(bot, msg: Message):
     reply = msg.reply_to_message
     if not reply:
