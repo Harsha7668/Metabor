@@ -1571,7 +1571,7 @@ async def set_photo(bot, msg):
 
 
 @Client.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
-async def gofileuploaf(bot, msg: Message):
+async def gofileupload(bot, msg: Message):
     reply = msg.reply_to_message
     if not reply:
         return await msg.reply_text("Please reply to a file or video to upload to Gofile.")
@@ -1597,25 +1597,29 @@ async def gofileuploaf(bot, msg: Message):
             downloaded_file = await bot.download_media(
                 media,
                 file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name),
-                progress=progress_message,
+                progress=progress_message1,
                 progress_args=("🚀 Download Started...", sts, c_time)
             )
 
             # Upload the file to Gofile
-            async with session.post(
-                f"https://{server}.gofile.io/uploadFile",
-                data={"token": GOFILE_API_KEY},
-                files={"file": open(downloaded_file, "rb")}
-            ) as resp:
-                if resp.status != 200:
-                    return await sts.edit(f"Upload failed: Status code {resp.status}")
+            with open(downloaded_file, "rb") as file:
+                form_data = aiohttp.FormData()
+                form_data.add_field("file", file, filename=media.file_name)
+                form_data.add_field("token", GOFILE_API_KEY)
 
-                response = await resp.json()
-                if response["status"] == "ok":
-                    download_url = response["data"]["downloadPage"]
-                    await sts.edit(f"Upload successful!\nDownload link: {download_url}")
-                else:
-                    await sts.edit(f"Upload failed: {response['message']}")
+                async with session.post(
+                    f"https://{server}.gofile.io/uploadFile",
+                    data=form_data
+                ) as resp:
+                    if resp.status != 200:
+                        return await sts.edit(f"Upload failed: Status code {resp.status}")
+
+                    response = await resp.json()
+                    if response["status"] == "ok":
+                        download_url = response["data"]["downloadPage"]
+                        await sts.edit(f"Upload successful!\nDownload link: {download_url}")
+                    else:
+                        await sts.edit(f"Upload failed: {response['message']}")
 
     except Exception as e:
         await sts.edit(f"Error during upload: {e}")
@@ -1627,6 +1631,15 @@ async def gofileuploaf(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
 
+async def progress_message1(current, total, status, message, start_time):
+    # Update the progress message
+    elapsed_time = time.time() - start_time
+    progress = f"{current}/{total} ({current / total * 100:.2f}%)"
+    new_text = f"{status}\nProgress: {progress}\nElapsed Time: {elapsed_time:.2f} seconds"
+    try:
+        await message.edit(new_text)
+    except MessageNotModified:
+        pass
 
 
 if __name__ == '__main__':
