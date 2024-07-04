@@ -1642,11 +1642,10 @@ async def gofileupload(bot, msg: Message):
 
 @Client.on_message(filters.command("gofiledownload") & filters.chat(AUTH_USERS))
 async def gofile_download(bot, msg: Message):
-    reply = msg.reply_to_message
-    if not reply or not reply.text:
-        return await msg.reply_text("Please reply to a message containing a Gofile link.")
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a Gofile link.")
 
-    gofile_link = reply.text.strip()
+    gofile_link = msg.command[1]
     sts = await msg.reply_text("🚀 Fetching file information from Gofile...")
 
     try:
@@ -1656,6 +1655,8 @@ async def gofile_download(bot, msg: Message):
                     return await sts.edit(f"Failed to get file information. Status code: {resp.status}")
 
                 data = await resp.json()
+                print(data)  # Print the response for debugging purposes
+
                 if data["status"] != "ok":
                     return await sts.edit(f"Error: {data['message']}")
 
@@ -1664,35 +1665,22 @@ async def gofile_download(bot, msg: Message):
                 file_name = list(file_info.values())[0]["name"]
 
             # Download the file
-            c_time = time.time()
-            async with session.get(download_link) as resp:
-                if resp.status != 200:
-                    return await sts.edit(f"Failed to download file. Status code: {resp.status}")
+            downloaded_file = os.path.join(DOWNLOAD_LOCATION, file_name)
+            async with session.get(download_link) as download_resp:
+                if download_resp.status != 200:
+                    return await sts.edit(f"Failed to download file. Status code: {download_resp.status}")
 
-                downloaded_file = os.path.join(DOWNLOAD_LOCATION, file_name)
                 with open(downloaded_file, "wb") as f:
-                    total_size = int(resp.headers.get("Content-Length", 0))
-                    downloaded = 0
-                    async for chunk in resp.content.iter_chunked(1024):
+                    while True:
+                        chunk = await download_resp.content.read(1024)
+                        if not chunk:
+                            break
                         f.write(chunk)
-                        downloaded += len(chunk)
-                        await progress_message1(downloaded, total_size, "Downloading", sts, c_time)
 
-            await sts.edit(f"File downloaded successfully!\nFile path: {downloaded_file}")
+                await sts.edit(f"File downloaded successfully!\nFile path: {downloaded_file}")
 
     except Exception as e:
-        await sts.edit(f"Error during download: {e}")
-
-async def progress_message1(current, total, status, message, start_time):
-    # Update the progress message
-    elapsed_time = time.time() - start_time
-    percentage = current * 100 / total
-    progress = f"{current}/{total} ({percentage:.2f}%)"
-    new_text = f"{status}\nProgress: {progress}\nElapsed Time: {elapsed_time:.2f} seconds"
-    try:
-        await message.edit(new_text)
-    except MessageNotModified:
-        pass
+        await sts.edit(f"Error: {e}")
 
 
 
