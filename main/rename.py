@@ -1571,7 +1571,7 @@ async def set_photo(bot, msg):
 
 
 
-@Client.on_message(filters.command("gofileupload") & filters.chat(AUTH_USERS))
+@Client.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
 async def gofileupload(bot, msg: Message):
     reply = msg.reply_to_message
     if not reply:
@@ -1640,154 +1640,59 @@ async def gofileupload(bot, msg: Message):
 
 
 
-@Client.on_message(filters.command("gofiledownload") & filters.chat(AUTH_USERS))
-async def linktofile(bot, msg: Message):
+# Mirrored.to API key
+MIRRORED_API_KEY = "7e012abfeb541850bc15350db73f8ff3"
+
+
+# Command to handle uploading to Mirrored.to
+@Client.on_message(filters.command("mirroredupload") & filters.chat(AUTH_USERS))
+async def mirroredupload(bot, msg: Message):
     reply = msg.reply_to_message
-    if len(msg.command) < 2 or not reply:
-        return await msg.reply_text("Please reply to a file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
+    if not reply:
+        return await msg.reply_text("Please reply to a file or video to upload to Mirrored.to.")
 
-    new_name = msg.text.split(" ", 1)[1]
-    if not new_name.endswith(".mkv"):
-        return await msg.reply_text("Please specify a filename ending with .mkv.")
+    media = reply.document or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid file or video.")
 
-    media = reply.document or reply.audio or reply.video
-    if not media and not reply.text:
-        return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
-
-    if reply.text and ("seedr" in reply.text or "workers" in reply.text):
-        await handle_link_download(bot, msg, reply.text, new_name, media)
+    args = msg.text.split(" ", 1)
+    if len(args) == 2:
+        custom_name = args[1]
     else:
-        if not media:
-            return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
+        custom_name = media.file_name
 
-        sts = await msg.reply_text("🚀 Downloading...")
-        c_time = time.time()
-        try:
-            downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))
-        except RPCError as e:
-            return await sts.edit(f"Download failed: {e}")
-
-        filesize = humanbytes(media.file_size)
-
-        # Custom caption example
-        cap = f"{new_name}\n\n🌟 Size: {filesize}"
-
-        # Thumbnail handling (adjust as needed)
-        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-        if not os.path.exists(thumbnail_path):
-            try:
-                file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-            except Exception as e:
-                print(f"Error downloading thumbnail: {e}")
-                file_thumb = None
-        else:
-            file_thumb = thumbnail_path
-
-        await edit_message(sts, "💠 Uploading...")
-        c_time = time.time()
-        try:
-            await bot.send_document(
-                msg.chat.id, 
-                document=downloaded, 
-                thumb=file_thumb, 
-                caption=cap, 
-                progress=progress_message, 
-                progress_args=("💠 Upload Started...", sts, c_time)
-            )
-
-            filesize = os.path.getsize(downloaded)
-            filesize_human = humanbytes(filesize)
-            await msg.reply_text(
-                f"┏📥 **File Name:** {os.path.basename(new_name)}\n"
-                f"┠💾 **Size:** {filesize_human}\n"
-                f"┠♻️ **Mode:** Gofile Download\n"
-                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄ **File has been sent to your PM in the bot!**"
-            )
-
-        except RPCError as e:
-            await sts.edit(f"Upload failed: {e}")
-        except TimeoutError as e:
-            await sts.edit(f"Upload timed out: {e}")
-        finally:
-            try:
-                if file_thumb and os.path.exists(file_thumb):
-                    os.remove(file_thumb)
-                if os.path.exists(downloaded):
-                    os.remove(downloaded)
-            except Exception as e:
-                print(f"Error deleting files: {e}")
-            await sts.delete()
-
-async def handle_link_download(bot, msg: Message, link: str, new_name: str, media):
-    sts = await msg.reply_text("🚀 Downloading from link...")
+    sts = await msg.reply_text("🚀 Uploading to Mirrored.to...")
     c_time = time.time()
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(link) as resp:
-                if resp.status == 200:
-                    with open(new_name, 'wb') as f:
-                        f.write(await resp.read())
+            # Prepare headers and form data for Mirrored.to API
+            headers = {
+                "Authorization": f"Bearer {MIRRORED_API_KEY}"
+            }
+
+            form_data = aiohttp.FormData()
+            form_data.add_field("file", media.file_id)
+            form_data.add_field("name", custom_name)
+
+            # Upload the file to Mirrored.to
+            async with session.post(
+                "https://mirrored.to/api/v2/upload",
+                headers=headers,
+                data=form_data
+            ) as resp:
+                if resp.status != 200:
+                    return await sts.edit(f"Upload failed: Status code {resp.status}")
+
+                response = await resp.json()
+                if response["status"] == "success":
+                    download_url = response["data"]["download_url"]
+                    await sts.edit(f"Upload successful!\nDownload link: {download_url}")
                 else:
-                    await sts.edit(f"Failed to download file from link. Status code: {resp.status}")
-                    return
+                    await sts.edit(f"Upload failed: {response['message']}")
+
     except Exception as e:
-        await sts.edit(f"Error during download: {e}")
-        return
-
-    if not os.path.exists(new_name):
-        await sts.edit("File not found after download. Please check the link and try again.")
-        return
-
-    filesize = os.path.getsize(new_name)
-    filesize_human = humanbytes(filesize)
-    cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
-
-    # Thumbnail handling (adjust as needed)
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    if not os.path.exists(thumbnail_path):
-        try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-        except Exception as e:
-            print(f"Error downloading thumbnail: {e}")
-            file_thumb = None
-    else:
-        file_thumb = thumbnail_path
-
-    await edit_message(sts, "💠 Uploading...")
-    c_time = time.time()
-    try:
-        await bot.send_document(msg.chat.id, document=new_name, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
-    except RPCError as e:
-        await sts.edit(f"Upload failed: {e}")
-    except TimeoutError as e:
-        await sts.edit(f"Upload timed out: {e}")
-    finally:
-        try:
-            if file_thumb:
-                os.remove(file_thumb)
-            os.remove(new_name)
-        except Exception as e:
-            print(f"Error deleting file: {e}")
-        await sts.delete()
-
-async def progress_message1(current, total, status, message, start_time):
-    # Update the progress message
-    elapsed_time = time.time() - start_time
-    progress = f"{current}/{total} ({current / total * 100:.2f}%)"
-    new_text = f"{status}\nProgress: {progress}\nElapsed Time: {elapsed_time:.2f} seconds"
-    try:
-        await message.edit(new_text)
-    except MessageNotModified:
-        pass
-
-async def edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit(new_text)
-    except MessageNotModified:
-        pass
+        await sts.edit(f"Error during upload: {e}")
 
 
 if __name__ == '__main__':
