@@ -1689,76 +1689,7 @@ async def gofile_upload(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
 
-"""
 
-@Client.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
-async def gofileupload(bot, msg: Message):
-    reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a file or video to upload to Gofile.")
-
-    media = reply.document or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a valid file or video.")
-
-    args = msg.text.split(" ", 1)
-    if len(args) == 2:
-        custom_name = args[1]
-    else:
-        custom_name = media.file_name
-
-    sts = await msg.reply_text("🚀 Uploading to Gofile...")
-    c_time = time.time()
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            # Get the server to upload the file
-            async with session.get("https://api.gofile.io/getServer") as resp:
-                if resp.status != 200:
-                    return await sts.edit(f"Failed to get server. Status code: {resp.status}")
-
-                data = await resp.json()
-                server = data["data"]["server"]
-
-            # Download the media file
-            downloaded_file = await bot.download_media(
-                media,
-                file_name=os.path.join(DOWNLOAD_LOCATION, custom_name),
-                progress=progress_message,
-                progress_args=("🚀 Download Started...", sts, c_time)
-            )
-
-            # Upload the file to Gofile
-            with open(downloaded_file, "rb") as file:
-                form_data = aiohttp.FormData()
-                form_data.add_field("file", file, filename=custom_name)
-                form_data.add_field("token", GOFILE_API_KEY)
-
-                async with session.post(
-                    f"https://{server}.gofile.io/uploadFile",
-                    data=form_data
-                ) as resp:
-                    if resp.status != 200:
-                        return await sts.edit(f"Upload failed: Status code {resp.status}")
-
-                    response = await resp.json()
-                    if response["status"] == "ok":
-                        download_url = response["data"]["downloadPage"]
-                        await sts.edit(f"Upload successful!\nDownload link: {download_url}")
-                    else:
-                        await sts.edit(f"Upload failed: {response['message']}")
-
-    except Exception as e:
-        await sts.edit(f"Error during upload: {e}")
-
-    finally:
-        try:
-            if os.path.exists(downloaded_file):
-                os.remove(downloaded_file)
-        except Exception as e:
-            print(f"Error deleting file: {e}")
-
-"""
 
 
 # Initialize Gofile API key variable
@@ -1855,60 +1786,90 @@ async def gofile_upload(bot, msg: Message):
 
 
 
-# Mirrored.to API key
-MIRRORED_API_KEY = "7e012abfeb541850bc15350db73f8ff3"
+
+STREAMTAPE_API_KEY = ""
 
 
-# Command to handle uploading to Mirrored.to
-@Client.on_message(filters.command("mirroredupload") & filters.chat(AUTH_USERS))
-async def mirroredupload(bot, msg: Message):
+# Command to set up Streamtape API key
+@Client.on_message(filters.command("streamtapesetup") & filters.chat(AUTH_USERS))
+async def streamtape_setup(bot, msg: Message):
+    global STREAMTAPE_API_KEY
+
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide your Streamtape API key.")
+
+    STREAMTAPE_API_KEY = msg.command[1]
+    await msg.reply_text("Streamtape API key set successfully!")
+
+
+
+# Command to upload to Streamtape
+@Client.on_message(filters.command("streamtape") & filters.chat(AUTH_USERS))
+async def streamtape_upload(bot, msg: Message):
+    global STREAMTAPE_API_KEY
+
     reply = msg.reply_to_message
     if not reply:
-        return await msg.reply_text("Please reply to a file or video to upload to Mirrored.to.")
+        return await msg.reply_text("Please reply to a file or video to upload to Streamtape.")
 
     media = reply.document or reply.video
     if not media:
         return await msg.reply_text("Please reply to a valid file or video.")
 
     args = msg.text.split(" ", 1)
-    if len(args) == 2:
-        custom_name = args[1]
-    else:
-        custom_name = media.file_name
+    custom_name = args[1] if len(args) == 2 else media.file_name
 
-    sts = await msg.reply_text("🚀 Uploading to Mirrored.to...")
+    sts = await msg.reply_text("🚀 Uploading to Streamtape...")
     c_time = time.time()
 
     try:
         async with aiohttp.ClientSession() as session:
-            # Prepare headers and form data for Mirrored.to API
-            headers = {
-                "Authorization": f"Bearer {MIRRORED_API_KEY}"
-            }
+            if not STREAMTAPE_API_KEY:
+                return await sts.edit("Streamtape API key is not set. Use /streamtapesetup {your_api_key} to set it.")
 
-            form_data = aiohttp.FormData()
-            form_data.add_field("file", media.file_id)
-            form_data.add_field("name", custom_name)
+            # Download the media file
+            downloaded_file = await bot.download_media(
+                media,
+                file_name=os.path.join(DOWNLOAD_LOCATION, custom_name),
+                progress=progress_message,
+                progress_args=("🚀 Download Started...", sts, c_time)
+            )
 
-            # Upload the file to Mirrored.to
-            async with session.post(
-                "https://mirrored.to/api/v2/upload",
-                headers=headers,
-                data=form_data
-            ) as resp:
+            # Get the upload URL
+            async with session.get(f"https://api.streamtape.com/file/ul?login={YOUR_LOGIN}&key={STREAMTAPE_API_KEY}") as resp:
                 if resp.status != 200:
-                    error_message = await resp.text()
-                    return await sts.edit(f"Upload failed: Status code {resp.status}\nDetails: {error_message}")
+                    return await sts.edit(f"Failed to get upload URL. Status code: {resp.status}")
 
                 response = await resp.json()
-                if response["status"] == "success":
-                    download_url = response["data"]["download_url"]
-                    await sts.edit(f"Upload successful!\nDownload link: {download_url}")
-                else:
-                    await sts.edit(f"Upload failed: {response['message']}")
+                upload_url = response["result"]["url"]
+
+            # Upload the file to Streamtape
+            with open(downloaded_file, "rb") as file:
+                form_data = aiohttp.FormData()
+                form_data.add_field("file1", file, filename=custom_name)
+
+                async with session.post(upload_url, data=form_data) as resp:
+                    if resp.status != 200:
+                        return await sts.edit(f"Upload failed: Status code {resp.status}")
+
+                    response = await resp.json()
+                    if response["status"] == 200:
+                        download_url = response["result"]["url"]
+                        await sts.edit(f"Upload successful!\nDownload link: {download_url}")
+                    else:
+                        await sts.edit(f"Upload failed: {response['msg']}")
 
     except Exception as e:
         await sts.edit(f"Error during upload: {e}")
+
+    finally:
+        try:
+            if os.path.exists(downloaded_file):
+                os.remove(downloaded_file)
+        except Exception as e:
+            print(f"Error deleting file: {e}")
+
+
 
 
 if __name__ == '__main__':
