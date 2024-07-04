@@ -45,6 +45,7 @@ from googleapiclient.http import MediaFileUpload
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
+
 DOWNLOAD_LOCATION1 = "./screenshots"
 
 # Global dictionary to store user settings
@@ -1929,13 +1930,49 @@ def authenticate_google_drive():
 creds = authenticate_google_drive()
 drive_service = build('drive', 'v3', credentials=creds)
 
-# Telegram bot setup
-bot = Client("my_bot")
+
 
 # Variable to store Google Drive folder ID
 GDRIVE_FOLDER_ID = None
 
+# Progress function for download and upload
+async def progress_message1(current, total, message, start_time):
+    now = time.time()
+    diff = now - start_time
+    if diff >= 1:  # update every 1 second
+        percentage = current * 100 / total
+        speed = current / diff
+        time_to_completion = (total - current) / speed
+        time_to_completion = round(time_to_completion)
+        progress_str = f"[{'■' * int(percentage / 5)}{'□' * (20 - int(percentage / 5))}]"
+        progress_message = (
+            f"{progress_str} {percentage:.1f}%\n"
+            f"Speed: {humanbytes(speed)}/s\n"
+            f"ETA: {time_to_completion}s"
+        )
+        try:
+            await message.edit_text(progress_message)
+        except Exception as e:
+            print(f"Error updating message: {e}")
 
+def humanbytes1(B):
+    'Return the given bytes as a human friendly KB, MB, GB, or TB string'
+    B = float(B)
+    KB = float(1024)
+    MB = float(KB ** 2) # 1,048,576
+    GB = float(KB ** 3) # 1,073,741,824
+    TB = float(KB ** 4) # 1,099,511,627,776
+
+    if B < KB:
+        return '{0} {1}'.format(B,'Bytes' if 0 == B > 1 else 'Byte')
+    elif KB <= B < MB:
+        return '{0:.2f} KB'.format(B/KB)
+    elif MB <= B < GB:
+        return '{0:.2f} MB'.format(B/MB)
+    elif GB <= B < TB:
+        return '{0:.2f} GB'.format(B/GB)
+    elif TB <= B:
+        return '{0:.2f} TB'.format(B/TB)
 
 # Command handler for /rename
 @Client.on_message(filters.private & filters.command("mirror"))
@@ -1968,8 +2005,8 @@ async def rename_and_upload(bot, msg: Message):
         downloaded_file = await bot.download_media(
             message=reply, 
             file_name=download_path,
-            progress=progress_message,
-            progress_args=(sts, start_time)
+            progress=progress_message1,
+            progress_args=start_time
         )
         filesize = os.path.getsize(downloaded_file)
         await sts.edit("💠 Uploading...")
@@ -1982,16 +2019,16 @@ async def rename_and_upload(bot, msg: Message):
         while response is None:
             status, response = request.next_chunk()
             if status:
-                await progress_message(status.resumable_progress, filesize, sts, start_time)
+                await progress_message1(status.resumable_progress, filesize, sts, start_time)
 
         file_id = response.get('id')
         file_link = response.get('webViewLink')
 
         # Prepare caption for the uploaded file
         if CAPTION:
-            caption_text = CAPTION.format(file_name=new_name, file_size=humanbytes(filesize))
+            caption_text = CAPTION.format(file_name=new_name, file_size=humanbytes1(filesize))
         else:
-            caption_text = f"Uploaded File: {new_name}\nSize: {humanbytes(filesize)}"
+            caption_text = f"Uploaded File: {new_name}\nSize: {humanbytes1(filesize)}"
 
         # Send file to user with caption
         await bot.send_document(
@@ -2004,7 +2041,7 @@ async def rename_and_upload(bot, msg: Message):
             f"File successfully renamed and uploaded to Google Drive!\n\n"
             f"Your drive link: [View File]({file_link})\n\n"
             f"Uploaded File: {new_name}\n"
-            f"Size: {humanbytes(filesize)}"
+            f"Size: {humanbytes1(filesize)}"
         )
         os.remove(downloaded_file)
         await sts.delete()
@@ -2022,6 +2059,7 @@ async def setup_gdrive_id(bot, msg: Message):
     GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
 
     await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
+
 
 
 if __name__ == '__main__':
