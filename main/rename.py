@@ -309,6 +309,19 @@ async def inline_preview_photo_callback(client, callback_query):
     
     await callback_query.message.reply_photo(photo=attachment_path, caption="Attached Photo")
 
+
+# Inline query handler to preview the Gofile API key
+@Client.on_callback_query(filters.regex("^preview_gofilekey$"))
+async def inline_preview_gofile_api_key(bot, callback_query):
+    global GOFILE_API_KEY
+    
+    # Check if the API key is set
+    if not GOFILE_API_KEY:
+        return await callback_query.message.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
+    
+    # Reply with the current API key
+    await callback_query.message.reply_text(f"Current Gofile API Key: {GOFILE_API_KEY}")
+    
 # Inline query handler for previewing multitask status
 @Client.on_callback_query(filters.regex("^preview_multitask$"))
 async def inline_preview_multitask_callback(_, callback_query):
@@ -359,20 +372,6 @@ async def inline_preview_removetags_task_callback(_, callback_query):
     status_text = "Remove Tags is enabled." if REMOVETAGS_ENABLED else "Remove Tags is disabled."
     await callback_query.message.reply_text(status_text)
 
-
-
-
-# Inline query handler to preview the Gofile API key
-@Client.on_callback_query(filters.regex("^preview_gofilekey$"))
-async def preview_api_key(bot, msg: Message):
-    global GOFILE_API_KEY
-    
-    # Check if the API key is set
-    if not GOFILE_API_KEY:
-        return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
-    
-    # Reply with the current API key
-    await msg.reply_text(f"Current Gofile API Key: {GOFILE_API_KEY}")
 
 
 # Inline query handler for previewing multitask status
