@@ -42,7 +42,6 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 
-
 DOWNLOAD_LOCATION1 = "./screenshots"
 
 # Global dictionary to store user settings
@@ -1964,6 +1963,70 @@ drive_service = build('drive', 'v3', credentials=creds)
 GDRIVE_FOLDER_ID = None
 
 
+"""
+# Function to send progress message with progress bar
+async def progress_message(current, total, ud_type, message, start):
+    now = time.time()
+    diff = now - start
+    if round(diff % 5.00) == 0 or current == total:
+        percentage = current * 100 / total
+        speed = humanbytes(current / diff) + "/s"
+        elapsed_time_ms = round(diff * 1000)
+        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
+        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+
+        elapsed_time = TimeFormatter(elapsed_time_ms)
+        estimated_total_time = TimeFormatter(estimated_total_time_ms)
+
+        progress_bar = generate_progress_bar(percentage)
+
+        try:
+            await message.edit(
+                text=f"🚀 Download Started... ⚡️\n\n"
+                     f"╭───[•PROGRESS BAR•]───⍟\n"
+                     f"{progress_bar}\n\n"
+                     f"├📁 PROCESS : {humanbytes(current)} | {humanbytes(total)}\n"
+                     f"├🚀 PERCENT : {round(percentage, 2)}%\n"
+                     f"├⚡ SPEED : {speed}\n"
+                     f"├⏱️ ETA : {estimated_total_time if estimated_total_time != '' else '0 s'}\n"
+                     f"\n╰─────────────────⍟",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Join Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+            )
+        except Exception as e:
+            print(f"Error editing message: {e}")
+
+# Function to generate a progress bar
+def generate_progress_bar(percentage):
+    blocks = 20
+    completed_blocks = math.floor(percentage / (100 / blocks))
+    progress = "├" + "□" * completed_blocks + "□" * (blocks - completed_blocks) + "⍟"
+    return progress
+
+# Function to format time in a human-readable format
+def TimeFormatter(milliseconds: int) -> str:
+    seconds, milliseconds = divmod(milliseconds, 1000)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+    tmp = ((str(days) + "d, ") if days else "") + \
+          ((str(hours) + "h, ") if hours else "") + \
+          ((str(minutes) + "m, ") if minutes else "") + \
+          ((str(seconds) + "s, ") if seconds else "") + \
+          ((str(milliseconds) + "ms, ") if milliseconds else "")
+    return tmp[:-2]
+
+# Function to convert bytes to a human-readable format
+def humanbytes(size):
+    if not size:
+        return ""
+    power = 2**10
+    n = 0
+    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+    while size > power:
+        size /= power
+        n += 1
+    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
+"""
 
 # Command handler for /mirror
 @Client.on_message(filters.private & filters.command("mirror"))
