@@ -1652,7 +1652,7 @@ async def gofile_download(bot, msg: Message):
 
     try:
         async with aiohttp.ClientSession() as session:
-            # Get file information from Gofile
+            # Fetch file information from Gofile
             async with session.get(f"https://api.gofile.io/getContent?contentId={file_id}&token={GOFILE_API_KEY}") as resp:
                 if resp.status != 200:
                     return await sts.edit(f"Failed to get file information. Status code: {resp.status}")
@@ -1661,19 +1661,9 @@ async def gofile_download(bot, msg: Message):
                 if data["status"] != "ok":
                     return await sts.edit(f"Error: {data['message']}")
 
-                file_info = data.get("data", {}).get("contents")
-                if not file_info:
-                    return await sts.edit("No file information found.")
-
-                download_link = list(file_info.values())[0].get("link")
-                file_name = list(file_info.values())[0].get("name")
-
-                if not download_link or not file_name:
-                    return await sts.edit("Download link or file name not found.")
-
-            # Ensure the download directory exists
-            if not os.path.exists(DOWNLOAD_LOCATION):
-                os.makedirs(DOWNLOAD_LOCATION)
+                file_info = data["data"]["contents"]
+                download_link = list(file_info.values())[0]["link"]
+                file_name = list(file_info.values())[0]["name"]
 
             # Download the file
             c_time = time.time()
@@ -1692,11 +1682,37 @@ async def gofile_download(bot, msg: Message):
 
             await sts.edit(f"File downloaded successfully!\nFile path: {downloaded_file}")
 
-            # Sending the downloaded file to the chat
-            await bot.send_document(msg.chat.id, document=downloaded_file, caption=f"Downloaded {file_name}")
+            # Upload the file to Telegram
+            await upload_to_telegram(bot, msg, downloaded_file)
 
     except Exception as e:
         await sts.edit(f"Error during download: {e}")
+
+    finally:
+        try:
+            if os.path.exists(downloaded_file):
+                os.remove(downloaded_file)
+        except Exception as e:
+            print(f"Error deleting file: {e}")
+
+async def upload_to_telegram(bot, msg, file_path):
+    sts = await msg.reply_text("📤 Uploading to Telegram...")
+
+    try:
+        await bot.send_document(
+            chat_id=msg.chat.id,
+            document=file_path,
+            caption=f"Uploaded via Gofile link leech",
+            progress=progress_message,
+            progress_args=("📤 Upload in Progress...", sts, time.time())
+        )
+        await sts.edit("File uploaded successfully!")
+
+    except RPCError as e:
+        await sts.edit(f"Upload failed: {e}")
+
+    except Exception as e:
+        await sts.edit(f"Upload failed: {e}")
 
 
 
