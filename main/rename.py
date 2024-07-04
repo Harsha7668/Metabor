@@ -31,11 +31,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 """
-
 import os
 import pickle
 import time
-import math
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -1960,15 +1958,14 @@ def authenticate_google_drive():
 creds = authenticate_google_drive()
 drive_service = build('drive', 'v3', credentials=creds)
 
-# Variables to store Google Drive folder ID and Index URL
+# Variables to store Google Drive folder ID
 GDRIVE_FOLDER_ID = None
-INDEX_URL = None
 
 
 # Command handler for /mirror
 @Client.on_message(filters.private & filters.command("mirror"))
 async def mirror_to_google_drive(bot, msg: Message):
-    global GDRIVE_FOLDER_ID, INDEX_URL
+    global GDRIVE_FOLDER_ID
     RENAME_ENABLED = True  # Set this according to your logic
     DOWNLOAD_LOCATION = "downloads"  # Set your download location
     CAPTION = "Uploaded File: {file_name}\nSize: {file_size}"  # Caption template
@@ -2021,20 +2018,21 @@ async def mirror_to_google_drive(bot, msg: Message):
 
         # Prepare caption for the uploaded file
         if CAPTION:
-            caption_text = CAPTION.format(file_name=new_name, file_size=filesize)
+            caption_text = CAPTION.format(file_name=new_name, file_size=humanbytes(filesize))
         else:
-            caption_text = f"Uploaded File: {new_name}\nSize: {filesize}"
+            caption_text = f"Uploaded File: {new_name}\nSize: {humanbytes(filesize)}"
 
-        # Send the Google Drive link and Index URL to the user
+        # Send the Google Drive link to the user
+        button = [
+            [InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]
+        ]
         await msg.reply_text(
             f"File successfully renamed and uploaded to Google Drive!\n\n"
-            f"Your drive link: [View File]({file_link})\n\n"
-            f"Index URL: [{new_name}]({INDEX_URL}/{new_name})\n\n"
+            f"Google Drive Link: [View File]({file_link})\n\n"
             f"Uploaded File: {new_name}\n"
             f"Size: {humanbytes(filesize)}",
-            disable_web_page_preview=True,
+            reply_markup=InlineKeyboardMarkup(button)
         )
-
         os.remove(downloaded_file)
         await sts.delete()
 
@@ -2049,20 +2047,7 @@ async def setup_gdrive_id(bot, msg: Message):
         return await msg.reply_text("Please provide a Google Drive folder ID after the command.")
 
     GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
-
     await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
-
-# Command handler for /indexurlsetup
-@Client.on_message(filters.private & filters.command("indexurlsetup"))
-async def setup_index_url(bot, msg: Message):
-    global INDEX_URL
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide an Index URL after the command.")
-
-    INDEX_URL = msg.text.split(" ", 1)[1]
-
-    await msg.reply_text(f"Index URL set to: {INDEX_URL}")
-
 
 
 
