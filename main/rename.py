@@ -31,6 +31,9 @@ merge_state = {}
 
 user_settings = {}
 
+# Initialize Gofile API key variable
+GOFILE_API_KEY = ""
+
 # Initialize global settings variables
 METADATA_ENABLED = True 
 PHOTO_ATTACH_ENABLED = True
@@ -256,6 +259,7 @@ async def screenshots_option(client, callback_query: CallbackQuery):
         [InlineKeyboardButton("Back", callback_data="back_to_settings")]
     ])
     await callback_query.message.edit_text(f"Screenshots Settings\nCurrent number: {current_screenshots}", reply_markup=keyboard)
+    
 @Client.on_callback_query(filters.regex("^set_screenshots_"))
 async def set_screenshots(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
@@ -285,6 +289,18 @@ async def inline_preview_metadata_callback(_, callback_query):
                    f"Subtitle Title: {titles.get('subtitle_title', '')}"
     await callback_query.message.reply_text(f"Current Metadata Titles:\n\n{preview_text}")
 
+# Inline query handler to preview the Gofile API key
+@Client.on_callback_query(filters.regex("^preview_gofilekey$"))
+async def inline_preview_gofile_api_key(bot, callback_query):
+    global GOFILE_API_KEY
+    
+    # Check if the API key is set
+    if not GOFILE_API_KEY:
+        return await callback_query.message.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
+    
+    # Reply with the current API key
+    await callback_query.message.reply_text(f"Current Gofile API Key: {GOFILE_API_KEY}")
+    
 # Inline query handler for attaching photo
 @Client.on_callback_query(filters.regex("^attach_photo$"))
 async def inline_attach_photo_callback(_, callback_query):
@@ -480,6 +496,22 @@ async def set_metadata_command(client, msg):
     }
     
     await msg.reply_text("Metadata titles set successfully ✅.")
+
+# Command to set up Gofile API key
+@Client.on_message(filters.private & filters.command("gofilesetup"))
+async def gofile_setup(bot, msg: Message):
+    global GOFILE_API_KEY  # Use global to modify the variable outside the function scope
+
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide your Gofile API key.")
+
+    # Extract the API key from the command
+    new_api_key = msg.command[1]
+
+    # Set the API key and confirm
+    GOFILE_API_KEY = new_api_key
+    await msg.reply_text("Gofile API key set successfully✅!")
+    
 
 #Rename Command
 @Client.on_message(filters.private & filters.command("rename"))
@@ -1583,6 +1615,79 @@ async def set_photo(bot, msg):
     except Exception as e:
         await msg.reply_text(f"Error saving photo: {e}")
 
+# Command to upload to Gofile
+@Client.on_message(filters.private & filters.command("gofile"))
+async def gofile_upload(bot, msg: Message):
+    global GOFILE_API_KEY
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a file or video to upload to Gofile.")
+
+    media = reply.document or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid file or video.")
+
+    args = msg.text.split(" ", 1)
+    if len(args) == 2:
+        custom_name = args[1]
+    else:
+        custom_name = media.file_name
+
+    sts = await msg.reply_text("🚀 Uploading to Gofile...")
+    c_time = time.time()
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Ensure GOFILE_API_KEY is set
+            if not GOFILE_API_KEY:
+                return await sts.edit("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
+
+            # Get the server to upload the file
+            async with session.get("https://api.gofile.io/getServer") as resp:
+                if resp.status != 200:
+                    return await sts.edit(f"Failed to get server. Status code: {resp.status}")
+
+                data = await resp.json()
+                server = data["data"]["server"]
+
+            # Download the media file
+            downloaded_file = await bot.download_media(
+                media,
+                file_name=os.path.join(DOWNLOAD_LOCATION, custom_name),
+                progress=progress_message,
+                progress_args=("🚀 Download Started...", sts, c_time)
+            )
+
+            # Upload the file to Gofile
+            with open(downloaded_file, "rb") as file:
+                form_data = aiohttp.FormData()
+                form_data.add_field("file", file, filename=custom_name)
+                form_data.add_field("token", GOFILE_API_KEY)
+
+                async with session.post(
+                    f"https://{server}.gofile.io/uploadFile",
+                    data=form_data
+                ) as resp:
+                    if resp.status != 200:
+                        return await sts.edit(f"Upload failed: Status code {resp.status}")
+
+                    response = await resp.json()
+                    if response["status"] == "ok":
+                        download_url = response["data"]["downloadPage"]
+                        await sts.edit(f"Upload successful!\nDownload link: {download_url}")
+                    else:
+                        await sts.edit(f"Upload failed: {response['message']}")
+
+    except Exception as e:
+        await sts.edit(f"Error during upload: {e}")
+
+    finally:
+        try:
+            if os.path.exists(downloaded_file):
+                os.remove(downloaded_file)
+        except Exception as e:
+            print(f"Error deleting file: {e}")
 
 """
 
