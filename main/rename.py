@@ -1795,6 +1795,7 @@ async def gofile_upload(bot, msg: Message):
 
 
 
+
 # If modifying these SCOPES, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
@@ -1804,7 +1805,7 @@ def authenticate_google_drive():
     # created automatically when the authorization flow completes for the first time.
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
-            creds = Credentials.from_authorized_user(token, SCOPES)
+            creds = Credentials.from_authorized_user_info(pickle.load(token), SCOPES)
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -1815,7 +1816,7 @@ def authenticate_google_drive():
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
         with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
+            pickle.dump(creds.to_json(), token)
     return creds
 
 creds = authenticate_google_drive()
@@ -1826,7 +1827,7 @@ drive = GoogleDrive(gauth)
 
 
 # Command handler for /rename
-@Client.on_message(filters.private & filters.command("mirror"))
+@Client.on_message(filters.private & filters.command("rename"))
 async def rename_and_upload(bot, msg: Message):
     global RENAME_ENABLED
 
@@ -1885,7 +1886,6 @@ async def setup_gdrive_id(bot, msg: Message):
     # Save the file_id or process it as needed for your bot's logic
 
     await msg.reply_text(f"Google Drive ID set to: {file_id}")
-
 
 
 if __name__ == '__main__':
