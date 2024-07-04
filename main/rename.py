@@ -530,7 +530,7 @@ async def gofile_setup(bot, msg: Message):
     GOFILE_API_KEY = new_api_key
     await msg.reply_text("Gofile API key set successfully✅!")
     
-
+"""
 #Rename Command
 @Client.on_message(filters.private & filters.command("rename"))
 async def rename_file(bot, msg: Message):
@@ -591,7 +591,7 @@ async def rename_file(bot, msg: Message):
     except Exception:
         pass
 
-    await sts.delete()
+    await sts.delete()"""
 
 #MultiTask Command 
 @Client.on_message(filters.private & filters.command("multitask"))
@@ -2050,6 +2050,103 @@ async def setup_gdrive_id(bot, msg: Message):
     await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
 
 
+
+
+# Command handler for /rename
+@Client.on_message(filters.private & filters.command("rename"))
+async def rename_file(bot, msg: Message):
+    global GDRIVE_FOLDER_ID
+    RENAME_ENABLED = True  # Set this according to your logic
+    DOWNLOAD_LOCATION = "downloads"  # Set your download location
+    CAPTION = "Uploaded File: {file_name}\nSize: {file_size}"  # Caption template
+
+    if not RENAME_ENABLED:
+        return await msg.reply_text("The rename feature is currently disabled.")
+
+    if not GDRIVE_FOLDER_ID:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    reply = msg.reply_to_message
+    if len(msg.command) < 2 or not reply:
+        return await msg.reply_text("Please reply to a file with the new filename and extension (e.g., .mkv, .mp4, .zip).")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a file with the new filename and extension (e.g., .mkv, .mp4, .zip).")
+
+    new_name = msg.text.split(" ", 1)[1]
+    download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
+
+    try:
+        # Show progress message for downloading
+        sts = await msg.reply_text("🚀 Downloading... ⚡")
+        
+        # Download the file
+        downloaded_file = await bot.download_media(message=reply, file_name=download_path, progress=progress_message, progress_args=("Downloading", sts, time.time()))
+        filesize = os.path.getsize(downloaded_file)
+        
+        if filesize <= 2 * 1024 * 1024 * 1024:  # 2GB
+            await upload_to_telegram(bot, msg, downloaded_file, new_name, filesize, sts)
+        else:
+            await upload_to_google_drive(bot, msg, downloaded_file, new_name, filesize, sts)
+
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+async def upload_to_telegram(bot, msg, downloaded_file, new_name, filesize, sts):
+    await sts.edit("💠 Uploading to Telegram... ⚡")
+    try:
+        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+        og_thumbnail = None
+        if os.path.exists(thumbnail_path):
+            og_thumbnail = thumbnail_path
+        else:
+            og_thumbnail = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path) if hasattr(media, 'thumbs') and media.thumbs else None
+
+        caption = f"{new_name}\n\n🌟 Size: {humanbytes(filesize)}"
+        await bot.send_document(msg.from_user.id, document=downloaded_file, thumb=og_thumbnail, caption=caption, progress=progress_message, progress_args=("Uploading", sts, time.time()))
+        await msg.reply_text(
+            f"File renamed and uploaded to Telegram!\n\n"
+            f"📥 **File Name:** {new_name}\n"
+            f"💾 **Size:** {humanbytes(filesize)}\n"
+            f"♻️ **Mode:** Rename\n"
+            f"🚹 **Request User:** {msg.from_user.mention}\n\n"
+            f"❄ **File has been sent in Bot PM!**"
+        )
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+    os.remove(downloaded_file)
+
+async def upload_to_google_drive(bot, msg, downloaded_file, new_name, filesize, sts):
+    await sts.edit("💠 Uploading to Google Drive... ⚡")
+    try:
+        start_time = time.time()
+        file_metadata = {'name': new_name, 'parents': [GDRIVE_FOLDER_ID]}
+        media = MediaFileUpload(downloaded_file, resumable=True)
+        request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                current_progress = status.progress() * 100
+                await progress_message(current_progress, 100, "Uploading to Google Drive", sts, start_time)
+
+        file_id = response.get('id')
+        file_link = response.get('webViewLink')
+
+        caption = f"Uploaded File: {new_name}\nSize: {humanbytes(filesize)}"
+        await msg.reply_text(
+            f"File renamed and uploaded to Google Drive!\n\n"
+            f"📥 **File Name:** {new_name}\n"
+            f"💾 **Size:** {humanbytes(filesize)}\n"
+            f"🔗 **Drive Link:** [View File]({file_link})\n"
+        )
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+    os.remove(downloaded_file)
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
