@@ -22,9 +22,20 @@ import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
 
 DOWNLOAD_LOCATION1 = "./screenshots"
-"""
-GOFILE_API_KEY = "cA1IG8RSsuURhOEjIYAQu9J6i3AUGtyJ"  # Your Gofile API key
-"""
+
+
+
+
+from datetime import datetime
+import time
+import os
+
+from helper_funcs import gdriveTools
+from helper_funcs.bot_utils import sanitize_file_name, sanitize_text, get_readable_file_size
+from helper_funcs.display_progress import progress_for_pyrogram
+from plugins.gdriveupload import get_path_size
+from translation import Translation
+
 
 # Global dictionary to store user settings
 merge_state = {}
@@ -1784,110 +1795,91 @@ async def gofile_upload(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
 
-# Initialize Streamtape API key and login credentials variables
-STREAMTAPE_API_KEY = ""
-STREAMTAPE_LOGIN = ""
-STREAMTAPE_PASSWORD = ""
 
-# Command to set up Streamtape login email
-@Client.on_message(filters.command("streamtapeemail") & filters.chat(AUTH_USERS))
-async def streamtape_setup_email(bot, msg: Message):
-    global STREAMTAPE_LOGIN
 
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide your Streamtape email.")
 
-    STREAMTAPE_LOGIN = msg.command[1].strip()
-    await msg.reply_text("Streamtape email set successfully!")
-
-# Command to set up Streamtape password
-@Client.on_message(filters.command("streamtapepassword") & filters.chat(AUTH_USERS))
-async def streamtape_setup_password(bot, msg: Message):
-    global STREAMTAPE_PASSWORD
-
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide your Streamtape password.")
-
-    STREAMTAPE_PASSWORD = msg.command[1].strip()
-    await msg.reply_text("Streamtape password set successfully!")
-
-# Command to set up Streamtape API key
-@Client.on_message(filters.command("streamtapeapikey") & filters.chat(AUTH_USERS))
-async def streamtape_setup_apikey(bot, msg: Message):
-    global STREAMTAPE_API_KEY
-
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide your Streamtape API key.")
-
-    STREAMTAPE_API_KEY = msg.command[1].strip()
-    await msg.reply_text("Streamtape API key set successfully!")
-
-# Command to upload to Streamtape
-@Client.on_message(filters.command("streamtape") & filters.chat(AUTH_USERS))
-async def streamtape_upload(bot, msg: Message):
-    global STREAMTAPE_API_KEY, STREAMTAPE_LOGIN, STREAMTAPE_PASSWORD
+@Client.on_message(filters.private & filters.command("mirror"))
+async def mirror_to_gdrive_upload(bot, msg):
+    global RENAME_ENABLED
+    if not RENAME_ENABLED:
+        return await msg.reply_text("The mirror feature is currently disabled.")
 
     reply = msg.reply_to_message
     if not reply:
-        return await msg.reply_text("Please reply to a file or video to upload to Streamtape.")
+        return await msg.reply_text("Please reply to a file, video, or audio to mirror.")
 
-    media = reply.document or reply.video
+    media = reply.document or reply.audio or reply.video
     if not media:
-        return await msg.reply_text("Please reply to a valid file or video.")
+        return await msg.reply_text("Please reply to a file, video, or audio to mirror.")
 
-    args = msg.text.split(" ", 1)
-    custom_name = args[1] if len(args) == 2 else media.file_name
-
-    sts = await msg.reply_text("🚀 Uploading to Streamtape...")
     c_time = time.time()
+    download_location = DOWNLOAD_LOCATION + "/"
+    reply_message = await msg.reply_text(Translation.DOWNLOAD_START)
+
+    # Downloading the file
+    try:
+        the_real_download_location = await bot.download_media(
+            message=reply,
+            file_name=download_location,
+            progress=progress_for_pyrogram,
+            progress_args=(Translation.DOWNLOAD_START, reply_message, c_time)
+        )
+    except Exception as e:
+        return await reply_message.edit_text("Failed to download the file.")
+
+    # Renaming the file if specified
+    txt = msg.text
+    if txt.find("rename") > -1 and len(txt[txt.find("rename") + 7:]) > 0:
+        custom_file_name = txt[txt.find("rename") + 7:]
+        custom_file_name = await sanitize_file_name(custom_file_name)
+        custom_file_name = await sanitize_text(custom_file_name)
+        new_file_name = download_location + custom_file_name
+        os.rename(the_real_download_location, new_file_name)
+        the_real_download_location = new_file_name
+
+    download_directory = the_real_download_location
+    if os.path.exists(download_directory):
+        try:
+            await reply_message.edit_text("Download completed! Uploading to your Cloud...")
+        except:
+            pass
+
+        # Uploading to Google Drive
+        up_name = os.path.basename(download_directory)
+        size = get_readable_file_size(get_path_size(download_directory))
+
+        drive = gdriveTools.GoogleDriveHelper(up_name)
+        gd_url, index_url = drive.upload(download_directory)
+
+        # Creating buttons for the uploaded links
+        button = []
+        button.append([pyrogram.types.InlineKeyboardButton(text="☁️ CloudUrl ☁️", url=f"{gd_url}")])
+        if Config.INDEX_URL:
+            button.append([pyrogram.types.InlineKeyboardButton(text="ℹ️ IndexUrl ℹ️", url=f"{index_url}")])
+
+        button_markup = pyrogram.types.InlineKeyboardMarkup(button)
+
+        # Sending the upload confirmation message
+        try:
+            await bot.send_message(
+                chat_id=msg.chat.id,
+                text=f"🤖: <b>{up_name}</b> has been uploaded successfully to your Cloud! \n📀 Size: {size}",
+                reply_to_message_id=msg.message_id,
+                reply_markup=button_markup
+            )
+            if Config.INDEX_URL:
+                await generate_short_link(reply_message, index_url, up_name)
+            await reply_message.delete()
+        except:
+            pass
+
+    else:
+        await reply_message.edit_text("File not found or download failed.")
 
     try:
-        async with aiohttp.ClientSession() as session:
-            if not STREAMTAPE_API_KEY or not STREAMTAPE_LOGIN or not STREAMTAPE_PASSWORD:
-                return await sts.edit("Streamtape API key and login credentials are not set. Use /streamtapeemail, /streamtapepassword, and /streamtapeapikey to set them.")
-
-            downloaded_file = await bot.download_media(
-                media,
-                file_name=os.path.join(DOWNLOAD_LOCATION, custom_name),
-                progress=progress_message,
-                progress_args=("🚀 Download Started...", sts, c_time)
-            )
-
-            async with session.get(f"https://api.streamtape.com/file/ul?login={STREAMTAPE_LOGIN}&key={STREAMTAPE_API_KEY}") as resp:
-                if resp.status != 200:
-                    return await sts.edit(f"Failed to get upload URL. Status code: {resp.status}")
-
-                response = await resp.json()
-                if "result" not in response:
-                    return await sts.edit(f"Failed to get upload URL. Response: {response}")
-
-                upload_url = response["result"]["url"]
-
-            with open(downloaded_file, "rb") as file:
-                form_data = aiohttp.FormData()
-                form_data.add_field("file1", file, filename=custom_name)
-
-                async with session.post(upload_url, data=form_data) as resp:
-                    if resp.status != 200:
-                        return await sts.edit(f"Upload failed: Status code {resp.status}")
-
-                    response = await resp.json()
-                    if response["status"] == 200:
-                        download_url = response["result"]["url"]
-                        await sts.edit(f"Upload successful!\nDownload link: {download_url}")
-                    else:
-                        await sts.edit(f"Upload failed: {response['msg']}")
-
-    except Exception as e:
-        await sts.edit(f"Error during upload: {e}")
-
-    finally:
-        try:
-            if os.path.exists(downloaded_file):
-                os.remove(downloaded_file)
-        except Exception as e:
-            print(f"Error deleting file: {e}")
-
+        os.remove(download_directory)
+    except:
+        pass
 
 
 
