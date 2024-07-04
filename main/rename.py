@@ -1966,44 +1966,6 @@ GDRIVE_FOLDER_ID = None
 INDEX_URL = None
 
 
-# Function to send progress message with progress bar
-async def progress_message1(current, total, ud_type, message, start):
-    now = time.time()
-    diff = now - start
-    if round(diff % 1.00) == 0 or current == total:
-        percentage = current * 100 / total
-        speed = humanbytes(current / diff) + "/s"
-        elapsed_time_ms = round(diff * 1000)
-        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
-        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
-
-        elapsed_time = TimeFormatter(elapsed_time_ms)
-        estimated_total_time = TimeFormatter(estimated_total_time_ms)
-
-        progress_bar = generate_progress_bar(percentage)
-
-        try:
-            await message.edit(
-                text=f"🚀 {ud_type}...\n\n"
-                     f"╭───[•PROGRESS BAR•]───⍟\n"
-                     f"{progress_bar}\n"
-                     f"├📁 PROCESS: {humanbytes(current)} | {humanbytes(total)}\n"
-                     f"├🚀 PERCENT: {round(percentage, 2)}%\n"
-                     f"├⚡ SPEED: {speed}\n"
-                     f"├⏱️ ETA: {estimated_total_time if estimated_total_time != '' else '0 s'}\n"
-                     f"╰─────────────────⍟",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Join Us 🌟", url="https://t.me/Sunrises24botupdates")]])
-            )
-        except Exception as e:
-            print(f"Error editing message: {e}")
-
-# Function to generate a progress bar
-def generate_progress_bar(percentage):
-    blocks = 20
-    completed_blocks = math.floor(percentage / (100 / blocks))
-    progress = "├" + "■" * completed_blocks + "□" * (blocks - completed_blocks) + "⍟"
-    return progress
-
 
 
 # Command handler for /mirror
@@ -2036,7 +1998,7 @@ async def mirror_to_google_drive(bot, msg: Message):
         sts = await msg.reply_text("🚀 Downloading...")
         
         # Download the file
-        downloaded_file = await bot.download_media(message=reply, file_name=download_path, progress=progress_message1, progress_args=("Downloading", sts, time.time()))
+        downloaded_file = await bot.download_media(message=reply, file_name=download_path, progress=progress_message, progress_args=("Downloading", sts, time.time()))
         filesize = os.path.getsize(downloaded_file)
         
         # Once downloaded, update the message to indicate uploading
@@ -2055,7 +2017,7 @@ async def mirror_to_google_drive(bot, msg: Message):
             status, response = request.next_chunk()
             if status:
                 current_progress = status.progress() * 100
-                await progress_message1(current_progress, 100, "Uploading to Google Drive", sts, start_time)
+                await progress_message(current_progress, 100, "Uploading to Google Drive", sts, start_time)
 
         file_id = response.get('id')
         file_link = response.get('webViewLink')
