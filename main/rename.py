@@ -53,7 +53,7 @@ RENAME_ENABLED = True
 REMOVETAGS_ENABLED = True
 CHANGE_INDEX_ENABLED = True 
 MERGE_ENABLED = True
-VIDEO_COMPRESS_ENABLED = True
+
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Command handler to start the interaction (only in admin)
@@ -1796,8 +1796,6 @@ async def gofile_upload(bot, msg: Message):
             print(f"Error deleting file: {e}")
 
 
-
-
 @Client.on_message(filters.private & filters.command("mirror"))
 async def mirror_to_gdrive_upload(bot, msg):
     global RENAME_ENABLED
@@ -1844,34 +1842,29 @@ async def mirror_to_gdrive_upload(bot, msg):
         except:
             pass
 
-        # Uploading to Google Drive
+        # Uploading to Google Drive using GoogleDriveHelper
         up_name = os.path.basename(download_directory)
         size = get_readable_file_size(get_path_size(download_directory))
 
-        drive = gdriveTools.GoogleDriveHelper(up_name)
-        gd_url, index_url = drive.upload(download_directory)
-
-        # Creating buttons for the uploaded links
-        button = []
-        button.append([pyrogram.types.InlineKeyboardButton(text="☁️ CloudUrl ☁️", url=f"{gd_url}")])
-        if Config.INDEX_URL:
-            button.append([pyrogram.types.InlineKeyboardButton(text="ℹ️ IndexUrl ℹ️", url=f"{index_url}")])
-
-        button_markup = pyrogram.types.InlineKeyboardMarkup(button)
-
-        # Sending the upload confirmation message
+        drive_helper = gdriveTools.GoogleDriveHelper(up_name)
         try:
+            gd_url = drive_helper.upload_file(
+                file_path=download_directory,
+                file_name=up_name,
+                mime_type=media.mime_type,
+                parent_id=None  # Replace with parent folder ID if needed
+            )
+
+            # Sending the upload confirmation message
             await bot.send_message(
                 chat_id=msg.chat.id,
-                text=f"🤖: <b>{up_name}</b> has been uploaded successfully to your Cloud! \n📀 Size: {size}",
-                reply_to_message_id=msg.message_id,
-                reply_markup=button_markup
+                text=f"🤖: <b>{up_name}</b> has been uploaded successfully to your Cloud! \n📀 Size: {size}\n🔗 Download Link: {gd_url}",
+                reply_to_message_id=msg.message_id
             )
-            if Config.INDEX_URL:
-                await generate_short_link(reply_message, index_url, up_name)
             await reply_message.delete()
-        except:
-            pass
+
+        except Exception as e:
+            await reply_message.edit_text(f"Failed to upload to Google Drive: {str(e)}")
 
     else:
         await reply_message.edit_text("File not found or download failed.")
