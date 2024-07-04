@@ -42,6 +42,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 
+
 DOWNLOAD_LOCATION1 = "./screenshots"
 
 # Global dictionary to store user settings
@@ -1963,6 +1964,7 @@ drive_service = build('drive', 'v3', credentials=creds)
 GDRIVE_FOLDER_ID = None
 
 
+
 # Command handler for /mirror
 @Client.on_message(filters.private & filters.command("mirror"))
 async def mirror_to_google_drive(bot, msg: Message):
@@ -2048,7 +2050,6 @@ async def setup_gdrive_id(bot, msg: Message):
     GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
 
     await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
-
 
 
 if __name__ == '__main__':
