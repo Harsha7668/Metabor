@@ -221,6 +221,7 @@ async def display_user_settings(client, msg, edit=False):
         [InlineKeyboardButton("Preview Metadata ✨", callback_data="preview_metadata")],
         [InlineKeyboardButton("Attach Photo 📎", callback_data="attach_photo"), 
          InlineKeyboardButton("Preview Photo ✨", callback_data="preview_photo")],
+        [InlineKeyboardButton("Preview Gofile API Key 🔗", callback_data="preview_gofilekey")],
         [InlineKeyboardButton("Preview Attach Photo task 🖼️", callback_data="preview_photo_attach_task")],
         [InlineKeyboardButton("Preview Multi task 📑", callback_data="preview_multitask")],
         [InlineKeyboardButton("Preview Rename task 📝", callback_data="preview_rename_task")],
@@ -357,6 +358,21 @@ async def inline_preview_removetags_task_callback(_, callback_query):
     global REMOVETAGS_ENABLED
     status_text = "Remove Tags is enabled." if REMOVETAGS_ENABLED else "Remove Tags is disabled."
     await callback_query.message.reply_text(status_text)
+
+
+
+
+# Inline query handler to preview the Gofile API key
+@Client.on_callback_query(filters.regex("^preview_gofilekey$"))
+async def preview_api_key(bot, msg: Message):
+    global GOFILE_API_KEY
+    
+    # Check if the API key is set
+    if not GOFILE_API_KEY:
+        return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
+    
+    # Reply with the current API key
+    await msg.reply_text(f"Current Gofile API Key: {GOFILE_API_KEY}")
 
 
 # Inline query handler for previewing multitask status
