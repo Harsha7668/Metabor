@@ -1679,8 +1679,55 @@ async def gofile_download(bot, msg: Message):
 
                 await sts.edit(f"File downloaded successfully!\nFile path: {downloaded_file}")
 
+                # Now upload the downloaded file
+                filesize = os.path.getsize(downloaded_file)
+                filesize_human = humanbytes(filesize)
+                caption = f"{file_name}\n\n🌟 Size: {filesize_human}"
+
+                thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+                file_thumb = None
+                if not os.path.exists(thumbnail_path):
+                    try:
+                        file_thumb = await bot.download_media(msg.reply_to_message.thumbs[0].file_id, file_name=thumbnail_path)
+                    except Exception as e:
+                        print(f"Error downloading thumbnail: {e}")
+                else:
+                    file_thumb = thumbnail_path
+
+                sts_upload = await msg.reply_text("💠 Uploading...")
+                c_time = time.time()
+                try:
+                    await bot.send_document(
+                        chat_id=msg.chat.id,
+                        document=downloaded_file,
+                        thumb=file_thumb,
+                        caption=caption,
+                        progress=progress_message1,
+                        progress_args=("💠 Upload Started...", sts_upload, c_time)
+                    )
+                except RPCError as e:
+                    await sts_upload.edit(f"Upload failed: {e}")
+                except TimeoutError as e:
+                    await sts_upload.edit(f"Upload timed out: {e}")
+                finally:
+                    if file_thumb and os.path.exists(file_thumb):
+                        os.remove(file_thumb)
+                    if os.path.exists(downloaded_file):
+                        os.remove(downloaded_file)
+                    await sts_upload.delete()
+
     except Exception as e:
         await sts.edit(f"Error: {e}")
+
+async def progress_message1(current, total, status, message, start_time):
+    # Update the progress message
+    elapsed_time = time.time() - start_time
+    progress = f"{current}/{total} ({current / total * 100:.2f}%)"
+    new_text = f"{status}\nProgress: {progress}\nElapsed Time: {elapsed_time:.2f} seconds"
+    try:
+        await message.edit(new_text)
+    except MessageNotModified:
+        pass
 
 
 
