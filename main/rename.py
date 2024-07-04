@@ -1790,33 +1790,28 @@ async def gofile_upload(bot, msg: Message):
             print(f"Error deleting file: {e}")
 
 
-# Google Drive authentication setup
+
+
+# Initialize Google Drive authentication
 gauth = GoogleAuth()
-# Try to load saved credentials
-gauth.LoadCredentialsFile("token.pickle")
-if gauth.credentials is None:
-    # Authenticate using local web server if no valid credentials found
-    gauth.LocalWebserverAuth()
-elif gauth.access_token_expired:
-    # Refresh the token if it's expired
-    gauth.Refresh()
-else:
-    # Initialize with the saved credentials
-    gauth.Authorize()
 
-# Save the current credentials to token.pickle
-gauth.SaveCredentialsFile("token.pickle")
+# Try to load saved credentials from token.pickle
+try:
+    with open('token.pickle', 'rb') as token_file:
+        credentials = pickle.load(token_file)
+        gauth.credentials = credentials
+except FileNotFoundError:
+    # Handle missing token file as needed
+    print("Token file 'token.pickle' not found. Please authenticate using GoogleAuth.")
 
+# Initialize GoogleDrive instance with authenticated credentials
 drive = GoogleDrive(gauth)
 
 
 # Command handler for /rename
 @Client.on_message(filters.private & filters.command("rename"))
-async def rename_and_upload(bot, msg: Message):
-    RENAME_ENABLED = True  # Set this according to your logic
-    DOWNLOAD_LOCATION = "downloads"  # Set your download location
-    CAPTION = "Uploaded File: {file_name}\nSize: {file_size}"  # Caption template
-
+async def rename_and_upload(bot, msg: Message):    
+    global RENAME_ENABLED
     if not RENAME_ENABLED:
         return await msg.reply_text("The rename feature is currently disabled.")
 
