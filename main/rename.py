@@ -1641,8 +1641,6 @@ async def gofileupload(bot, msg: Message):
 """
 
 
-
-
 # Initialize Gofile API key variable
 GOFILE_API_KEY = ""
 
