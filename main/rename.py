@@ -35,11 +35,13 @@ from pyrogram.types import Message
 
 import os
 import pickle
+import time
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+
 
 
 DOWNLOAD_LOCATION1 = "./screenshots"
@@ -1959,16 +1961,16 @@ def authenticate_google_drive():
 creds = authenticate_google_drive()
 drive_service = build('drive', 'v3', credentials=creds)
 
-# Variable to store Google Drive folder ID
+# Variables to store Google Drive folder ID and Index URL
 GDRIVE_FOLDER_ID = None
+INDEX_URL = None
 
 
-"""
 # Function to send progress message with progress bar
-async def progress_message(current, total, ud_type, message, start):
+async def progress_message1(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
-    if round(diff % 5.00) == 0 or current == total:
+    if round(diff % 1.00) == 0 or current == total:
         percentage = current * 100 / total
         speed = humanbytes(current / diff) + "/s"
         elapsed_time_ms = round(diff * 1000)
@@ -1982,14 +1984,14 @@ async def progress_message(current, total, ud_type, message, start):
 
         try:
             await message.edit(
-                text=f"🚀 Download Started... ⚡️\n\n"
+                text=f"🚀 {ud_type}...\n\n"
                      f"╭───[•PROGRESS BAR•]───⍟\n"
-                     f"{progress_bar}\n\n"
-                     f"├📁 PROCESS : {humanbytes(current)} | {humanbytes(total)}\n"
-                     f"├🚀 PERCENT : {round(percentage, 2)}%\n"
-                     f"├⚡ SPEED : {speed}\n"
-                     f"├⏱️ ETA : {estimated_total_time if estimated_total_time != '' else '0 s'}\n"
-                     f"\n╰─────────────────⍟",
+                     f"{progress_bar}\n"
+                     f"├📁 PROCESS: {humanbytes(current)} | {humanbytes(total)}\n"
+                     f"├🚀 PERCENT: {round(percentage, 2)}%\n"
+                     f"├⚡ SPEED: {speed}\n"
+                     f"├⏱️ ETA: {estimated_total_time if estimated_total_time != '' else '0 s'}\n"
+                     f"╰─────────────────⍟",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Join Us 🌟", url="https://t.me/Sunrises24botupdates")]])
             )
         except Exception as e:
@@ -1999,39 +2001,15 @@ async def progress_message(current, total, ud_type, message, start):
 def generate_progress_bar(percentage):
     blocks = 20
     completed_blocks = math.floor(percentage / (100 / blocks))
-    progress = "├" + "□" * completed_blocks + "□" * (blocks - completed_blocks) + "⍟"
+    progress = "├" + "■" * completed_blocks + "□" * (blocks - completed_blocks) + "⍟"
     return progress
 
-# Function to format time in a human-readable format
-def TimeFormatter(milliseconds: int) -> str:
-    seconds, milliseconds = divmod(milliseconds, 1000)
-    minutes, seconds = divmod(seconds, 60)
-    hours, minutes = divmod(minutes, 60)
-    days, hours = divmod(hours, 24)
-    tmp = ((str(days) + "d, ") if days else "") + \
-          ((str(hours) + "h, ") if hours else "") + \
-          ((str(minutes) + "m, ") if minutes else "") + \
-          ((str(seconds) + "s, ") if seconds else "") + \
-          ((str(milliseconds) + "ms, ") if milliseconds else "")
-    return tmp[:-2]
 
-# Function to convert bytes to a human-readable format
-def humanbytes(size):
-    if not size:
-        return ""
-    power = 2**10
-    n = 0
-    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
-    while size > power:
-        size /= power
-        n += 1
-    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
-"""
 
 # Command handler for /mirror
 @Client.on_message(filters.private & filters.command("mirror"))
 async def mirror_to_google_drive(bot, msg: Message):
-    global GDRIVE_FOLDER_ID
+    global GDRIVE_FOLDER_ID, INDEX_URL
     RENAME_ENABLED = True  # Set this according to your logic
     DOWNLOAD_LOCATION = "downloads"  # Set your download location
     CAPTION = "Uploaded File: {file_name}\nSize: {file_size}"  # Caption template
@@ -2058,7 +2036,7 @@ async def mirror_to_google_drive(bot, msg: Message):
         sts = await msg.reply_text("🚀 Downloading...")
         
         # Download the file
-        downloaded_file = await bot.download_media(message=reply, file_name=download_path)
+        downloaded_file = await bot.download_media(message=reply, file_name=download_path, progress=progress_message1, progress_args=("Downloading", sts, time.time()))
         filesize = os.path.getsize(downloaded_file)
         
         # Once downloaded, update the message to indicate uploading
@@ -2077,7 +2055,7 @@ async def mirror_to_google_drive(bot, msg: Message):
             status, response = request.next_chunk()
             if status:
                 current_progress = status.progress() * 100
-                await progress_message(current_progress, 100, "Uploading to Google Drive...", sts, start_time)
+                await progress_message1(current_progress, 100, "Uploading to Google Drive", sts, start_time)
 
         file_id = response.get('id')
         file_link = response.get('webViewLink')
@@ -2092,6 +2070,7 @@ async def mirror_to_google_drive(bot, msg: Message):
         await msg.reply_text(
             f"File successfully renamed and uploaded to Google Drive!\n\n"
             f"Your drive link: [View File]({file_link})\n\n"
+            f"Index URL: {INDEX_URL}/{new_name}\n\n"
             f"Uploaded File: {new_name}\n"
             f"Size: {humanbytes(filesize)}",
             disable_web_page_preview=True,
@@ -2113,6 +2092,18 @@ async def setup_gdrive_id(bot, msg: Message):
     GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
 
     await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
+
+# Command handler for /indexurlsetup
+@Client.on_message(filters.private & filters.command("indexurlsetup"))
+async def setup_index_url(bot, msg: Message):
+    global INDEX_URL
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide an Index URL after the command.")
+
+    INDEX_URL = msg.text.split(" ", 1)[1]
+
+    await msg.reply_text(f"Index URL set to: {INDEX_URL}")
+
 
 
 if __name__ == '__main__':
