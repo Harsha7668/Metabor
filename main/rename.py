@@ -1645,7 +1645,7 @@ MIRRORED_API_KEY = "7e012abfeb541850bc15350db73f8ff3"
 
 
 # Command to handle uploading to Mirrored.to
-@Client.on_message(filters.command("mirroredupload") & filters.chat(AUTH_USERS))
+@app.on_message(filters.command("mirroredupload") & filters.chat(AUTH_USERS))
 async def mirroredupload(bot, msg: Message):
     reply = msg.reply_to_message
     if not reply:
@@ -1682,7 +1682,8 @@ async def mirroredupload(bot, msg: Message):
                 data=form_data
             ) as resp:
                 if resp.status != 200:
-                    return await sts.edit(f"Upload failed: Status code {resp.status}")
+                    error_message = await resp.text()
+                    return await sts.edit(f"Upload failed: Status code {resp.status}\nDetails: {error_message}")
 
                 response = await resp.json()
                 if response["status"] == "success":
@@ -1693,6 +1694,7 @@ async def mirroredupload(bot, msg: Message):
 
     except Exception as e:
         await sts.edit(f"Error during upload: {e}")
+
 
 
 if __name__ == '__main__':
