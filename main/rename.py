@@ -1696,7 +1696,6 @@ async def mirroredupload(bot, msg: Message):
         await sts.edit(f"Error during upload: {e}")
 
 
-
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
