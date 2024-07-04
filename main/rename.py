@@ -21,7 +21,7 @@ from pyrogram.errors import RPCError, FloodWait
 import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
 
-
+"""
 import os
 import pickle
 import io
@@ -32,7 +32,19 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from pyrogram import Client, filters
 from pyrogram.types import Message
+"""
 
+import os
+import pickle
+import io
+import time
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+from pyrogram import Client, filters
+from pyrogram.types import Message
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
@@ -1795,7 +1807,7 @@ async def gofile_upload(bot, msg: Message):
             print(f"Error deleting file: {e}")
 
 
-
+"""
 # If modifying these SCOPES, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
@@ -1891,7 +1903,122 @@ async def setup_gdrive_id(bot, msg: Message):
     GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
 
     await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
+"""
 
+
+# If modifying these SCOPES, delete the file token.pickle.
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+# Function to authenticate Google Drive
+def authenticate_google_drive():
+    creds = None
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+    return creds
+
+# Authenticate and create the Drive service
+creds = authenticate_google_drive()
+drive_service = build('drive', 'v3', credentials=creds)
+
+
+# Variable to store Google Drive folder ID
+GDRIVE_FOLDER_ID = None
+
+
+# Command handler for /rename
+@Client.on_message(filters.private & filters.command("mirror"))
+async def rename_and_upload(bot, msg: Message):
+    global GDRIVE_FOLDER_ID
+    RENAME_ENABLED = True  # Set this according to your logic
+    DOWNLOAD_LOCATION = "downloads"  # Set your download location
+    CAPTION = "Uploaded File: {file_name}\nSize: {file_size}"  # Caption template
+
+    if not RENAME_ENABLED:
+        return await msg.reply_text("The rename feature is currently disabled.")
+
+    if not GDRIVE_FOLDER_ID:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    reply = msg.reply_to_message
+    if len(msg.command) < 2 or not reply:
+        return await msg.reply_text("Please reply to a file with the new filename and extension.")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a file with the new filename and extension.")
+
+    new_name = msg.text.split(" ", 1)[1]
+    download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
+
+    try:
+        sts = await msg.reply_text("🚀 Downloading...")
+        start_time = time.time()
+        downloaded_file = await bot.download_media(
+            message=reply, 
+            file_name=download_path,
+            progress=progress,
+            progress_args=(sts, start_time)
+        )
+        filesize = os.path.getsize(downloaded_file)
+        await sts.edit("💠 Uploading...")
+
+        # Upload file to Google Drive
+        file_metadata = {'name': new_name, 'parents': [GDRIVE_FOLDER_ID]}
+        media = MediaFileUpload(downloaded_file, resumable=True)
+        request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                await progress(status.resumable_progress, filesize, sts, start_time)
+
+        file_id = response.get('id')
+        file_link = response.get('webViewLink')
+
+        # Prepare caption for the uploaded file
+        if CAPTION:
+            caption_text = CAPTION.format(file_name=new_name, file_size=human_readable_size(filesize))
+        else:
+            caption_text = f"Uploaded File: {new_name}\nSize: {human_readable_size(filesize)}"
+
+        # Send file to user with caption
+        await bot.send_document(
+            chat_id=msg.from_user.id,
+            document=downloaded_file,
+            caption=caption_text,
+        )
+
+        await msg.reply_text(
+            f"File successfully renamed and uploaded to Google Drive!\n\n"
+            f"Your drive link: [View File]({file_link})\n\n"
+            f"Uploaded File: {new_name}\n"
+            f"Size: {human_readable_size(filesize)}"
+        )
+        os.remove(downloaded_file)
+        await sts.delete()
+
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+# Command handler for /gdriveid setup
+@Client.on_message(filters.private & filters.command("gdriveid"))
+async def setup_gdrive_id(bot, msg: Message):
+    global GDRIVE_FOLDER_ID
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a Google Drive folder ID after the command.")
+
+    GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
+
+    await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
 
 
 
