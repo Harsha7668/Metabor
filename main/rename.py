@@ -1661,12 +1661,15 @@ async def gofile_download(bot, msg: Message):
                 if data["status"] != "ok":
                     return await sts.edit(f"Error: {data['message']}")
 
-                file_info = data["data"]["contents"]
+                file_info = data.get("data", {}).get("contents")
                 if not file_info:
                     return await sts.edit("No file information found.")
 
-                download_link = list(file_info.values())[0]["link"]
-                file_name = list(file_info.values())[0]["name"]
+                download_link = list(file_info.values())[0].get("link")
+                file_name = list(file_info.values())[0].get("name")
+
+                if not download_link or not file_name:
+                    return await sts.edit("Download link or file name not found.")
 
             # Ensure the download directory exists
             if not os.path.exists(DOWNLOAD_LOCATION):
