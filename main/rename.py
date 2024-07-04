@@ -1794,8 +1794,6 @@ async def gofile_upload(bot, msg: Message):
 
 
 
-
-
 # If modifying these SCOPES, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
@@ -1805,7 +1803,7 @@ def authenticate_google_drive():
     # created automatically when the authorization flow completes for the first time.
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
-            creds = Credentials.from_authorized_user_info(pickle.load(token), SCOPES)
+            creds = pickle.load(token)
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -1816,7 +1814,7 @@ def authenticate_google_drive():
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
         with open('token.pickle', 'wb') as token:
-            pickle.dump(creds.to_json(), token)
+            pickle.dump(creds, token)
     return creds
 
 creds = authenticate_google_drive()
@@ -1826,13 +1824,20 @@ gauth.credentials = creds
 drive = GoogleDrive(gauth)
 
 
-# Command handler for /rename
-@Client.on_message(filters.private & filters.command("rename"))
-async def rename_and_upload(bot, msg: Message):
-    global RENAME_ENABLED
 
+# Variable to store Google Drive folder ID
+GDRIVE_FOLDER_ID = None
+
+# Command handler for /rename
+@Client.on_message(filters.private & filters.command("mirror"))
+async def rename_and_upload(bot, msg: Message):
+    global GDRIVE_FOLDER_ID
+    
     if not RENAME_ENABLED:
         return await msg.reply_text("The rename feature is currently disabled.")
+
+    if not GDRIVE_FOLDER_ID:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
 
     reply = msg.reply_to_message
     if len(msg.command) < 2 or not reply:
@@ -1852,7 +1857,7 @@ async def rename_and_upload(bot, msg: Message):
         await sts.edit("💠 Uploading...")
 
         # Upload file to Google Drive
-        file_drive = drive.CreateFile({'title': new_name})
+        file_drive = drive.CreateFile({'title': new_name, 'parents': [{'id': GDRIVE_FOLDER_ID}]})
         file_drive.SetContentFile(downloaded_file)
         file_drive.Upload()
 
@@ -1879,13 +1884,14 @@ async def rename_and_upload(bot, msg: Message):
 # Command handler for /gdriveid setup
 @Client.on_message(filters.private & filters.command("gdriveid"))
 async def setup_gdrive_id(bot, msg: Message):
+    global GDRIVE_FOLDER_ID
     if len(msg.command) < 2:
-        return await msg.reply_text("Please provide a Google Drive ID after the command.")
+        return await msg.reply_text("Please provide a Google Drive folder ID after the command.")
 
-    file_id = msg.text.split(" ", 1)[1]
-    # Save the file_id or process it as needed for your bot's logic
+    GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
 
-    await msg.reply_text(f"Google Drive ID set to: {file_id}")
+    await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
+
 
 
 if __name__ == '__main__':
