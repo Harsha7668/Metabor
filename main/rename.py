@@ -1785,11 +1785,12 @@ async def gofile_upload(bot, msg: Message):
             print(f"Error deleting file: {e}")
 
 
+
+
 # Initialize Streamtape API key and login credentials variables
 STREAMTAPE_API_KEY = ""
 STREAMTAPE_LOGIN = ""
 STREAMTAPE_PASSWORD = ""
-
 
 
 # Command to set up Streamtape API key and login credentials
@@ -1798,11 +1799,11 @@ async def streamtape_setup(bot, msg: Message):
     global STREAMTAPE_API_KEY, STREAMTAPE_LOGIN, STREAMTAPE_PASSWORD
 
     # Validate the input format
-    if len(msg.text.split("|")) != 3:
+    if len(msg.text.split(" | ")) != 4:
         return await msg.reply_text("Please provide your Streamtape API key, login, and password in the format: /streamtapesetup email | password | api_key")
 
-    # Split the message text by "|"
-    _, email, password, api_key = msg.text.split("|")
+    # Split the message text by " | "
+    command, email, password, api_key = msg.text.split(" | ")
 
     # Trim any extra spaces
     STREAMTAPE_LOGIN = email.strip()
@@ -1876,7 +1877,7 @@ async def streamtape_upload(bot, msg: Message):
                 os.remove(downloaded_file)
         except Exception as e:
             print(f"Error deleting file: {e}")
-
+            
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
