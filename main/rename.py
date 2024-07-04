@@ -1642,51 +1642,47 @@ async def gofileupload(bot, msg: Message):
 
 @Client.on_message(filters.command("gofiledownload") & filters.chat(AUTH_USERS))
 async def gofile_download(bot, msg: Message):
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide a Gofile link.")
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a file or video to upload to Gofile.")
 
-    gofile_link = msg.command[1]
-    file_id = gofile_link.split("/")[-1]
+    media = reply.document or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid file or video.")
 
-    sts = await msg.reply_text("🚀 Fetching file information from Gofile...")
+    sts = await msg.reply_text("🚀 Uploading to Gofile...")
+    c_time = time.time()
+
+    try:
+        downloaded_file = await media.download(file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name), progress=progress_message1, progress_args=("🚀 Download Started...", sts, c_time))
+    except RPCError as e:
+        return await sts.edit(f"Download failed: {e}")
 
     try:
         async with aiohttp.ClientSession() as session:
-            # Fetch file information from Gofile
-            async with session.get(f"https://api.gofile.io/getContent?contentId={file_id}&token={GOFILE_API_KEY}") as resp:
+            async with session.post("https://api.gofile.io/getServer") as resp:
                 if resp.status != 200:
-                    return await sts.edit(f"Failed to get file information. Status code: {resp.status}")
+                    return await sts.edit(f"Failed to get server. Status code: {resp.status}")
 
                 data = await resp.json()
-                if data["status"] != "ok":
-                    return await sts.edit(f"Error: {data['message']}")
+                server = data["data"]["server"]
 
-                file_info = data["data"]["contents"]
-                download_link = list(file_info.values())[0]["link"]
-                file_name = list(file_info.values())[0]["name"]
+            files = {"file": open(downloaded_file, "rb")}
+            headers = {"Authorization": GOFILE_API_KEY}  # Add API key to headers
 
-            # Download the file
-            c_time = time.time()
-            async with session.get(download_link) as resp:
+            async with session.post(f"https://{server}.gofile.io/uploadFile", data=files, headers=headers) as resp:
                 if resp.status != 200:
-                    return await sts.edit(f"Failed to download file. Status code: {resp.status}")
+                    return await sts.edit(f"Upload failed: Status code {resp.status}")
 
-                downloaded_file = os.path.join(DOWNLOAD_LOCATION, file_name)
-                with open(downloaded_file, "wb") as f:
-                    total_size = int(resp.headers.get("Content-Length", 0))
-                    downloaded = 0
-                    async for chunk in resp.content.iter_chunked(1024):
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        await progress_message(downloaded, total_size, "Downloading", sts, c_time)
-
-            await sts.edit(f"File downloaded successfully!\nFile path: {downloaded_file}")
-
-            # Upload the file to Telegram
-            await upload_to_telegram(bot, msg, downloaded_file)
+                response = await resp.json()
+                if response["status"] == "ok":
+                    download_url = response["data"]["downloadPage"]
+                    await sts.edit(f"Upload successful!\nDownload link: {download_url}")
+                else:
+                    await sts.edit(f"Upload failed: {response['message']}")
 
     except Exception as e:
-        await sts.edit(f"Error during download: {e}")
+        await sts.edit(f"Error during upload: {e}")
 
     finally:
         try:
@@ -1695,25 +1691,15 @@ async def gofile_download(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
 
-async def upload_to_telegram(bot, msg, file_path):
-    sts = await msg.reply_text("📤 Uploading to Telegram...")
-
+async def progress_message1(current, total, status, message, start_time):
+    # Update the progress message
+    elapsed_time = time.time() - start_time
+    progress = f"{current}/{total} ({current / total * 100:.2f}%)"
+    new_text = f"{status}\nProgress: {progress}\nElapsed Time: {elapsed_time:.2f} seconds"
     try:
-        await bot.send_document(
-            chat_id=msg.chat.id,
-            document=file_path,
-            caption=f"Uploaded via Gofile link leech",
-            progress=progress_message,
-            progress_args=("📤 Upload in Progress...", sts, time.time())
-        )
-        await sts.edit("File uploaded successfully!")
-
-    except RPCError as e:
-        await sts.edit(f"Upload failed: {e}")
-
-    except Exception as e:
-        await sts.edit(f"Upload failed: {e}")
-
+        await message.edit(new_text)
+    except MessageNotModified:
+        pass
 
 
 if __name__ == '__main__':
