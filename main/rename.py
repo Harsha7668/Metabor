@@ -1809,11 +1809,11 @@ drive = GoogleDrive(gauth)
 
 
 # Command handler for /rename
-@Client.on_message(filters.private & filters.command("rename"))
+@Client.on_message(filters.private & filters.command("mirror"))
 async def rename_and_upload(bot, msg: Message):    
     global RENAME_ENABLED
     if not RENAME_ENABLED:
-        return await msg.reply_text("The rename feature is currently disabled.")
+        return await msg.reply_text("The mirror feature is currently disabled.")
 
     reply = msg.reply_to_message
     if len(msg.command) < 2 or not reply:
