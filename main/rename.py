@@ -1982,16 +1982,16 @@ async def rename_and_upload(bot, msg: Message):
         while response is None:
             status, response = request.next_chunk()
             if status:
-                await progress(status.resumable_progress, filesize, sts, start_time)
+                await progress_message(status.resumable_progress, filesize, sts, start_time)
 
         file_id = response.get('id')
         file_link = response.get('webViewLink')
 
         # Prepare caption for the uploaded file
         if CAPTION:
-            caption_text = CAPTION.format(file_name=new_name, file_size=human_readable_size(filesize))
+            caption_text = CAPTION.format(file_name=new_name, file_size=humanbytes(filesize))
         else:
-            caption_text = f"Uploaded File: {new_name}\nSize: {human_readable_size(filesize)}"
+            caption_text = f"Uploaded File: {new_name}\nSize: {humanbytes(filesize)}"
 
         # Send file to user with caption
         await bot.send_document(
@@ -2004,7 +2004,7 @@ async def rename_and_upload(bot, msg: Message):
             f"File successfully renamed and uploaded to Google Drive!\n\n"
             f"Your drive link: [View File]({file_link})\n\n"
             f"Uploaded File: {new_name}\n"
-            f"Size: {human_readable_size(filesize)}"
+            f"Size: {humanbytes(filesize)}"
         )
         os.remove(downloaded_file)
         await sts.delete()
