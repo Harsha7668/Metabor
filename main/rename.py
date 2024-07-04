@@ -24,18 +24,6 @@ from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_
 """
 import os
 import pickle
-import io
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
-from pyrogram import Client, filters
-from pyrogram.types import Message
-"""
-
-import os
-import pickle
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -43,7 +31,17 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from pyrogram import Client, filters
 from pyrogram.types import Message
+"""
 
+import os
+import pickle
+import time
+import math
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 
 DOWNLOAD_LOCATION1 = "./screenshots"
@@ -1807,106 +1805,8 @@ async def gofile_upload(bot, msg: Message):
             print(f"Error deleting file: {e}")
 
 
+
 """
-# If modifying these SCOPES, delete the file token.pickle.
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
-
-# Function to authenticate Google Drive
-def authenticate_google_drive():
-    creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
-    return creds
-
-# Authenticate and create the Drive service
-creds = authenticate_google_drive()
-drive_service = build('drive', 'v3', credentials=creds)
-
-
-
-# Variable to store Google Drive folder ID
-GDRIVE_FOLDER_ID = None
-
-# Command handler for /rename
-@Client.on_message(filters.private & filters.command("mirror"))
-async def rename_and_upload(bot, msg: Message):
-    global GDRIVE_FOLDER_ID
-    RENAME_ENABLED = True  # Set this according to your logic
-    DOWNLOAD_LOCATION = "downloads"  # Set your download location
-    CAPTION = "Uploaded File: {file_name}\nSize: {file_size}"  # Caption template
-
-    if not RENAME_ENABLED:
-        return await msg.reply_text("The rename feature is currently disabled.")
-
-    if not GDRIVE_FOLDER_ID:
-        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
-
-    reply = msg.reply_to_message
-    if len(msg.command) < 2 or not reply:
-        return await msg.reply_text("Please reply to a file with the new filename and extension.")
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a file with the new filename and extension.")
-
-    new_name = msg.text.split(" ", 1)[1]
-    download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
-
-    try:
-        sts = await msg.reply_text("🚀 Downloading...")
-        downloaded_file = await bot.download_media(message=reply, file_name=download_path)
-        filesize = os.path.getsize(downloaded_file)
-        await sts.edit("💠 Uploading...")
-
-        # Upload file to Google Drive
-        file_metadata = {'name': new_name, 'parents': [GDRIVE_FOLDER_ID]}
-        media = MediaFileUpload(downloaded_file, resumable=True)
-        file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-        file_id = file.get('id')
-
-        # Prepare caption for the uploaded file
-        if CAPTION:
-            caption_text = CAPTION.format(file_name=new_name, file_size=filesize)
-        else:
-            caption_text = f"Uploaded File: {new_name}\nSize: {filesize}"
-
-        # Send file to user with caption
-        await bot.send_document(
-            chat_id=msg.from_user.id,
-            document=downloaded_file,
-            caption=caption_text,
-        )
-
-        await msg.reply_text(f"File successfully renamed and uploaded to Google Drive!")
-        os.remove(downloaded_file)
-        await sts.delete()
-
-    except Exception as e:
-        await sts.edit(f"Error: {e}")
-
-# Command handler for /gdriveid setup
-@Client.on_message(filters.private & filters.command("gdriveid"))
-async def setup_gdrive_id(bot, msg: Message):
-    global GDRIVE_FOLDER_ID
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide a Google Drive folder ID after the command.")
-
-    GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
-
-    await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
-"""
-
-
-
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 # Function to authenticate Google Drive
@@ -1975,6 +1875,179 @@ async def mirror_to_google_drive(bot, msg: Message):
         await msg.reply_text(
             f"File successfully renamed and uploaded to Google Drive!\n\n"
             f"Your drive link: [View File]({file_link})\n\n"
+        )
+
+        os.remove(downloaded_file)
+        await sts.delete()
+
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+# Command handler for /gdriveid setup
+@Client.on_message(filters.private & filters.command("gdriveid"))
+async def setup_gdrive_id(bot, msg: Message):
+    global GDRIVE_FOLDER_ID
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a Google Drive folder ID after the command.")
+
+    GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
+
+    await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
+"""
+
+
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+# Function to authenticate Google Drive
+def authenticate_google_drive():
+    creds = None
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+    return creds
+
+# Authenticate and create the Drive service
+creds = authenticate_google_drive()
+drive_service = build('drive', 'v3', credentials=creds)
+
+# Variable to store Google Drive folder ID
+GDRIVE_FOLDER_ID = None
+
+"""
+# Function to send progress message with progress bar
+async def progress_message(current, total, ud_type, message, start):
+    now = time.time()
+    diff = now - start
+    if round(diff % 5.00) == 0 or current == total:
+        percentage = current * 100 / total
+        speed = humanbytes(current / diff) + "/s"
+        elapsed_time_ms = round(diff * 1000)
+        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
+        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+
+        elapsed_time = TimeFormatter(elapsed_time_ms)
+        estimated_total_time = TimeFormatter(estimated_total_time_ms)
+
+        # Generate progress bar
+        progress = generate_progress_bar(percentage)
+
+        try:
+            await message.edit(
+                text=f"{ud_type}\n\n"
+                     f"Progress: {round(percentage, 2)}%\n"
+                     f"{humanbytes(current)} of {humanbytes(total)}\n"
+                     f"Speed: {speed}\n"
+                     f"ETA: {estimated_total_time if estimated_total_time != '' else '0 s'}",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Join Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+            )
+        except Exception as e:
+            print(f"Error editing message: {e}")
+
+# Function to generate a progress bar
+def generate_progress_bar(percentage):
+    blocks = 20
+    progress = "📤 Uploading...\n"
+    completed_blocks = math.floor(percentage / (100 / blocks))
+    progress += "▬" * completed_blocks
+    progress += "🔘"
+    progress += "▬" * (blocks - completed_blocks - 1)
+    return progress + f" {round(percentage, 2)}%"
+
+# Function to format time in a human-readable format
+def TimeFormatter(milliseconds: int) -> str:
+    seconds, milliseconds = divmod(milliseconds, 1000)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+    tmp = ((str(days) + "d, ") if days else "") + \
+          ((str(hours) + "h, ") if hours else "") + \
+          ((str(minutes) + "m, ") if minutes else "") + \
+          ((str(seconds) + "s, ") if seconds else "") + \
+          ((str(milliseconds) + "ms, ") if milliseconds else "")
+    return tmp[:-2]
+
+# Function to convert bytes to a human-readable format
+def humanbytes(size):
+    if not size:
+        return ""
+    power = 2**10
+    n = 0
+    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+    while size > power:
+        size /= power
+        n += 1
+    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
+"""
+
+# Command handler for /mirror
+@Client.on_message(filters.private & filters.command("mirror"))
+async def mirror_to_google_drive(bot, msg: Message):
+    global GDRIVE_FOLDER_ID
+    RENAME_ENABLED = True  # Set this according to your logic
+    DOWNLOAD_LOCATION = "downloads"  # Set your download location
+    CAPTION = "Uploaded File: {file_name}\nSize: {file_size}"  # Caption template
+
+    if not RENAME_ENABLED:
+        return await msg.reply_text("The rename feature is currently disabled.")
+
+    if not GDRIVE_FOLDER_ID:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    reply = msg.reply_to_message
+    if len(msg.command) < 2 or not reply:
+        return await msg.reply_text("Please reply to a file with the new filename and extension.")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a file with the new filename and extension.")
+
+    new_name = msg.text.split(" ", 1)[1]
+    download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
+
+    try:
+        sts = await msg.reply_text("🚀 Downloading...")
+        downloaded_file = await bot.download_media(message=reply, file_name=download_path)
+        filesize = os.path.getsize(downloaded_file)
+        await sts.edit("💠 Uploading...")
+
+        # Upload file to Google Drive
+        file_metadata = {'name': new_name, 'parents': [GDRIVE_FOLDER_ID]}
+        media = MediaFileUpload(downloaded_file, resumable=True)
+        start_time = time.time()
+
+        # Upload with progress monitoring
+        request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                current_progress = status.progress() * 100
+                await progress_message(current_progress, 100, "Uploading to Google Drive...", sts, start_time)
+
+        file_id = response.get('id')
+        file_link = response.get('webViewLink')
+
+        # Prepare caption for the uploaded file
+        if CAPTION:
+            caption_text = CAPTION.format(file_name=new_name, file_size=filesize)
+        else:
+            caption_text = f"Uploaded File: {new_name}\nSize: {filesize}"
+
+        # Send the Google Drive link to the user
+        await msg.reply_text(
+            f"File successfully renamed and uploaded to Google Drive!\n\n"
+            f"Your drive link: [View File]({file_link})\n\n"
+            f"Uploaded File: {new_name}\n"
+            f"Size: {humanbytes(filesize)}",
+            disable_web_page_preview=True,
         )
 
         os.remove(downloaded_file)
