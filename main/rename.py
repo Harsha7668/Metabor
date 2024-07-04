@@ -1788,21 +1788,14 @@ async def gofile_upload(bot, msg: Message):
 
 
 
+
 STREAMTAPE_API_KEY = ""
 STREAMTAPE_LOGIN = ""
 STREAMTAPE_PASSWORD = ""
 
 
-# Command to set up Gofile API key
-@Client.on_message(filters.command("gofilesetup") & filters.chat(AUTH_USERS))
-async def gofile_setup(bot, msg: Message):
-    global GOFILE_API_KEY
 
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide your Gofile API key.")
 
-    GOFILE_API_KEY = msg.command[1]
-    await msg.reply_text("Gofile API key set successfully!")
 
 # Command to set up Streamtape API key and login credentials
 @Client.on_message(filters.command("streamtapesetup") & filters.chat(AUTH_USERS))
@@ -1855,6 +1848,9 @@ async def streamtape_upload(bot, msg: Message):
                     return await sts.edit(f"Failed to get upload URL. Status code: {resp.status}")
 
                 response = await resp.json()
+                if "result" not in response:
+                    return await sts.edit(f"Failed to get upload URL. Response: {response}")
+
                 upload_url = response["result"]["url"]
 
             with open(downloaded_file, "rb") as file:
