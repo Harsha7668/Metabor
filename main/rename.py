@@ -21,6 +21,14 @@ from pyrogram.errors import RPCError, FloodWait
 import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
 
+
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+from pyrogram import Client, filters
+from pyrogram.types import Message
+import os
+import pickle
+
 DOWNLOAD_LOCATION1 = "./screenshots"
 
 # Global dictionary to store user settings
@@ -1781,6 +1789,89 @@ async def gofile_upload(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
 
+
+# Google Drive authentication setup
+gauth = GoogleAuth()
+# Try to load saved credentials
+gauth.LoadCredentialsFile("token.pickle")
+if gauth.credentials is None:
+    # Authenticate using local web server if no valid credentials found
+    gauth.LocalWebserverAuth()
+elif gauth.access_token_expired:
+    # Refresh the token if it's expired
+    gauth.Refresh()
+else:
+    # Initialize with the saved credentials
+    gauth.Authorize()
+
+# Save the current credentials to token.pickle
+gauth.SaveCredentialsFile("token.pickle")
+
+drive = GoogleDrive(gauth)
+
+
+# Command handler for /rename
+@Client.on_message(filters.private & filters.command("rename"))
+async def rename_and_upload(bot, msg: Message):
+    RENAME_ENABLED = True  # Set this according to your logic
+    DOWNLOAD_LOCATION = "downloads"  # Set your download location
+    CAPTION = "Uploaded File: {file_name}\nSize: {file_size}"  # Caption template
+
+    if not RENAME_ENABLED:
+        return await msg.reply_text("The rename feature is currently disabled.")
+
+    reply = msg.reply_to_message
+    if len(msg.command) < 2 or not reply:
+        return await msg.reply_text("Please reply to a file with the new filename and extension.")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a file with the new filename and extension.")
+
+    new_name = msg.text.split(" ", 1)[1]
+    download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
+
+    try:
+        sts = await msg.reply_text("🚀 Downloading...")
+        downloaded_file = await bot.download_media(message=reply, file_name=download_path)
+        filesize = os.path.getsize(downloaded_file)
+        await sts.edit("💠 Uploading...")
+        
+        # Upload file to Google Drive
+        file_drive = drive.CreateFile({'title': new_name})
+        file_drive.SetContentFile(downloaded_file)
+        file_drive.Upload()
+
+        # Prepare caption for the uploaded file
+        if CAPTION:
+            caption_text = CAPTION.format(file_name=new_name, file_size=filesize)
+        else:
+            caption_text = f"Uploaded File: {new_name}\nSize: {filesize}"
+
+        # Send file to user with caption
+        await bot.send_document(
+            chat_id=msg.from_user.id,
+            document=file_drive['id'],
+            caption=caption_text,
+        )
+
+        await msg.reply_text(f"File successfully renamed and uploaded to Google Drive!")
+        os.remove(downloaded_file)
+        await sts.delete()
+
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+# Command handler for /gdriveid setup
+@Client.on_message(filters.private & filters.command("gdriveid"))
+async def setup_gdrive_id(bot, msg: Message):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a Google Drive ID after the command.")
+
+    file_id = msg.text.split(" ", 1)[1]
+    # Save the file_id or process it as needed for your bot's logic
+
+    await msg.reply_text(f"Google Drive ID set to: {file_id}")
 
 
 if __name__ == '__main__':
