@@ -1784,33 +1784,43 @@ async def gofile_upload(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
 
-
-
-
 # Initialize Streamtape API key and login credentials variables
 STREAMTAPE_API_KEY = ""
 STREAMTAPE_LOGIN = ""
 STREAMTAPE_PASSWORD = ""
 
+# Command to set up Streamtape login email
+@Client.on_message(filters.command("streamtapeemail") & filters.chat(AUTH_USERS))
+async def streamtape_setup_email(bot, msg: Message):
+    global STREAMTAPE_LOGIN
 
-# Command to set up Streamtape API key and login credentials
-@Client.on_message(filters.command("streamtapesetup") & filters.chat(AUTH_USERS))
-async def streamtape_setup(bot, msg: Message):
-    global STREAMTAPE_API_KEY, STREAMTAPE_LOGIN, STREAMTAPE_PASSWORD
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide your Streamtape email.")
 
-    # Validate the input format
-    if len(msg.text.split(" | ")) != 4:
-        return await msg.reply_text("Please provide your Streamtape API key, login, and password in the format: /streamtapesetup email | password | api_key")
+    STREAMTAPE_LOGIN = msg.command[1].strip()
+    await msg.reply_text("Streamtape email set successfully!")
 
-    # Split the message text by " | "
-    command, email, password, api_key = msg.text.split(" | ")
+# Command to set up Streamtape password
+@Client.on_message(filters.command("streamtapepassword") & filters.chat(AUTH_USERS))
+async def streamtape_setup_password(bot, msg: Message):
+    global STREAMTAPE_PASSWORD
 
-    # Trim any extra spaces
-    STREAMTAPE_LOGIN = email.strip()
-    STREAMTAPE_PASSWORD = password.strip()
-    STREAMTAPE_API_KEY = api_key.strip()
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide your Streamtape password.")
 
-    await msg.reply_text("Streamtape API key and login credentials set successfully!")
+    STREAMTAPE_PASSWORD = msg.command[1].strip()
+    await msg.reply_text("Streamtape password set successfully!")
+
+# Command to set up Streamtape API key
+@Client.on_message(filters.command("streamtapeapikey") & filters.chat(AUTH_USERS))
+async def streamtape_setup_apikey(bot, msg: Message):
+    global STREAMTAPE_API_KEY
+
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide your Streamtape API key.")
+
+    STREAMTAPE_API_KEY = msg.command[1].strip()
+    await msg.reply_text("Streamtape API key set successfully!")
 
 # Command to upload to Streamtape
 @Client.on_message(filters.command("streamtape") & filters.chat(AUTH_USERS))
@@ -1834,7 +1844,7 @@ async def streamtape_upload(bot, msg: Message):
     try:
         async with aiohttp.ClientSession() as session:
             if not STREAMTAPE_API_KEY or not STREAMTAPE_LOGIN or not STREAMTAPE_PASSWORD:
-                return await sts.edit("Streamtape API key and login credentials are not set. Use /streamtapesetup email | password | api_key to set them.")
+                return await sts.edit("Streamtape API key and login credentials are not set. Use /streamtapeemail, /streamtapepassword, and /streamtapeapikey to set them.")
 
             downloaded_file = await bot.download_media(
                 media,
@@ -1877,7 +1887,9 @@ async def streamtape_upload(bot, msg: Message):
                 os.remove(downloaded_file)
         except Exception as e:
             print(f"Error deleting file: {e}")
-            
+
+
+
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
