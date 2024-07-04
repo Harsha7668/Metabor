@@ -22,6 +22,9 @@ import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
 
 
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 from pyrogram import Client, filters
@@ -1792,28 +1795,43 @@ async def gofile_upload(bot, msg: Message):
 
 
 
-# Initialize Google Drive authentication
+# If modifying these SCOPES, delete the file token.pickle.
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+def authenticate_google_drive():
+    creds = None
+    # The file token.pickle stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first time.
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = Credentials.from_authorized_user(token, SCOPES)
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'client_secrets.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        # Save the credentials for the next run
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+    return creds
+
+creds = authenticate_google_drive()
+
 gauth = GoogleAuth()
-
-# Try to load saved credentials from token.pickle
-try:
-    with open('token.pickle', 'rb') as token_file:
-        credentials = pickle.load(token_file)
-        gauth.credentials = credentials
-except FileNotFoundError:
-    # Handle missing token file as needed
-    print("Token file 'token.pickle' not found. Please authenticate using GoogleAuth.")
-
-# Initialize GoogleDrive instance with authenticated credentials
+gauth.credentials = creds
 drive = GoogleDrive(gauth)
 
 
 # Command handler for /rename
 @Client.on_message(filters.private & filters.command("mirror"))
-async def rename_and_upload(bot, msg: Message):    
+async def rename_and_upload(bot, msg: Message):
     global RENAME_ENABLED
+
     if not RENAME_ENABLED:
-        return await msg.reply_text("The mirror feature is currently disabled.")
+        return await msg.reply_text("The rename feature is currently disabled.")
 
     reply = msg.reply_to_message
     if len(msg.command) < 2 or not reply:
@@ -1831,7 +1849,7 @@ async def rename_and_upload(bot, msg: Message):
         downloaded_file = await bot.download_media(message=reply, file_name=download_path)
         filesize = os.path.getsize(downloaded_file)
         await sts.edit("💠 Uploading...")
-        
+
         # Upload file to Google Drive
         file_drive = drive.CreateFile({'title': new_name})
         file_drive.SetContentFile(downloaded_file)
@@ -1867,6 +1885,7 @@ async def setup_gdrive_id(bot, msg: Message):
     # Save the file_id or process it as needed for your bot's logic
 
     await msg.reply_text(f"Google Drive ID set to: {file_id}")
+
 
 
 if __name__ == '__main__':
