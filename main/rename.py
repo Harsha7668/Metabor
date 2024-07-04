@@ -33,18 +33,18 @@ from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from pyrogram import Client, filters
 from pyrogram.types import Message
 """
-
 import os
 import pickle
-import io
 import time
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+from googleapiclient.http import MediaFileUpload
 from pyrogram import Client, filters
 from pyrogram.types import Message
+
+
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
@@ -1929,9 +1929,12 @@ def authenticate_google_drive():
 creds = authenticate_google_drive()
 drive_service = build('drive', 'v3', credentials=creds)
 
+# Telegram bot setup
+bot = Client("my_bot")
 
 # Variable to store Google Drive folder ID
 GDRIVE_FOLDER_ID = None
+
 
 
 # Command handler for /rename
@@ -1965,7 +1968,7 @@ async def rename_and_upload(bot, msg: Message):
         downloaded_file = await bot.download_media(
             message=reply, 
             file_name=download_path,
-            progress=progress,
+            progress=progress_message,
             progress_args=(sts, start_time)
         )
         filesize = os.path.getsize(downloaded_file)
@@ -2019,7 +2022,6 @@ async def setup_gdrive_id(bot, msg: Message):
     GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
 
     await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
-
 
 
 
