@@ -685,7 +685,7 @@ async def multitask_command(bot, msg):
         if og_thumbnail and os.path.exists(og_thumbnail):
             os.remove(og_thumbnail)
         await sts.delete()
-
+"""
 #Changemetadata command 
 @Client.on_message(filters.private & filters.command("changemetadata"))
 async def change_metadata(bot, msg):
@@ -766,7 +766,91 @@ async def change_metadata(bot, msg):
         os.remove(downloaded)
         os.remove(output_file)
         if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
+            os.remove(file_thumb)"""
+
+
+
+
+@Client.on_message(filters.private & filters.command("changemetadata"))
+async def change_metadata(bot, msg):
+    global METADATA_ENABLED, user_settings
+
+    if not METADATA_ENABLED:
+        return await msg.reply_text("Metadata changing feature is currently disabled.")
+
+    user_id = msg.from_user.id
+    if user_id not in user_settings or not any(user_settings[user_id].values()):
+        return await msg.reply_text("Metadata titles are not set. Please set metadata titles using `/setmetadata video_title audio_title subtitle_title`.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the metadata command\nFormat: `changemetadata -n filename.mkv`")
+
+    if len(msg.command) < 3 or msg.command[1] != "-n":
+        return await msg.reply_text("Please provide the filename with the `-n` flag\nFormat: `changemetadata -n filename.mkv`")
+
+    output_filename = " ".join(msg.command[2:]).strip()
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
+
+    video_title = user_settings[user_id]['video_title']
+    audio_title = user_settings[user_id]['audio_title']
+    subtitle_title = user_settings[user_id]['subtitle_title']
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the metadata command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await sts.edit(f"Error downloading media: {e}")
+        return
+
+    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+
+    await sts.edit("💠 Changing metadata... ⚡")
+    try:
+        change_video_metadata(downloaded, video_title, audio_title, subtitle_title, output_file)
+    except Exception as e:
+        await sts.edit(f"Error changing metadata: {e}")
+        os.remove(downloaded)
+        return
+
+    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    if not os.path.exists(thumbnail_path):
+        try:
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+        except Exception as e:
+            file_thumb = None
+    else:
+        file_thumb = thumbnail_path
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+    await sts.edit("💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {output_filename}\n💾 **Size:** {filesize_human}\n🔗 **Link:** {file_link}")
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except Exception as e:
+            return await sts.edit(f"Error: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
+    await sts.delete()
+
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 #Attach Photo Command 
@@ -2072,71 +2156,7 @@ async def upload_to_google_drive(file_path, file_name, sts):
 
     return response.get('webViewLink')
 
-@Client.on_message(filters.private & filters.command("changeindex"))
-async def change_index(bot, msg):
-    reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a media file with the index command\nFormat: a-3-1-2 (Audio)")
 
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide the index command\nFormat: a-3-1-2 (Audio)")
-
-    index_cmd = msg.command[1].strip().lower()
-    if not index_cmd.startswith("a-"):
-        return await msg.reply_text("Invalid format. Use a-3-1-2 for audio.")
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the index command.")
-
-    sts = await msg.reply_text("🚀Downloading media...⚡")
-    c_time = time.time()
-    downloaded = await reply.download(progress=progress_message, progress_args=("🚀Download Started...⚡️", sts, c_time))
-
-    output_file = os.path.join(DOWNLOAD_LOCATION, "output_" + os.path.basename(downloaded))
-    index_params = index_cmd.split('-')
-    stream_type = index_params[0]
-    indexes = [int(i) - 1 for i in index_params[1:]]
-
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0:v']  # Always map video stream
-
-    for idx in indexes:
-        ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
-
-    # Copy all subtitle streams if they exist
-    ffmpeg_cmd.extend(['-map', '0:s?'])
-
-    ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
-
-    await sts.edit("💠Changing indexing...⚡")
-    process = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-
-    if process.returncode != 0:
-        await sts.edit(f"❗FFmpeg error: {stderr.decode('utf-8')}")
-        os.remove(downloaded)
-        return
-
-    filesize = os.path.getsize(output_file)
-    filesize_human = humanbytes(filesize)
-    cap = f"{os.path.basename(output_file)}\n\n🌟Size: {filesize_human}"
-
-    await sts.edit("💠Uploading...⚡")
-    c_time = time.time()
-
-    if filesize > FILE_SIZE_LIMIT:
-        # Upload to Google Drive if file size exceeds the limit
-        file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
-        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {os.path.basename(output_file)}\n💾 **Size:** {filesize_human}\n🔗 **Link:** {file_link}")
-    else:
-        try:
-            await bot.send_document(msg.chat.id, document=output_file, caption=cap, progress=progress_message, progress_args=("💠Upload Started.....", sts, c_time))
-        except Exception as e:
-            return await sts.edit(f"Error {e}")
-
-    os.remove(downloaded)
-    os.remove(output_file)
-    await sts.delete()
 
 
 
