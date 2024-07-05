@@ -1617,7 +1617,7 @@ async def merge_and_upload(bot, msg):
 """
 
 
-# Command to start merging files
+
 @Client.on_message(filters.private & filters.command("merge"))
 async def start_merge_command(bot, msg):
     global MERGE_ENABLED
@@ -1629,7 +1629,6 @@ async def start_merge_command(bot, msg):
 
     await msg.reply_text("Send up to 10 video/document files one by one. Once done, send `/videomerge filename`.")
 
-# Command to finalize merging and start process
 @Client.on_message(filters.private & filters.command("videomerge"))
 async def start_video_merge_command(bot, msg):
     user_id = msg.from_user.id
@@ -1645,13 +1644,13 @@ async def start_video_merge_command(bot, msg):
 
     await merge_and_upload(bot, msg)
 
-# Handling media files sent by users
 @Client.on_message(filters.document | filters.video & filters.private)
 async def handle_media_files(bot, msg):
     user_id = msg.from_user.id
     if user_id in merge_state and len(merge_state[user_id]["files"]) < 10:
         merge_state[user_id]["files"].append(msg)
         await msg.reply_text("File received. Send another file or use `/videomerge filename` to start merging.")
+
 async def merge_and_upload(bot, msg):
     user_id = msg.from_user.id
     if user_id not in merge_state:
@@ -1684,7 +1683,7 @@ async def merge_and_upload(bot, msg):
         await sts.edit("💠 Uploading... ⚡")
 
         # Thumbnail handling
-        file_thumb = await get_thumbnail(msg, user_id)
+        file_thumb = await get_thumbnail(msg, user_id) if get_thumbnail else None
 
         # Uploading the merged file
         c_time = time.time()
@@ -1731,6 +1730,7 @@ async def merge_and_upload(bot, msg):
             del merge_state[user_id]
 
         await sts.delete()
+
 
         
 """
