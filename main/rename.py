@@ -2072,8 +2072,7 @@ async def upload_to_google_drive(file_path, file_name, sts):
 
     return response.get('webViewLink')
 
-
-@Client.on_message(filters.command("changeindex") & filters.chat(GROUP))
+@Client.on_message(filters.private & filters.command("changeindex"))
 async def change_index(bot, msg):
     reply = msg.reply_to_message
     if not reply:
