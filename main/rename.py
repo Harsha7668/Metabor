@@ -1604,7 +1604,7 @@ async def merge_and_upload(bot, msg):
 
         await sts.delete()
         
-
+"""
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 #Remove Tags Command 
 @Client.on_message(filters.private & filters.command("removetags"))
@@ -1619,124 +1619,7 @@ async def remove_tags(bot, msg):
 
     media = reply.document or reply.audio or reply.video
     if not media:
-        return # Command to start merging files
-@Client.on_message(filters.private & filters.command("merge"))
-async def start_merge_command(bot, msg):
-    global MERGE_ENABLED
-    if not MERGE_ENABLED:
-        return await msg.reply_text("The merge feature is currently disabled.")
-
-    user_id = msg.from_user.id
-    merge_state[user_id] = {"files": [], "output_filename": None}
-
-    await msg.reply_text("Send up to 10 video/document files one by one. Once done, send `/videomerge filename`.")
-
-# Command to finalize merging and start process
-@Client.on_message(filters.private & filters.command("videomerge"))
-async def start_video_merge_command(bot, msg):
-    user_id = msg.from_user.id
-    if user_id not in merge_state or not merge_state[user_id]["files"]:
-        return await msg.reply_text("No files received for merging. Please send files using /merge command first.")
-
-    output_filename = msg.text.split(' ', 1)[1].strip()  # Extract output filename from command
-    merge_state[user_id]["output_filename"] = output_filename
-
-    await merge_and_upload(bot, msg)
-
-# Handling media files sent by users
-@Client.on_message(filters.document | filters.video & filters.private)
-async def handle_media_files(bot, msg):
-    user_id = msg.from_user.id
-    if user_id in merge_state and len(merge_state[user_id]["files"]) < 10:
-        merge_state[user_id]["files"].append(msg)
-        await msg.reply_text("File received. Send another file or use `/videomerge filename` to start merging.")
-
-# Function to merge and upload files
-async def merge_and_upload(bot, msg):
-    user_id = msg.from_user.id
-    if user_id not in merge_state:
-        return await msg.reply_text("No merge state found for this user. Please start the merge process again.")
-
-    files_to_merge = merge_state[user_id]["files"]
-    output_filename = merge_state[user_id].get("output_filename", "merged_output.mp4")  # Default output filename
-    output_path = os.path.join(DOWNLOAD_LOCATION, output_filename)
-
-    sts = await msg.reply_text("🚀 Starting merge process...")
-
-    try:
-        file_paths = []
-        for file_msg in files_to_merge:
-            file_path = await download_media(file_msg, sts)
-            file_paths.append(file_path)
-
-        input_file = os.path.join(DOWNLOAD_LOCATION, "input.txt")
-        with open(input_file, "w") as f:
-            for file_path in file_paths:
-                f.write(f"file '{file_path}'\n")
-
-        await sts.edit("💠 Merging videos... ⚡")
-        await merge_videos(input_file, output_path)
-
-        filesize = os.path.getsize(output_path)
-        filesize_human = humanbytes(filesize)
-        cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
-
-        await sts.edit("💠 Uploading... ⚡")
-
-        # Thumbnail handling
-        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
-        file_thumb = None
-        if os.path.exists(thumbnail_path):
-            file_thumb = thumbnail_path
-        else:
-            try:
-                if "thumbs" in msg and msg.thumbs:
-                    file_thumb = await bot.download_media(msg.thumbs[0].file_id, file_name=thumbnail_path)
-            except Exception as e:
-                print(f"Error downloading thumbnail: {e}")
-
-        # Uploading the merged file
-        c_time = time.time()
-        await bot.send_document(
-            user_id,
-            document=output_path,
-            thumb=file_thumb,
-            caption=cap,
-            progress=progress_message,
-            progress_args=("💠 Upload Started... ⚡", sts, c_time)
-        )
-
-        await sts.delete()
-
-        await msg.reply_text(
-            f"┏📥 **File Name:** {output_filename}\n"
-            f"┠💾 **Size:** {filesize_human}\n"
-            f"┠♻️ **Mode:** Merge : Video + Video\n"
-            f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-            f"❄ **File has been sent in Bot PM!**"
-        )
-
-    except Exception as e:
-        await sts.edit(f"❌ Error: {e}")
-
-    finally:
-        # Clean up temporary files
-        for file_path in file_paths:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        if os.path.exists(input_file):
-            os.remove(input_file)
-        if os.path.exists(output_path):
-            os.remove(output_path)
-        if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
-
-        # Clear merge state for the user
-        if user_id in merge_state:
-            del merge_state[user_id]
-
-        await sts.delete()
-await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the removetags command.")
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the removetags command.")
 
     command_text = " ".join(msg.command[1:]).strip()
     new_filename = None
@@ -1809,7 +1692,102 @@ await msg.reply_text("Please reply to a valid media file (audio, video, or docum
         os.remove(downloaded)
         os.remove(cleaned_file)
         if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)"""
+
+import os
+
+# Remove tags command
+@Client.on_message(filters.private & filters.command("removetags"))
+async def remove_tags(bot, msg):
+    global REMOVETAGS_ENABLED
+    if not REMOVETAGS_ENABLED:
+        return await msg.reply_text("The removetags feature is currently disabled.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the removetags command.")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the removetags command.")
+
+    command_text = " ".join(msg.command[1:]).strip()
+    new_filename = None
+
+    # Extract new filename from command
+    if "-n" in command_text:
+        try:
+            new_filename = command_text.split('-n')[1].strip()
+        except IndexError:
+            return await msg.reply_text("Please provide a valid filename with the -n option (e.g., `-n new_filename.mkv`).")
+
+        # Check if new filename has a valid video file extension (.mkv, .mp4, .avi)
+        valid_extensions = ('.mkv', '.mp4', '.avi')
+        if not any(new_filename.lower().endswith(ext) for ext in valid_extensions):
+            return await msg.reply_text("The new filename must include a valid extension (e.g., `.mkv`, `.mp4`, `.avi`).")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await sts.edit(f"Error downloading media: {e}")
+        return
+
+    cleaned_file = os.path.join(DOWNLOAD_LOCATION, new_filename if new_filename else "cleaned_" + os.path.basename(downloaded))
+
+    await sts.edit("💠 Removing all tags... ⚡")
+    try:
+        remove_all_tags(downloaded, cleaned_file)
+    except Exception as e:
+        await sts.edit(f"Error removing all tags: {e}")
+        os.remove(downloaded)
+        return
+
+    file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    if not os.path.exists(file_thumb):
+        try:
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=file_thumb)
+        except Exception as e:
+            print(e)
+            file_thumb = None
+
+    await sts.edit("🔼 Uploading cleaned file... ⚡")
+    try:
+        # Upload to Google Drive if file size exceeds the limit
+        filesize = os.path.getsize(cleaned_file)
+        if filesize > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(cleaned_file, os.path.basename(cleaned_file), sts)
+            await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {os.path.basename(cleaned_file)}\n💾 **Size:** {humanbytes(filesize)}\n🔗 **Link:** {file_link}")
+        else:
+            # Send cleaned file to user's PM
+            await bot.send_document(
+                msg.from_user.id,
+                cleaned_file,
+                thumb=file_thumb,
+                caption="Here is your file with all tags removed.",
+                progress=progress_message,
+                progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
+            )
+
+            # Notify in the group about the upload
+            await msg.reply_text(
+                f"┏📥 **File Name:** {new_filename if new_filename else os.path.basename(cleaned_file)}\n"
+                f"┠💾 **Size:** {humanbytes(filesize)}\n"
+                f"┠♻️ **Mode:** Remove Tags\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄ **File has been sent to your PM in the bot!**"
+            )
+
+        await sts.delete()
+    except Exception as e:
+        await sts.edit(f"Error uploading cleaned file: {e}")
+    finally:
+        os.remove(downloaded)
+        os.remove(cleaned_file)
+        if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
+ 
 
 #Screenshots Command
 @Client.on_message(filters.private & filters.command("screenshots"))
