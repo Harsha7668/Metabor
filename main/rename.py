@@ -853,8 +853,8 @@ async def change_metadata(bot, msg):
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-#Attach Photo Command 
-# Attach photo command
+# Attach Photo Command 
+
 @Client.on_message(filters.private & filters.command("attachphoto"))
 async def attach_photo(bot, msg):
     global PHOTO_ATTACH_ENABLED
@@ -884,6 +884,7 @@ async def attach_photo(bot, msg):
         return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the attach photo command.")
 
     sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()  # Define c_time here
     try:
         downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
     except Exception as e:
@@ -951,7 +952,6 @@ async def attach_photo(bot, msg):
         os.remove(output_file)
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
-
 
 """
 @Client.on_message(filters.private & filters.command("attachphoto"))
@@ -1615,8 +1615,6 @@ async def merge_and_upload(bot, msg):
 
         await sts.delete()
 """
-
-# Function to merge and upload files
 async def merge_and_upload(bot, msg):
     user_id = msg.from_user.id
     if user_id not in merge_state:
@@ -1684,7 +1682,10 @@ async def merge_and_upload(bot, msg):
             )
 
     except Exception as e:
-        await sts.edit(f"❌ Error: {e}")
+        try:
+            await sts.edit(f"❌ Error: {e}")
+        except pyrogram.errors.exceptions.bad_request_400.MessageTooLong:
+            await msg.reply_text(f"❌ Error: {str(e)[:4096]}")  # Handling long error messages
 
     finally:
         # Clean up temporary files
@@ -1703,6 +1704,7 @@ async def merge_and_upload(bot, msg):
             del merge_state[user_id]
 
         await sts.delete()
+
         
 """
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
@@ -1794,7 +1796,6 @@ async def remove_tags(bot, msg):
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)"""
 
-import os
 
 # Remove tags command
 @Client.on_message(filters.private & filters.command("removetags"))
