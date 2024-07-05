@@ -1617,7 +1617,6 @@ async def merge_and_upload(bot, msg):
 """
 
 
-
 @Client.on_message(filters.private & filters.command("merge"))
 async def start_merge_command(bot, msg):
     global MERGE_ENABLED
@@ -1682,8 +1681,10 @@ async def merge_and_upload(bot, msg):
 
         await sts.edit("💠 Uploading... ⚡")
 
-        # Thumbnail handling
-        file_thumb = await get_thumbnail(msg, user_id) if get_thumbnail else None
+        # Define thumbnail location
+        file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+        if not os.path.exists(file_thumb):
+            file_thumb = None
 
         # Uploading the merged file
         c_time = time.time()
@@ -1730,6 +1731,8 @@ async def merge_and_upload(bot, msg):
             del merge_state[user_id]
 
         await sts.delete()
+
+
 
 
         
