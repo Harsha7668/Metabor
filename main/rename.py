@@ -1681,10 +1681,17 @@ async def merge_and_upload(bot, msg):
 
         await sts.edit("💠 Uploading... ⚡")
 
-        # Define thumbnail location
-        file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-        if not os.path.exists(file_thumb):
-            file_thumb = None
+        # Thumbnail handling
+        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
+        file_thumb = None
+        if os.path.exists(thumbnail_path):
+            file_thumb = thumbnail_path
+        else:
+            try:
+                if "thumbs" in msg and msg.thumbs:
+                    file_thumb = await bot.download_media(msg.thumbs[0].file_id, file_name=thumbnail_path)
+            except Exception as e:
+                print(f"Error downloading thumbnail: {e}")
 
         # Uploading the merged file
         c_time = time.time()
