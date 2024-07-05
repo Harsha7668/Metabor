@@ -2342,6 +2342,12 @@ async def handle_link_download(bot, msg, link, new_name, media):
             print(f"Error deleting file: {e}")
         await sts.delete()
 
+async def edit_message(message, new_text):
+    try:
+        await message.edit(new_text)
+    except Exception as e:
+        print(f"Failed to edit message: {e}")
+
 
  # Define restart_app command
 @Client.on_message(filters.command("restart") & filters.chat(AUTH_USERS))
