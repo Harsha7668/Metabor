@@ -1798,6 +1798,13 @@ async def remove_tags(bot, msg):
 
 
 # Remove tags command
+async def safe_edit_message(message, new_text):
+    try:
+        if message.text != new_text:
+            await message.edit(new_text)
+    except Exception as e:
+        print(f"Failed to edit message: {e}")
+
 @Client.on_message(filters.private & filters.command("removetags"))
 async def remove_tags(bot, msg):
     global REMOVETAGS_ENABLED
@@ -1832,16 +1839,16 @@ async def remove_tags(bot, msg):
     try:
         downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
     except Exception as e:
-        await sts.edit(f"Error downloading media: {e}")
+        await safe_edit_message(sts, f"Error downloading media: {e}")
         return
 
     cleaned_file = os.path.join(DOWNLOAD_LOCATION, new_filename if new_filename else "cleaned_" + os.path.basename(downloaded))
 
-    await sts.edit("💠 Removing all tags... ⚡")
+    await safe_edit_message(sts, "💠 Removing all tags... ⚡")
     try:
         remove_all_tags(downloaded, cleaned_file)
     except Exception as e:
-        await sts.edit(f"Error removing all tags: {e}")
+        await safe_edit_message(sts, f"Error removing all tags: {e}")
         os.remove(downloaded)
         return
 
@@ -1853,7 +1860,7 @@ async def remove_tags(bot, msg):
             print(e)
             file_thumb = None
 
-    await sts.edit("🔼 Uploading cleaned file... ⚡")
+    await safe_edit_message(sts, "🔼 Uploading cleaned file... ⚡")
     try:
         # Upload to Google Drive if file size exceeds the limit
         filesize = os.path.getsize(cleaned_file)
@@ -1882,7 +1889,7 @@ async def remove_tags(bot, msg):
 
         await sts.delete()
     except Exception as e:
-        await sts.edit(f"Error uploading cleaned file: {e}")
+        await safe_edit_message(sts, f"Error uploading cleaned file: {e}")
     finally:
         os.remove(downloaded)
         os.remove(cleaned_file)
