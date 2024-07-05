@@ -854,6 +854,106 @@ async def change_metadata(bot, msg):
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 #Attach Photo Command 
+# Attach photo command
+@Client.on_message(filters.private & filters.command("attachphoto"))
+async def attach_photo(bot, msg):
+    global PHOTO_ATTACH_ENABLED
+
+    if not PHOTO_ATTACH_ENABLED:
+        return await msg.reply_text("Photo attachment feature is currently disabled.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the attach photo command and specify the output filename\nFormat: `attachphoto -n filename.mkv`")
+
+    if len(msg.command) < 2 or "-n" not in msg.text:
+        return await msg.reply_text("Please provide the output filename using the `-n` flag\nFormat: `attachphoto -n filename.mkv`")
+
+    command_text = " ".join(msg.command[1:]).strip()
+    filename_part = command_text.split('-n', 1)[1].strip()
+    output_filename = filename_part if filename_part else None
+
+    if not output_filename:
+        return await msg.reply_text("Please provide a valid filename\nFormat: `attachphoto -n filename.mkv`")
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the attach photo command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await sts.edit(f"Error downloading media: {e}")
+        return
+
+    attachment_path = f"{DOWNLOAD_LOCATION}/attachment_{msg.from_user.id}.jpg"
+    if not os.path.exists(attachment_path):
+        await sts.edit("Please send a photo to be attached using the `setphoto` command.")
+        os.remove(downloaded)
+        return
+
+    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+
+    await sts.edit("💠 Adding photo attachment... ⚡")
+    try:
+        add_photo_attachment(downloaded, attachment_path, output_file)
+    except Exception as e:
+        await sts.edit(f"Error adding photo attachment: {e}")
+        os.remove(downloaded)
+        return
+
+    file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    if not os.path.exists(file_thumb):
+        try:
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=file_thumb)
+        except Exception as e:
+            print(e)
+            file_thumb = None
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+
+    await sts.edit("🔼 Uploading modified file... ⚡")
+    try:
+        # Upload to Google Drive if file size exceeds the limit
+        if filesize > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
+            await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {os.path.basename(output_file)}\n💾 **Size:** {humanbytes(filesize)}\n🔗 **Link:** {file_link}")
+        else:
+            # Send modified file to user's PM
+            await bot.send_document(
+                msg.from_user.id,
+                document=output_file,
+                thumb=file_thumb,
+                caption=output_filename,
+                progress=progress_message,
+                progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
+            )
+
+            # Notify in the group about the upload
+            await msg.reply_text(
+                f"┏📥 **File Name:** {output_filename}\n"
+                f"┠💾 **Size:** {filesize_human}\n"
+                f"┠♻️ **Mode:** Attach Photo\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄ **File has been sent to your PM in the bot!**"
+            )
+
+        await sts.delete()
+    except Exception as e:
+        await sts.edit(f"Error uploading modified file: {e}")
+    finally:
+        os.remove(downloaded)
+        os.remove(output_file)
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
+
+
+"""
 @Client.on_message(filters.private & filters.command("attachphoto"))
 async def attach_photo(bot, msg):
     global PHOTO_ATTACH_ENABLED
@@ -923,7 +1023,7 @@ async def attach_photo(bot, msg):
     finally:
         os.remove(downloaded)
         os.remove(output_file)
-        await sts.delete()
+        await sts.delete()"""
 
 """
 #Change Index Audio Command 
