@@ -1486,7 +1486,7 @@ async def change_index_subtitle(bot, msg):
 
 
 
-
+"""
 # Command to start merging files
 @Client.on_message(filters.private & filters.command("merge"))
 async def start_merge_command(bot, msg):
@@ -1605,6 +1605,129 @@ async def merge_and_upload(bot, msg):
             del merge_state[user_id]
 
         await sts.delete()
+"""
+
+
+# Command to start merging files
+@Client.on_message(filters.private & filters.command("merge"))
+async def start_merge_command(bot, msg):
+    user_id = msg.from_user.id
+    merge_state[user_id] = {"files": [], "output_filename": None}
+
+    await msg.reply_text("Send up to 10 video/document files one by one. Once done, send `/videomerge filename`.")
+
+# Command to finalize merging and start process
+@Client.on_message(filters.private & filters.command("videomerge"))
+async def start_video_merge_command(bot, msg):
+    user_id = msg.from_user.id
+    if user_id not in merge_state or not merge_state[user_id]["files"]:
+        return await msg.reply_text("No files received for merging. Please send files using /merge command first.")
+
+    output_filename = msg.text.split(' ', 1)[1].strip()  # Extract output filename from command
+    merge_state[user_id]["output_filename"] = output_filename
+
+    await merge_and_upload(bot, msg)
+
+# Handling media files sent by users
+@Client.on_message(filters.document | filters.video & filters.private)
+async def handle_media_files(bot, msg):
+    user_id = msg.from_user.id
+    if user_id in merge_state and len(merge_state[user_id]["files"]) < 10:
+        merge_state[user_id]["files"].append(msg)
+        await msg.reply_text("File received. Send another file or use `/videomerge filename` to start merging.")
+
+# Function to merge and upload files
+async def merge_and_upload(bot, msg):
+    user_id = msg.from_user.id
+    if user_id not in merge_state:
+        return await msg.reply_text("No merge state found for this user. Please start the merge process again.")
+
+    files_to_merge = merge_state[user_id]["files"]
+    output_filename = merge_state[user_id].get("output_filename", "merged_output.mp4")  # Default output filename
+    output_path = os.path.join(DOWNLOAD_LOCATION, output_filename)
+
+    sts = await msg.reply_text("🚀 Starting merge process...")
+
+    try:
+        file_paths = []
+        for file_msg in files_to_merge:
+            file_path = await download_media(file_msg, sts)
+            file_paths.append(file_path)
+
+        input_file = os.path.join(DOWNLOAD_LOCATION, "input.txt")
+        with open(input_file, "w") as f:
+            for file_path in file_paths:
+                f.write(f"file '{file_path}'\n")
+
+        await sts.edit("💠 Merging videos... ⚡")
+        await merge_videos(input_file, output_path)
+
+        filesize = os.path.getsize(output_path)
+        filesize_human = humanbytes(filesize)
+        cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+        await sts.edit("💠 Uploading... ⚡")
+
+        # Determine whether to upload to Telegram or Google Drive
+        if filesize <= FILE_SIZE_LIMIT:
+            # Upload to Telegram with optional thumbnail
+            thumbnail_path = None
+            file_thumb = None
+            if "thumbs" in msg and msg.thumbs:
+                thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
+                file_thumb = await bot.download_media(msg.thumbs[0].file_id, file_name=thumbnail_path)
+
+            c_time = time.time()
+            await bot.send_document(
+                user_id,
+                document=output_path,
+                thumb=file_thumb,
+                caption=cap,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, c_time)
+            )
+
+            await msg.reply_text(
+                f"┏📥 **File Name:** {output_filename}\n"
+                f"┠💾 **Size:** {filesize_human}\n"
+                f"┠♻️ **Mode:** Merge : Video + Video\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄ **File has been sent in Bot PM!**"
+            )
+
+        else:
+            # Upload to Google Drive
+            file_link = await upload_to_google_drive(output_path, output_filename, sts)
+            await msg.reply_text(
+                f"File size exceeds 2GB. Uploaded to Google Drive!\n\n"
+                f"📁 **File Name:** {output_filename}\n"
+                f"💾 **Size:** {filesize_human}\n"
+                f"🔗 **Link:** {file_link}"
+            )
+
+        await sts.delete()
+
+    except Exception as e:
+        await sts.edit(f"❌ Error: {e}")
+
+    finally:
+        # Clean up temporary files and thumbnail
+        for file_path in file_paths:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        if os.path.exists(input_file):
+            os.remove(input_file)
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
+
+        # Clear merge state for the user
+        if user_id in merge_state:
+            del merge_state[user_id]
+
+        await sts.delete()
+
 
 
 
