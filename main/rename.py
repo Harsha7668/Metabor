@@ -1658,12 +1658,9 @@ async def merge_and_upload(bot, msg):
             except Exception as e:
                 print(f"Error downloading thumbnail: {e}")
 
-        # Uploading the merged file
         c_time = time.time()
-        if filesize > FILE_SIZE_LIMIT:
-            file_link = await upload_to_google_drive(output_path, output_filename, sts)
-            await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {output_filename}\n💾 **Size:** {filesize_human}\n🔗 **Link:** {file_link}")
-        else:
+
+        if filesize <= FILE_SIZE_LIMIT:  # 2GB in bytes
             await bot.send_document(
                 user_id,
                 document=output_path,
@@ -1672,7 +1669,9 @@ async def merge_and_upload(bot, msg):
                 progress=progress_message,
                 progress_args=("💠 Upload Started... ⚡", sts, c_time)
             )
+
             await sts.delete()
+
             await msg.reply_text(
                 f"┏📥 **File Name:** {output_filename}\n"
                 f"┠💾 **Size:** {filesize_human}\n"
@@ -1680,12 +1679,19 @@ async def merge_and_upload(bot, msg):
                 f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
                 f"❄ **File has been sent in Bot PM!**"
             )
+        else:
+            drive_link = upload_to_google_drive(output_path)
+            await msg.reply_text(
+                f"┏📥 **File Name:** {output_filename}\n"
+                f"┠💾 **Size:** {filesize_human}\n"
+                f"┠♻️ **Mode:** Merge : Video + Video\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄ **File is too large for Telegram and has been uploaded to Google Drive.**\n"
+                f"🌐 **[Download Link]({drive_link})**"
+            )
 
     except Exception as e:
-        try:
-            await sts.edit(f"❌ Error: {e}")
-        except pyrogram.errors.exceptions.bad_request_400.MessageTooLong:
-            await msg.reply_text(f"❌ Error: {str(e)[:4096]}")  # Handling long error messages
+        await sts.edit(f"❌ Error: {e}")
 
     finally:
         # Clean up temporary files
@@ -1704,6 +1710,10 @@ async def merge_and_upload(bot, msg):
             del merge_state[user_id]
 
         await sts.delete()
+
+
+
+
 
         
 """
