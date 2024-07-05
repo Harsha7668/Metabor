@@ -2051,7 +2051,6 @@ async def setup_gdrive_id(bot, msg: Message):
 
 
 
-
 # Command handler for /rename
 @Client.on_message(filters.private & filters.command("rename"))
 async def rename_file(bot, msg: Message):
@@ -2086,14 +2085,14 @@ async def rename_file(bot, msg: Message):
         filesize = os.path.getsize(downloaded_file)
         
         if filesize <= 2 * 1024 * 1024 * 1024:  # 2GB
-            await upload_to_telegram(bot, msg, downloaded_file, new_name, filesize, sts)
+            await upload_to_telegram(bot, msg, downloaded_file, new_name, filesize, sts, media)
         else:
             await upload_to_google_drive(bot, msg, downloaded_file, new_name, filesize, sts)
 
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
-async def upload_to_telegram(bot, msg, downloaded_file, new_name, filesize, sts):
+async def upload_to_telegram(bot, msg, downloaded_file, new_name, filesize, sts, media):
     await sts.edit("💠 Uploading to Telegram... ⚡")
     try:
         thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
@@ -2147,6 +2146,7 @@ async def upload_to_google_drive(bot, msg, downloaded_file, new_name, filesize, 
         await sts.edit(f"Error: {e}")
 
     os.remove(downloaded_file)
+
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
