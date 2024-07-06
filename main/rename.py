@@ -3398,7 +3398,7 @@ async def setup_gdrive_id(bot, msg: Message):
 
 FILE_SIZE_LIMIT = 2000 * 1024 * 1024  # 2000 MB in bytes
 
-
+"""
 # Function to upload files to Google Drive
 async def upload_to_google_drive(file_path, file_name, sts):
     file_metadata = {'name': file_name}
@@ -3411,10 +3411,22 @@ async def upload_to_google_drive(file_path, file_name, sts):
         if status:
             await progress_message(status.progress() * 100, 100, "Uploading to Google Drive", sts, time.time())
 
+    return response.get('webViewLink')"""
+
+
+async def upload_to_google_drive(file_path, file_name, sts):
+    file_metadata = {'name': file_name}
+    media = MediaFileUpload(file_path, resumable=True)
+    request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+
+    response = None
+    start_time = time.time()
+    while response is None:
+        status, response = request.next_chunk()
+        if status:
+            await progress_message(status.resumable_progress, os.path.getsize(file_path), "Uploading to Google Drive", sts, start_time)
+
     return response.get('webViewLink')
-
-
-
 
 
 
