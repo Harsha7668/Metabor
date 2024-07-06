@@ -21,10 +21,10 @@ PROGRESS_BAR = """
 
 async def progress_message(current, total, ud_type, message, start):
     now = time.time()
-    diff = now - start
+    diff = now - start  # Calculate the difference in time
     if current >= total:
         percentage = 100.0
-        speed = humanbytes(current / diff) + "/s"
+        speed = humanbytes(total / diff) + "/s"  # Calculate speed based on total size
         elapsed_time_ms = round(diff * 1000)
         estimated_total_time = '0 s'
         
@@ -34,7 +34,7 @@ async def progress_message(current, total, ud_type, message, start):
         )
     else:
         percentage = current * 100 / total
-        speed = humanbytes(current / diff) + "/s"
+        speed = humanbytes(total / diff) + "/s"  # Adjusted to reflect total size
         elapsed_time_ms = round(diff * 1000)
         time_to_completion_ms = round((total - current) / (current / diff)) * 1000
         estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
@@ -70,7 +70,7 @@ async def progress_message(current, total, ud_type, message, start):
             await message.delete()
         except Exception as e:
             print(f"Error deleting message: {e}")
-            
+
 def humanbytes(size):
     if not size:
         return ""
