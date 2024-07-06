@@ -19,6 +19,44 @@ PROGRESS_BAR = """
 │
 ╰─────────────────⍟"""
 
+async def progress_message(current, total, ud_type, message, start):
+    now = time.time()
+    diff = now - start
+    if round(diff % 5.00) == 0 or current == total:
+        percentage = current * 100 / total
+        speed = humanbytes(current / diff) + "/s"
+        elapsed_time_ms = round(diff * 1000)
+        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
+        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+
+        elapsed_time = TimeFormatter(elapsed_time_ms)
+        estimated_total_time = TimeFormatter(estimated_total_time_ms)
+
+        progress = "{0}{1}".format(
+            ''.join(["■" for i in range(math.floor(percentage / 5))]),
+            ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
+        )
+        progress_text = f"{ud_type}\n\n" + PROGRESS_BAR.format(
+            round(percentage, 2),
+            humanbytes(current),
+            humanbytes(total),
+            speed,
+            estimated_total_time if estimated_total_time != '' else '0 s',
+            progress
+        )
+
+        # Only edit the message if the content has changed
+        if message.text != progress_text:
+            try:
+                await message.edit(
+                    text=progress_text,
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+                )
+            except Exception as e:
+                print(f"Error editing message: {e}")
+
+
+"""
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 async def progress_message(current, total, ud_type, message, start):
     now = time.time()
@@ -54,7 +92,7 @@ async def progress_message(current, total, ud_type, message, start):
         except Exception as e:
             print(f"Error editing message: {e}")
 
-
+"""
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
