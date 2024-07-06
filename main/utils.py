@@ -4,7 +4,7 @@ import heroku3
 import os
 
 
-PROGRESS_BAR = 
+PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
 │
 ├<b>{5}</b>
@@ -17,7 +17,7 @@ PROGRESS_BAR =
 │
 ├<b>⏱️**ETA** : {4}</b>
 │
-╰─────────────────⍟
+╰─────────────────⍟"""
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 async def progress_message(current, total, ud_type, message, start):
