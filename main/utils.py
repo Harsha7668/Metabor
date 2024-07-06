@@ -22,45 +22,55 @@ PROGRESS_BAR = """
 async def progress_message(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
-    if round(diff % 5.00) == 0 or current == total:
+    if current >= total:
+        percentage = 100.0
+        speed = humanbytes(current / diff) + "/s"
+        elapsed_time_ms = round(diff * 1000)
+        estimated_total_time = '0 s'
+        
+        progress = "{0}{1}".format(
+            ''.join(["■" for i in range(20)]),  # Full progress bar
+            ''
+        )
+    else:
         percentage = current * 100 / total
         speed = humanbytes(current / diff) + "/s"
         elapsed_time_ms = round(diff * 1000)
+        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
+        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+        estimated_total_time = TimeFormatter(estimated_total_time_ms)
         
-        if current != total:
-            time_to_completion_ms = round((total - current) / (current / diff)) * 1000
-            estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
-            estimated_total_time = TimeFormatter(estimated_total_time_ms)
-        else:
-            estimated_total_time = '0 s'
-        
-        elapsed_time = TimeFormatter(elapsed_time_ms)
-
         progress = "{0}{1}".format(
             ''.join(["■" for i in range(math.floor(percentage / 5))]),
             ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
         )
-        progress_text = f"{ud_type}\n\n" + PROGRESS_BAR.format(
-            round(percentage, 2),
-            humanbytes(current),
-            humanbytes(total),
-            speed,
-            estimated_total_time,
-            progress
-        )
 
-        # Only edit the message if the content has changed
-        if message.text != progress_text:
-            try:
-                await message.edit(
-                    text=progress_text,
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
-                )
-            except Exception as e:
-                print(f"Error editing message: {e}")
+    progress_text = f"{ud_type}\n\n" + PROGRESS_BAR.format(
+        round(percentage, 2),
+        humanbytes(current),
+        humanbytes(total),
+        speed,
+        estimated_total_time,
+        progress
+    )
 
+    # Only edit the message if the content has changed
+    if message.text != progress_text:
+        try:
+            await message.edit(
+                text=progress_text,
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+            )
+        except Exception as e:
+            print(f"Error editing message: {e}")
 
-
+    # Delete the progress message if upload is complete
+    if current >= total:
+        try:
+            await message.delete()
+        except Exception as e:
+            print(f"Error deleting message: {e}")
+            
 def humanbytes(size):
     if not size:
         return ""
@@ -83,8 +93,6 @@ def TimeFormatter(milliseconds: int) -> str:
           ((str(seconds) + "s, ") if seconds else "") + \
           ((str(milliseconds) + "ms, ") if milliseconds else "")
     return tmp[:-2]
-
-
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
