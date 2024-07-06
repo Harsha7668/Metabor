@@ -3,23 +3,8 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
 import os
 
-"""
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-PROGRESS_BAR = """
-╭───[**•PROGRESS BAR•**]───⍟
-│
-├<b>{5}</b>
-│
-├<b>📁**PROCESS** : {1} | {2}</b>
-│
-├<b>🚀**PERCENT** : {0}%</b>
-│
-├<b>⚡**SPEED** : {3}</b>
-│
-├<b>⏱️**ETA** : {4}</b>
-│
-╰─────────────────⍟"""
 
+"""
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 async def progress_message(current, total, ud_type, message, start):
     now = time.time()
