@@ -760,8 +760,8 @@ async def change_metadata(bot, msg):
             os.remove(file_thumb)"""
 
 
-
-
+"""
+#Google drive 
 @Client.on_message(filters.private & filters.command("changemetadata"))
 async def change_metadata(bot, msg):
     global METADATA_ENABLED, user_settings
@@ -840,12 +840,104 @@ async def change_metadata(bot, msg):
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
+    await sts.delete()"""
+
+@Client.on_message(filters.private & filters.command("changemetadata"))
+async def change_metadata(bot, msg):
+    global METADATA_ENABLED, user_settings
+
+    if not METADATA_ENABLED:
+        return await msg.reply_text("Metadata changing feature is currently disabled.")
+
+    user_id = msg.from_user.id
+    if user_id not in user_settings or not any(user_settings[user_id].values()):
+        return await msg.reply_text("Metadata titles are not set. Please set metadata titles using `/setmetadata video_title audio_title subtitle_title`.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the metadata command\nFormat: `changemetadata -n filename.mkv`")
+
+    if len(msg.command) < 3 or msg.command[1] != "-n":
+        return await msg.reply_text("Please provide the filename with the `-n` flag\nFormat: `changemetadata -n filename.mkv`")
+
+    output_filename = " ".join(msg.command[2:]).strip()
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
+
+    video_title = user_settings[user_id]['video_title']
+    audio_title = user_settings[user_id]['audio_title']
+    subtitle_title = user_settings[user_id]['subtitle_title']
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the metadata command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await sts.edit(f"Error downloading media: {e}")
+        return
+
+    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+
+    await sts.edit("💠 Changing metadata... ⚡")
+    try:
+        change_video_metadata(downloaded, video_title, audio_title, subtitle_title, output_file)
+    except Exception as e:
+        await sts.edit(f"Error changing metadata: {e}")
+        os.remove(downloaded)
+        return
+
+    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    if not os.path.exists(thumbnail_path):
+        try:
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+        except Exception as e:
+            file_thumb = None
+    else:
+        file_thumb = thumbnail_path
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+    await sts.edit("💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**File successfully Change Metadata and uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {output_filename}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except Exception as e:
+            return await sts.edit(f"Error: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
     await sts.delete()
+
+
+
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Attach Photo Command 
 
+"""
 @Client.on_message(filters.private & filters.command("attachphoto"))
 async def attach_photo(bot, msg):
     global PHOTO_ATTACH_ENABLED
@@ -943,6 +1035,114 @@ async def attach_photo(bot, msg):
         os.remove(output_file)
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
+"""
+
+@Client.on_message(filters.private & filters.command("attachphoto"))
+async def attach_photo(bot, msg):
+    global PHOTO_ATTACH_ENABLED
+
+    if not PHOTO_ATTACH_ENABLED:
+        return await msg.reply_text("Photo attachment feature is currently disabled.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the attach photo command and specify the output filename\nFormat: `attachphoto -n filename.mkv`")
+
+    if len(msg.command) < 2 or "-n" not in msg.text:
+        return await msg.reply_text("Please provide the output filename using the `-n` flag\nFormat: `attachphoto -n filename.mkv`")
+
+    command_text = " ".join(msg.command[1:]).strip()
+    filename_part = command_text.split('-n', 1)[1].strip()
+    output_filename = filename_part if filename_part else None
+
+    if not output_filename:
+        return await msg.reply_text("Please provide a valid filename\nFormat: `attachphoto -n filename.mkv`")
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the attach photo command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()  # Define c_time here
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await sts.edit(f"Error downloading media: {e}")
+        return
+
+    attachment_path = f"{DOWNLOAD_LOCATION}/attachment_{msg.from_user.id}.jpg"
+    if not os.path.exists(attachment_path):
+        await sts.edit("Please send a photo to be attached using the `setphoto` command.")
+        os.remove(downloaded)
+        return
+
+    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+
+    await sts.edit("💠 Adding photo attachment... ⚡")
+    try:
+        add_photo_attachment(downloaded, attachment_path, output_file)
+    except Exception as e:
+        await sts.edit(f"Error adding photo attachment: {e}")
+        os.remove(downloaded)
+        return
+
+    file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    if not os.path.exists(file_thumb):
+        try:
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=file_thumb)
+        except Exception as e:
+            print(e)
+            file_thumb = None
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+
+    await sts.edit("🔼 Uploading modified file... ⚡")
+    try:
+        # Upload to Google Drive if file size exceeds the limit
+        if filesize > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+            await msg.reply_text(
+                f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
+                f"**Google Drive Link**: [View File]({file_link})\n\n"
+                f"**Uploaded File**: {output_filename}\n"
+                f"**Request User:** {msg.from_user.mention}\n\n"
+                f"**Size**: {filesize_human}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        else:
+            # Send modified file to user's PM
+            await bot.send_document(
+                msg.from_user.id,
+                document=output_file,
+                thumb=file_thumb,
+                caption=output_filename,
+                progress=progress_message,
+                progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
+            )
+
+            # Notify in the group about the upload
+            await msg.reply_text(
+                f"┏📥 **File Name:** {output_filename}\n"
+                f"┠💾 **Size:** {filesize_human}\n"
+                f"┠♻️ **Mode:** Attach Photo\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄ **File has been sent to your PM in the bot!**"
+            )
+
+        await sts.delete()
+    except Exception as e:
+        await sts.edit(f"Error uploading modified file: {e}")
+    finally:
+        os.remove(downloaded)
+        os.remove(output_file)
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
+
 
 """
 @Client.on_message(filters.private & filters.command("attachphoto"))
