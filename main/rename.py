@@ -3414,8 +3414,6 @@ async def upload_to_google_drive(file_path, file_name, sts):
     return response.get('webViewLink')"""
 
 
-
-
 async def upload_to_google_drive(file_path, file_name, sts):
     file_metadata = {'name': file_name}
     media = MediaFileUpload(file_path, resumable=True)
@@ -3434,7 +3432,15 @@ async def upload_to_google_drive(file_path, file_name, sts):
 
     # Ensure final progress update is shown as complete
     await progress_message(total_size, total_size, "Uploading to Google Drive", sts, start_time)
-    return response.get('webViewLink')
+
+    # Send completion message
+    webViewLink = response.get('webViewLink')
+    await sts.reply_text(f"Process completed\n\nFile successfully uploaded to Google Drive!\n\n[Google Drive Link: View File]({webViewLink})\n\nUploaded File: {file_name}\nRequest User: <your_username>\n\nSize: {humanbytes(total_size)}")
+
+    return webViewLink
+
+
+
 
 
 
