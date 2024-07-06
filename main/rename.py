@@ -2633,7 +2633,7 @@ async def sample_video(bot, msg):
     os.remove(output_file)
     await sts.delete()
 
- """           
+"""           
 #Leech Handler Only Auth Users 
 @Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
 async def linktofile(bot, msg: Message):
