@@ -4,6 +4,8 @@ import heroku3
 import os
 
 
+
+
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
 │
@@ -26,8 +28,11 @@ async def progress_message(current, total, ud_type, message, start):
         percentage = current * 100 / total
         speed = humanbytes(current / diff) + "/s"
         elapsed_time_ms = round(diff * 1000)
-        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
-        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+        if current != total:
+            time_to_completion_ms = round((total - current) / (current / diff)) * 1000
+            estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+        else:
+            estimated_total_time_ms = elapsed_time_ms
 
         elapsed_time = TimeFormatter(elapsed_time_ms)
         estimated_total_time = TimeFormatter(estimated_total_time_ms)
