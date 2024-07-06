@@ -4,8 +4,6 @@ import heroku3
 import os
 
 
-
-
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
 │
@@ -28,14 +26,15 @@ async def progress_message(current, total, ud_type, message, start):
         percentage = current * 100 / total
         speed = humanbytes(current / diff) + "/s"
         elapsed_time_ms = round(diff * 1000)
+        
         if current != total:
             time_to_completion_ms = round((total - current) / (current / diff)) * 1000
             estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+            estimated_total_time = TimeFormatter(estimated_total_time_ms)
         else:
-            estimated_total_time_ms = elapsed_time_ms
-
+            estimated_total_time = '0 s'
+        
         elapsed_time = TimeFormatter(elapsed_time_ms)
-        estimated_total_time = TimeFormatter(estimated_total_time_ms)
 
         progress = "{0}{1}".format(
             ''.join(["■" for i in range(math.floor(percentage / 5))]),
@@ -46,7 +45,7 @@ async def progress_message(current, total, ud_type, message, start):
             humanbytes(current),
             humanbytes(total),
             speed,
-            estimated_total_time if estimated_total_time != '' else '0 s',
+            estimated_total_time,
             progress
         )
 
@@ -61,46 +60,18 @@ async def progress_message(current, total, ud_type, message, start):
                 print(f"Error editing message: {e}")
 
 
-"""
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-async def progress_message(current, total, ud_type, message, start):
-    now = time.time()
-    diff = now - start
-    if round(diff % 5.00) == 0 or current == total:
-        percentage = current * 100 / total
-        speed = humanbytes(current / diff) + "/s"
-        elapsed_time_ms = round(diff * 1000)
-        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
-        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
 
-        elapsed_time = TimeFormatter(elapsed_time_ms)
-        estimated_total_time = TimeFormatter(estimated_total_time_ms)
+def humanbytes(size):
+    if not size:
+        return ""
+    power = 2**10
+    n = 0
+    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+    while size > power:
+        size /= power
+        n += 1
+    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
-        progress = "{0}{1}".format(
-            ''.join(["■" for i in range(math.floor(percentage / 5))]),
-            ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
-        )
-        tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
-
-        try:
-            await message.edit(
-                text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
-                    round(percentage, 2),
-                    humanbytes(current),
-                    humanbytes(total),
-                    speed,
-                    estimated_total_time if estimated_total_time != '' else '0 s',
-                    progress
-                ),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
-            )
-        except Exception as e:
-            print(f"Error editing message: {e}")
-
-"""
-
-
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(milliseconds, 1000)
     minutes, seconds = divmod(seconds, 60)
@@ -113,27 +84,8 @@ def TimeFormatter(milliseconds: int) -> str:
           ((str(milliseconds) + "ms, ") if milliseconds else "")
     return tmp[:-2]
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-def humanbytes(size):
-    if not size:
-        return ""
-    power = 2**10
-    n = 0
-    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
-    while size > power:
-        size /= power
-        n += 1
-    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-def convert(seconds):
-    seconds = seconds % (24 * 3600)
-    hour = seconds // 3600
-    seconds %= 3600
-    minutes = seconds // 60
-    seconds %= 60
-    return "%d:%02d:%02d" % (hour, minutes, seconds)
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Define heroku_restart function
