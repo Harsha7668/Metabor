@@ -2057,6 +2057,111 @@ async def merge_and_upload(bot, msg):
         await sts.delete()
 
 
+async def safe_edit_message(message, new_text):
+    try:
+        if message.text != new_text:
+            await message.edit(new_text)
+    except Exception as e:
+        print(f"Failed to edit message: {e}")
+
+@Client.on_message(filters.private & filters.command("removetags"))
+async def remove_tags(bot, msg):
+    global REMOVETAGS_ENABLED
+    if not REMOVETAGS_ENABLED:
+        return await msg.reply_text("The removetags feature is currently disabled.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the removetags command.")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the removetags command.")
+
+    command_text = " ".join(msg.command[1:]).strip()
+    new_filename = None
+
+    # Extract new filename from command
+    if "-n" in command_text:
+        try:
+            new_filename = command_text.split('-n')[1].strip()
+        except IndexError:
+            return await msg.reply_text("Please provide a valid filename with the -n option (e.g., `-n new_filename.mkv`).")
+
+        # Check if new filename has a valid video file extension (.mkv, .mp4, .avi)
+        valid_extensions = ('.mkv', '.mp4', '.avi')
+        if not any(new_filename.lower().endswith(ext) for ext in valid_extensions):
+            return await msg.reply_text("The new filename must include a valid extension (e.g., `.mkv`, `.mp4`, `.avi`).")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await safe_edit_message(sts, f"Error downloading media: {e}")
+        return
+
+    cleaned_file = os.path.join(DOWNLOAD_LOCATION, new_filename if new_filename else "cleaned_" + os.path.basename(downloaded))
+
+    await safe_edit_message(sts, "💠 Removing all tags... ⚡")
+    try:
+        remove_all_tags(downloaded, cleaned_file)
+    except Exception as e:
+        await safe_edit_message(sts, f"Error removing all tags: {e}")
+        os.remove(downloaded)
+        return
+
+    file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    if not os.path.exists(file_thumb):
+        try:
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=file_thumb)
+        except Exception as e:
+            print(e)
+            file_thumb = None
+
+    await safe_edit_message(sts, "🔼 Uploading cleaned file... ⚡")
+    try:
+        # Upload to Google Drive if file size exceeds the limit
+        filesize = os.path.getsize(cleaned_file)
+        if filesize > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(cleaned_file, os.path.basename(cleaned_file), sts)
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+            await msg.reply_text(
+                f"File successfully Removed tags and uploaded to Google Drive!\n\n"
+                f"Google Drive Link: [View File]({file_link})\n\n"
+                f"Uploaded File: {os.path.basename(cleaned_file)}\n"
+                f"Request User: {msg.from_user.mention}\n\n"
+                f"Size: {humanbytes(filesize)}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        else:
+            # Send cleaned file to user's PM
+            await bot.send_document(
+                msg.from_user.id,
+                cleaned_file,
+                thumb=file_thumb,
+                caption="Here is your file with all tags removed.",
+                progress=progress_message,
+                progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
+            )
+
+            # Notify in the group about the upload
+            await msg.reply_text(
+                f"┏📥 **File Name:** {new_filename if new_filename else os.path.basename(cleaned_file)}\n"
+                f"┠💾 **Size:** {humanbytes(filesize)}\n"
+                f"┠♻️ **Mode:** Remove Tags\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄ **File has been sent to your PM in the bot!**"
+            )
+
+        await sts.delete()
+    except Exception as e:
+        await safe_edit_message(sts, f"Error uploading cleaned file: {e}")
+    finally:
+        os.remove(downloaded)
+        os.remove(cleaned_file)
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
 
 
 
@@ -2155,7 +2260,7 @@ async def remove_tags(bot, msg):
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)"""
 
-
+"""
 # Remove tags command
 async def safe_edit_message(message, new_text):
     try:
@@ -2253,7 +2358,7 @@ async def remove_tags(bot, msg):
         os.remove(downloaded)
         os.remove(cleaned_file)
         if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
+            os.remove(file_thumb)"""
  
 
 #Screenshots Command
