@@ -2185,7 +2185,7 @@ async def merge_and_upload(bot, msg):
         if user_id in merge_state:
             del merge_state[user_id]
 
-        await sts.delete()
+        await sts.delete()"""
 
 
 
@@ -4059,6 +4059,9 @@ async def merge_and_upload(bot, msg):
             del merge_state[user_id]
 
         await sts.delete()
+
+
+
 
 #leech command 
 
