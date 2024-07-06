@@ -3411,8 +3411,8 @@ async def upload_to_google_drive(file_path, file_name, sts):
         if status:
             await progress_message(status.progress() * 100, 100, "Uploading to Google Drive", sts, time.time())
 
-    return response.get('webViewLink')
-"""
+    return response.get('webViewLink')"""
+
 
 async def upload_to_google_drive(file_path, file_name, sts):
     file_metadata = {'name': file_name}
@@ -3421,13 +3421,18 @@ async def upload_to_google_drive(file_path, file_name, sts):
 
     response = None
     start_time = time.time()
+    total_size = os.path.getsize(file_path)
+    current_size = 0
+
     while response is None:
         status, response = request.next_chunk()
         if status:
-            await progress_message(status.resumable_progress, os.path.getsize(file_path), "Uploading to Google Drive", sts, start_time)
+            current_size = status.resumable_progress
+            await progress_message(current_size, total_size, "Uploading to Google Drive", sts, start_time)
 
+    # Ensure final progress update is shown as complete
+    await progress_message(total_size, total_size, "Uploading to Google Drive", sts, start_time)
     return response.get('webViewLink')
-
 
 
 
