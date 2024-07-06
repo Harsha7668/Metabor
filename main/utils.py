@@ -3,6 +3,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
 import os
 
+"""
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
@@ -51,6 +52,57 @@ async def progress_message(current, total, ud_type, message, start):
                 ),
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
             )
+        except Exception as e:
+            print(f"Error editing message: {e}")"""
+
+PROGRESS_BAR = """
+╭───[**•PROGRESS BAR•**]───⍟
+│
+├<b>{5}</b>
+│
+├<b>📁**PROCESS** : {1} | {2}</b>
+│
+├<b>🚀**PERCENT** : {0}%</b>
+│
+├<b>⚡**SPEED** : {3}</b>
+│
+├<b>⏱️**ETA** : {4}</b>
+│
+╰─────────────────⍟"""
+
+# ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+async def progress_message(current, total, ud_type, message, start):
+    now = time.time()
+    diff = now - start
+    if round(diff % 5.00) == 0 or current == total:
+        percentage = current * 100 / total
+        speed = humanbytes(current / diff) + "/s"
+        elapsed_time_ms = round(diff * 1000)
+        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
+        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+
+        elapsed_time = TimeFormatter(elapsed_time_ms)
+        estimated_total_time = TimeFormatter(estimated_total_time_ms)
+
+        progress = "{0}{1}".format(
+            ''.join(["■" for _ in range(math.floor(percentage / 5))]),
+            ''.join(["□" for _ in range(20 - math.floor(percentage / 5))])
+        )
+
+        try:
+            await message.edit(
+                text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
+                    round(percentage, 2),
+                    humanbytes(current),
+                    humanbytes(total),
+                    speed,
+                    estimated_total_time if estimated_total_time != '' else '0 s',
+                    progress
+                ),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Join Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+            )
+            if current == total:
+                await message.delete()  # Ensure the message is deleted upon completion
         except Exception as e:
             print(f"Error editing message: {e}")
 
