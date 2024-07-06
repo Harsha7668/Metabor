@@ -2294,7 +2294,7 @@ async def remove_tags(bot, msg):
         os.remove(downloaded)
         os.remove(cleaned_file)
         if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)"""
+            os.remove(file_thumb)
 
 
 
@@ -2633,6 +2633,7 @@ async def sample_video(bot, msg):
     os.remove(output_file)
     await sts.delete()
 """
+ """           
 #Leech Handler Only Auth Users 
 @Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
 async def linktofile(bot, msg: Message):
@@ -3413,8 +3414,8 @@ async def upload_to_google_drive(file_path, file_name, sts):
         if status:
             await progress_message(status.progress() * 100, 100, "Uploading to Google Drive", sts, time.time())
 
-    return response.get('webViewLink')"""
-
+    return response.get('webViewLink')
+"""
 
 async def upload_to_google_drive(file_path, file_name, sts):
     file_metadata = {'name': file_name}
@@ -3429,9 +3430,6 @@ async def upload_to_google_drive(file_path, file_name, sts):
             await progress_message(status.resumable_progress, os.path.getsize(file_path), "Uploading to Google Drive", sts, start_time)
 
     return response.get('webViewLink')
-
-
-
 
 
 
