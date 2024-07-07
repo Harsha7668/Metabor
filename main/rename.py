@@ -820,7 +820,7 @@ async def change_index_audio(bot, msg):
     indexes = [int(i) - 1 for i in index_params[1:]]
 
     # Construct the FFmpeg command to modify indexes
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0:v']  # Always map video stream
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
 
     for idx in indexes:
         ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
@@ -856,6 +856,7 @@ async def change_index_audio(bot, msg):
 
     await sts.edit("💠 Uploading... ⚡")
     try:
+        # Upload to Google Drive if file size exceeds the limit
         if filesize > 2 * 1024 * 1024 * 1024:  # 2GB in bytes
             file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
@@ -896,8 +897,6 @@ async def change_index_audio(bot, msg):
             os.remove(output_file)
         except Exception as e:
             print(f"Error deleting files: {e}")
-
-
 
 #changeindex subtitles 
 # Command to change index subtitle
