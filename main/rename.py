@@ -21,6 +21,7 @@ from pyrogram.errors import RPCError, FloodWait
 import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
 
+import json
 
 import os
 import pickle
@@ -2940,6 +2941,99 @@ async def upload_to_google_drive(file_path, file_name, sts):
             await progress_message(status.resumable_progress, os.path.getsize(file_path), "Uploading to Google Drive", sts, start_time)
 
     return response.get('webViewLink')
+
+
+
+
+# Function to extract all audio streams and send them directly to the bot
+async def extract_all_audios_and_send(input_path, client, chat_id):
+    try:
+        # Probe the input file to get information about streams
+        probe_command = [
+            'ffprobe',
+            '-v', 'error',
+            '-print_format', 'json',
+            '-show_streams',
+            input_path
+        ]
+        probe_process = await asyncio.create_subprocess_exec(*probe_command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        probe_output, _ = await probe_process.communicate()
+
+        # Parse JSON output to get audio streams
+        probe_data = json.loads(probe_output.decode('utf-8'))
+        audio_streams = [stream for stream in probe_data['streams'] if stream['codec_type'] == 'audio']
+
+        # Extract each audio stream and send it to the bot
+        for index, audio_stream in enumerate(audio_streams):
+            audio_index = audio_stream['index']
+
+            # Determine output file extension based on codec_name
+            codec_name = audio_stream.get('codec_name', 'unknown')
+            if codec_name.lower() in ['aac', 'eac3', 'opus', 'mp3']:
+                output_extension = codec_name.lower()
+            else:
+                output_extension = 'aac'  # Default extension if codec is unknown
+
+            # Prepare the output file name
+            output_file = os.path.join(DOWNLOAD_LOCATION, f"audio_{index}.{output_extension}")
+
+            # FFmpeg command to extract the audio stream
+            extract_command = [
+                'ffmpeg',
+                '-i', input_path,
+                '-map', f'0:a:{audio_index}',
+                '-c:a', 'copy',
+                output_file,
+                '-y'  # Overwrite output file if it exists
+            ]
+            extract_process = await asyncio.create_subprocess_exec(*extract_command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            _, stderr = await extract_process.communicate()
+
+            if extract_process.returncode != 0:
+                raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
+
+            # Send the extracted audio file to the bot
+            await client.send_audio(chat_id, audio=output_file)
+
+            # Remove the extracted audio file after sending
+            os.remove(output_file)
+
+        print(f"All audio streams extracted and sent.")
+        return True
+    except Exception as e:
+        print(f"Error extracting audio: {e}")
+        return False
+
+
+
+# Command handler for /extractAudio
+@Client.on_message(filters.private & filters.command("extractAudio"))
+async def extract_audio_handler(client, message):
+    try:
+        # Check if there is a replied message
+        reply = message.reply_to_message
+        if not reply:
+            await message.reply_text("Please reply to a media file to extract audio streams.")
+            return
+
+        # Download the media file
+        sts = await message.reply_text(progress_message)
+        c_time = time.time()
+        try:
+            downloaded = await reply.download(progress=progress_message, progress_args=("Downloading...", sts, c_time))
+        except Exception as e:
+            await sts.edit(f"Error downloading media: {e}")
+            return
+
+        # Extract audios and send them directly to the bot
+        await extract_all_audios_and_send(downloaded, client, message.chat.id)
+
+        # Clean up: delete the downloaded file
+        os.remove(downloaded)
+
+        await sts.edit(f"All audio streams extracted and sent.")
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
 
 
 if __name__ == '__main__':
