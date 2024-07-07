@@ -1167,7 +1167,6 @@ async def merge_and_upload(bot, msg: Message):
 
 
 #leech command 
-
 @Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
 async def linktofile(bot, msg: Message):
     reply = msg.reply_to_message
@@ -1195,7 +1194,68 @@ async def linktofile(bot, msg: Message):
         except RPCError as e:
             return await sts.edit(f"Download failed: {e}")
 
-        await upload_file(bot, msg, downloaded, new_name, sts, c_time, media)
+        filesize = os.path.getsize(downloaded)
+
+        if CAPTION:
+            try:
+                cap = CAPTION.format(file_name=new_name, file_size=humanbytes(filesize))
+            except Exception as e:
+                return await sts.edit(text=f"Your caption has an error: unexpected keyword ({e})")
+        else:
+            cap = f"{new_name}\n\n🌟 Size: {humanbytes(filesize)}"
+
+        # Thumbnail handling
+        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+        file_thumb = None
+        if os.path.exists(thumbnail_path):
+            file_thumb = thumbnail_path
+        else:
+            try:
+                if "thumbs" in media and media.thumbs:
+                    file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+            except Exception as e:
+                print(f"Error downloading thumbnail: {e}")
+
+        await sts.edit("💠 Uploading...")
+        if filesize > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(downloaded, new_name, sts)
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+            await msg.reply_text(
+                f"File successfully indexed and uploaded to Google Drive!\n\n"
+                f"Google Drive Link: [View File]({file_link})\n\n"
+                f"Uploaded File: {new_name}\n"
+                f"Request User: {msg.from_user.mention}\n\n"
+                f"Size: {humanbytes(filesize)}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        else:
+            try:
+                await bot.send_document(
+                    msg.chat.id, 
+                    document=downloaded, 
+                    thumb=file_thumb, 
+                    caption=cap, 
+                    progress=progress_message, 
+                    progress_args=("💠 Upload Started...", sts, c_time)
+                )
+
+                await msg.reply_text(
+                    f"┏📥 **File Name:** {os.path.basename(new_name)}\n"
+                    f"┠💾 **Size:** {humanbytes(filesize)}\n"
+                    f"┠♻️ **Mode:** Leech\n"
+                    f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                    f"❄ **File has been sent to your PM in the bot!**"
+                )
+            except RPCError as e:
+                await sts.edit(f"Upload failed: {e}")
+            except TimeoutError as e:
+                await sts.edit(f"Upload timed out: {e}")
+            finally:
+                if file_thumb and os.path.exists(file_thumb):
+                    os.remove(file_thumb)
+                if os.path.exists(downloaded):
+                    os.remove(downloaded)
+                await sts.delete()
 
 async def handle_link_download(bot, msg: Message, link: str, new_name: str, media):
     sts = await msg.reply_text("🚀 Downloading from link...")
@@ -1218,38 +1278,28 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
         await sts.edit("File not found after download. Please check the link and try again.")
         return
 
-    await upload_file(bot, msg, new_name, new_name, sts, c_time, media)
-
-async def upload_file(bot, msg, file_path, new_name, sts, c_time, media):
-    filesize = os.path.getsize(file_path)
+    filesize = os.path.getsize(new_name)
     filesize_human = humanbytes(filesize)
-
-    if CAPTION:
-        try:
-            cap = CAPTION.format(file_name=new_name, file_size=filesize_human)
-        except Exception as e:
-            return await sts.edit(text=f"Your caption has an error: unexpected keyword ({e})")
-    else:
-        cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
+    cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
 
     # Thumbnail handling
     thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    if not os.path.exists(thumbnail_path):
+    file_thumb = None
+    if os.path.exists(thumbnail_path):
+        file_thumb = thumbnail_path
+    else:
         try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+            if "thumbs" in media and media.thumbs:
+                file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
         except Exception as e:
             print(f"Error downloading thumbnail: {e}")
-            file_thumb = None
-    else:
-        file_thumb = thumbnail_path
 
-    await edit_message(sts, "💠 Uploading...")
-    c_time = time.time()
+    await sts.edit("💠 Uploading...")
     if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(file_path, new_name, sts)
+        file_link = await upload_to_google_drive(new_name, new_name, sts)
         button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
         await msg.reply_text(
-            f"File successfully leeched and uploaded to Google Drive!\n\n"
+            f"File successfully indexed and uploaded to Google Drive!\n\n"
             f"Google Drive Link: [View File]({file_link})\n\n"
             f"Uploaded File: {new_name}\n"
             f"Request User: {msg.from_user.mention}\n\n"
@@ -1260,43 +1310,21 @@ async def upload_file(bot, msg, file_path, new_name, sts, c_time, media):
         try:
             await bot.send_document(
                 msg.chat.id, 
-                document=file_path, 
+                document=new_name, 
                 thumb=file_thumb, 
                 caption=cap, 
                 progress=progress_message, 
                 progress_args=("💠 Upload Started...", sts, c_time)
             )
-
-            await msg.reply_text(
-                f"┏📥 **File Name:** {os.path.basename(new_name)}\n"
-                f"┠💾 **Size:** {filesize_human}\n"
-                f"┠♻️ **Mode:** Leech\n"
-                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄ **File has been sent to your PM in the bot!**"
-            )
-
         except RPCError as e:
             await sts.edit(f"Upload failed: {e}")
         except TimeoutError as e:
             await sts.edit(f"Upload timed out: {e}")
         finally:
-            try:
-                if file_thumb and os.path.exists(file_thumb):
-                    os.remove(file_thumb)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-            except Exception as e:
-                print(f"Error deleting files: {e}")
+            if file_thumb:
+                os.remove(file_thumb)
+            os.remove(new_name)
             await sts.delete()
-
-async def edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit(new_text)
-    except MessageNotModified:
-        pass
-
-        
 
 
 
