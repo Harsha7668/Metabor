@@ -1018,11 +1018,25 @@ async def change_index_subtitle(bot, msg):
         os.remove(file_thumb)
 
 
-"""
-#merge command 
 
+#merge command 
+import os
+import time
+from googleapiclient.http import MediaFileUpload
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+
+# Constants and global variables
+GDRIVE_FOLDER_ID = "your_google_drive_folder_id"
+DOWNLOAD_LOCATION = "downloads"
+FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB limit
+MERGE_ENABLED = True
+
+merge_state = {}  # Keeps track of the merge state for each user
+
+# Command to start merging files
 @Client.on_message(filters.private & filters.command("merge"))
-async def start_merge_command(bot, msg):
+async def start_merge_command(bot, msg: Message):
     global MERGE_ENABLED
     if not MERGE_ENABLED:
         return await msg.reply_text("The merge feature is currently disabled.")
@@ -1032,8 +1046,9 @@ async def start_merge_command(bot, msg):
 
     await msg.reply_text("Send up to 10 video/document files one by one. Once done, send `/videomerge filename`.")
 
+# Command to finalize merging and start the process
 @Client.on_message(filters.private & filters.command("videomerge"))
-async def start_video_merge_command(bot, msg):
+async def start_video_merge_command(bot, msg: Message):
     user_id = msg.from_user.id
     if user_id not in merge_state or not merge_state[user_id]["files"]:
         return await msg.reply_text("No files received for merging. Please send files using /merge command first.")
@@ -1043,14 +1058,17 @@ async def start_video_merge_command(bot, msg):
 
     await merge_and_upload(bot, msg)
 
+# Handling media files sent by users
 @Client.on_message(filters.document | filters.video & filters.private)
-async def handle_media_files(bot, msg):
+async def handle_media_files(bot, msg: Message):
     user_id = msg.from_user.id
     if user_id in merge_state and len(merge_state[user_id]["files"]) < 10:
         merge_state[user_id]["files"].append(msg)
         await msg.reply_text("File received. Send another file or use `/videomerge filename` to start merging.")
 
-async def merge_and_upload(bot, msg):
+
+# Function to merge and upload files
+async def merge_and_upload(bot, msg: Message):
     user_id = msg.from_user.id
     if user_id not in merge_state:
         return await msg.reply_text("No merge state found for this user. Please start the merge process again.")
@@ -1072,26 +1090,41 @@ async def merge_and_upload(bot, msg):
             for file_path in file_paths:
                 f.write(f"file '{file_path}'\n")
 
-        await safe_edit_message(sts, "💠 Merging videos... ⚡")
+        await sts.edit("💠 Merging videos... ⚡")
         await merge_videos(input_file, output_path)
 
         filesize = os.path.getsize(output_path)
         filesize_human = humanbytes(filesize)
         cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
 
-        await safe_edit_message(sts, "💠 Uploading... ⚡")
+        await sts.edit("💠 Uploading... ⚡")
 
-        file_thumb = None  # Initialize file_thumb
+        # Thumbnail handling
+        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
+        file_thumb = None
+        if os.path.exists(thumbnail_path):
+            file_thumb = thumbnail_path
+        else:
+            try:
+                if "thumbs" in msg and msg.thumbs:
+                    file_thumb = await bot.download_media(msg.thumbs[0].file_id, file_name=thumbnail_path)
+            except Exception as e:
+                print(f"Error downloading thumbnail: {e}")
 
-        if len(files_to_merge) > 0:
-            first_file = files_to_merge[0]
-            if first_file.document:
-                file_thumb = await download_thumbnail(bot, first_file)
-
+        # Uploading the merged file
         c_time = time.time()
-
-        if filesize <= FILE_SIZE_LIMIT:
-            # Upload to Telegram
+        if filesize > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(output_path, output_filename, sts)
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+            await msg.reply_text(
+                f"File successfully merged and uploaded to Google Drive!\n\n"
+                f"Google Drive Link: [View File]({file_link})\n\n"
+                f"Uploaded File: {output_filename}\n"
+                f"Request User: {msg.from_user.mention}\n\n"
+                f"Size: {filesize_human}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        else:
             await bot.send_document(
                 user_id,
                 document=output_path,
@@ -1108,23 +1141,9 @@ async def merge_and_upload(bot, msg):
                 f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
                 f"❄ **File has been sent in Bot PM!**"
             )
-        else:
-            # Upload to Google Drive
-            drive_link = await upload_to_google_drive(output_path, output_filename, sts)
-            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{drive_link}")]]
-            await msg.reply_text(
-                f"File successfully merged and uploaded to Google Drive!\n\n"
-                f"Google Drive Link: [View File]({drive_link})\n\n"
-                f"Uploaded File: {output_filename}\n"
-                f"Request User: {msg.from_user.mention}\n\n"
-                f"Size: {filesize_human}",
-                reply_markup=InlineKeyboardMarkup(button)
-            )
-
-        await sts.delete()
 
     except Exception as e:
-        await safe_edit_message(sts, f"❌ Error: {e}")
+        await sts.edit(f"❌ Error: {e}")
 
     finally:
         # Clean up temporary files
@@ -1143,7 +1162,6 @@ async def merge_and_upload(bot, msg):
             del merge_state[user_id]
 
         await sts.delete()
-"""
 
 
 
@@ -1374,6 +1392,7 @@ async def multitask_command(bot, msg):
         if og_thumbnail and os.path.exists(og_thumbnail):
             os.remove(og_thumbnail)
         await sts.delete()
+        
 """
 #Changemetadata command 
 @Client.on_message(filters.private & filters.command("changemetadata"))
@@ -2757,7 +2776,7 @@ async def merge_and_upload(bot, msg):
         await sts.delete()"""
 
 
-
+"""
 
 @Client.on_message(filters.private & filters.command("merge"))
 async def start_merge_command(bot, msg):
@@ -2884,7 +2903,7 @@ async def merge_and_upload(bot, msg):
             del merge_state[user_id]
 
         await sts.delete()
-
+"""
 
 
 #Removetags command 
