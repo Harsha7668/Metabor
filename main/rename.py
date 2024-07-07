@@ -521,17 +521,35 @@ async def gofile_setup(bot, msg: Message):
     GOFILE_API_KEY = new_api_key
     await msg.reply_text("Gofile API key set successfully✅!")
     
-"""
-#Rename Command
-@Client.on_message(filters.private & filters.command("rename"))
-async def rename_file(bot, msg: Message):
-    if not RENAME_ENABLED:
-        return await msg.reply_text("The rename feature is currently disabled.")
 
-    reply = msg.reply_to_message
-    if len(msg.command) < 2 or not reply:
+#Rename Command
+
+
+# Google Drive upload function
+async def upload_to_google_drive(file_path, file_name, status_message):
+    start_time = time.time()
+    file_metadata = {'name': file_name, 'parents': [GDRIVE_FOLDER_ID]}
+    media = MediaFileUpload(file_path, resumable=True)
+
+    request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+    response = None
+    while response is None:
+        status, response = request.next_chunk()
+        if status:
+            current_progress = status.progress() * 100
+            await progress_message(current_progress, 100, "Uploading to Google Drive", status_message, start_time)
+
+    file_id = response.get('id')
+    file_link = response.get('webViewLink')
+    return file_link
+
+# Command handler for renaming and uploading files
+@Client.on_message(filters.private & filters.command("rename"))
+async def rename_file(bot, msg):
+    if len(msg.command) < 2 or not msg.reply_to_message:
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
+    reply = msg.reply_to_message
     media = reply.document or reply.audio or reply.video
     if not media:
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
@@ -563,26 +581,22 @@ async def rename_file(bot, msg: Message):
 
     await sts.edit("💠 Uploading... ⚡")
     c_time = time.time()
-    try:
-        await bot.send_document(msg.from_user.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
-        await msg.reply_text(
-            f"┏📥 **File Name:** {new_name}\n"
-            f"┠💾 **Size:** {filesize}\n"
-            f"┠♻️ **Mode:** Rename\n"
-            f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-            f"❄ **File has been sent in Bot PM!**"
-        )
-    except Exception as e:
-        await sts.edit(f"Error: {e}")
 
-    try:
-        os.remove(downloaded)
-        if og_thumbnail and os.path.exists(og_thumbnail):
-            os.remove(og_thumbnail)
-    except Exception:
-        pass
+    if os.path.getsize(downloaded) > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(downloaded, new_name, sts)
+        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except Exception as e:
+            return await sts.edit(f"Error: {e}")
 
-    await sts.delete()"""
+    os.remove(downloaded)
+    if og_thumbnail and os.path.exists(og_thumbnail):
+        os.remove(og_thumbnail)
+    await sts.delete()
+
+
 
 #MultiTask Command 
 @Client.on_message(filters.private & filters.command("multitask"))
