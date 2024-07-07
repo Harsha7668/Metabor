@@ -516,27 +516,6 @@ async def gofile_setup(bot, msg: Message):
     
 
 #Rename Command
-
-
-# Google Drive upload function
-async def upload_to_google_drive(file_path, file_name, status_message):
-    start_time = time.time()
-    file_metadata = {'name': file_name, 'parents': [GDRIVE_FOLDER_ID]}
-    media = MediaFileUpload(file_path, resumable=True)
-
-    request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
-    response = None
-    while response is None:
-        status, response = request.next_chunk()
-        if status:
-            current_progress = status.progress() * 100
-            await progress_message(current_progress, 100, "Uploading to Google Drive", status_message, start_time)
-
-    file_id = response.get('id')
-    file_link = response.get('webViewLink')
-    return file_link
-
-# Command handler for renaming and uploading files
 @Client.on_message(filters.private & filters.command("rename"))
 async def rename_file(bot, msg):
     if len(msg.command) < 2 or not msg.reply_to_message:
@@ -589,17 +568,15 @@ async def rename_file(bot, msg):
         os.remove(og_thumbnail)
     await sts.delete()
 
+#Change Metadata Code
+
+
 @Client.on_message(filters.private & filters.command("changemetadata"))
 async def change_metadata(bot, msg):
-    global METADATA_ENABLED, user_settings, GDRIVE_FOLDER_ID
-    DOWNLOAD_LOCATION = "downloads"
-    FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # Example file size limit (2GB)
+    global METADATA_ENABLED, user_settings
 
     if not METADATA_ENABLED:
         return await msg.reply_text("Metadata changing feature is currently disabled.")
-
-    if not GDRIVE_FOLDER_ID:
-        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
 
     user_id = msg.from_user.id
     if user_id not in user_settings or not any(user_settings[user_id].values()):
@@ -625,98 +602,71 @@ async def change_metadata(bot, msg):
     if not media:
         return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the metadata command.")
 
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
     try:
-        # Show progress message for downloading
-        sts = await msg.reply_text("🚀 Downloading media... ⚡")
-        c_time = time.time()
-        
-        # Download the file
-        downloaded_file = await bot.download_media(message=reply, file_name=os.path.join(DOWNLOAD_LOCATION, output_filename), progress=progress_message, progress_args=("Downloading", sts, c_time))
-        
-        # Update the message to indicate changing metadata
-        await sts.edit("💠 Changing metadata... ⚡")
-        
-        # Change metadata
-        change_video_metadata(downloaded_file, video_title, audio_title, subtitle_title, os.path.join(DOWNLOAD_LOCATION, output_filename))
-
-        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-        if not os.path.exists(thumbnail_path):
-            try:
-                file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-            except Exception as e:
-                file_thumb = None
-        else:
-            file_thumb = thumbnail_path
-
-        filesize = os.path.getsize(os.path.join(DOWNLOAD_LOCATION, output_filename))
-        filesize_human = humanbytes(filesize)
-
-        # Update the message to indicate uploading
-        await sts.edit("🔼 Uploading... ⚡")
-        c_time = time.time()
-
-        # Upload to Google Drive if file size exceeds the limit
-        if filesize > FILE_SIZE_LIMIT:
-            start_time = time.time()
-            file_metadata = {'name': output_filename, 'parents': [GDRIVE_FOLDER_ID]}
-            media = MediaFileUpload(os.path.join(DOWNLOAD_LOCATION, output_filename), resumable=True)
-            request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
-            response = None
-            while response is None:
-                status, response = request.next_chunk()
-                if status:
-                    current_progress = status.progress() * 100
-                    await progress_message(current_progress, 100, "Uploading to Google Drive", sts, start_time)
-
-            file_link = response.get('webViewLink')
-            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-            await msg.reply_text(
-                f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
-                f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {output_filename}\n"
-                f"**Request User:** {msg.from_user.mention}\n\n"
-                f"**Size**: {filesize_human}",
-                reply_markup=InlineKeyboardMarkup(button)
-            )
-        else:
-            await bot.send_document(
-                msg.chat.id,
-                document=os.path.join(DOWNLOAD_LOCATION, output_filename),
-                thumb=file_thumb,
-                caption=f"{output_filename}\n\n🌟 Size: {filesize_human}",
-                progress=progress_message,
-                progress_args=("💠 Upload Started... ⚡", sts, c_time)
-            )
-
-            await msg.reply_text(
-                f"┏📥 **File Name:** {output_filename}\n"
-                f"┠💾 **Size:** {filesize_human}\n"
-                f"┠♻️ **Mode:** Change Metadata\n"
-                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄ **File has been sent to your PM in the bot!**"
-            )
-
-        await sts.delete()
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
     except Exception as e:
-        await sts.edit(f"Error: {e}")
-    finally:
-        os.remove(downloaded_file)
-        os.remove(os.path.join(DOWNLOAD_LOCATION, output_filename))
-        if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
+        await safe_edit_message(sts, f"Error downloading media: {e}")
+        return
 
+    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+
+    await safe_edit_message(sts, "💠 Changing metadata... ⚡")
+    try:
+        change_video_metadata(downloaded, video_title, audio_title, subtitle_title, output_file)
+    except Exception as e:
+        await safe_edit_message(sts, f"Error changing metadata: {e}")
+        os.remove(downloaded)
+        return
+
+    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    if not os.path.exists(thumbnail_path):
+        try:
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+        except Exception as e:
+            file_thumb = None
+    else:
+        file_thumb = thumbnail_path
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+    await safe_edit_message(sts, "💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {output_filename}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except Exception as e:
+            return await safe_edit_message(sts, f"Error: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
+    await sts.delete()
+
+#attach photo
 
 @Client.on_message(filters.private & filters.command("attachphoto"))
 async def attach_photo(bot, msg):
-    global PHOTO_ATTACH_ENABLED, GDRIVE_FOLDER_ID
-    DOWNLOAD_LOCATION = "downloads"
-    FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # Example file size limit (2GB)
+    global PHOTO_ATTACH_ENABLED
 
     if not PHOTO_ATTACH_ENABLED:
         return await msg.reply_text("Photo attachment feature is currently disabled.")
-
-    if not GDRIVE_FOLDER_ID:
-        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
 
     reply = msg.reply_to_message
     if not reply:
@@ -742,24 +692,24 @@ async def attach_photo(bot, msg):
     sts = await msg.reply_text("🚀 Downloading media... ⚡")
     c_time = time.time()
     try:
-        downloaded = await bot.download_media(message=reply, file_name=os.path.join(DOWNLOAD_LOCATION, output_filename), progress=progress_message, progress_args=("Downloading", sts, c_time))
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
     except Exception as e:
-        await sts.edit(f"Error downloading media: {e}")
+        await safe_edit_message(sts, f"Error downloading media: {e}")
         return
 
     attachment_path = f"{DOWNLOAD_LOCATION}/attachment_{msg.from_user.id}.jpg"
     if not os.path.exists(attachment_path):
-        await sts.edit("Please send a photo to be attached using the `setphoto` command.")
+        await safe_edit_message(sts, "Please send a photo to be attached using the `setphoto` command.")
         os.remove(downloaded)
         return
 
     output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
 
-    await sts.edit("💠 Adding photo attachment... ⚡")
+    await safe_edit_message(sts, "💠 Adding photo attachment... ⚡")
     try:
         add_photo_attachment(downloaded, attachment_path, output_file)
     except Exception as e:
-        await sts.edit(f"Error adding photo attachment: {e}")
+        await safe_edit_message(sts, f"Error adding photo attachment: {e}")
         os.remove(downloaded)
         return
 
@@ -768,37 +718,27 @@ async def attach_photo(bot, msg):
         try:
             file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=file_thumb)
         except Exception as e:
+            print(e)
             file_thumb = None
 
     filesize = os.path.getsize(output_file)
-    filesize_human = humanbytes(filesize)
 
-    await sts.edit("🔼 Uploading modified file... ⚡")
+    await safe_edit_message(sts, "🔼 Uploading modified file... ⚡")
     try:
         # Upload to Google Drive if file size exceeds the limit
         if filesize > FILE_SIZE_LIMIT:
-            start_time = time.time()
-            file_metadata = {'name': output_filename, 'parents': [GDRIVE_FOLDER_ID]}
-            media = MediaFileUpload(output_file, resumable=True)
-            request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
-            response = None
-            while response is None:
-                status, response = request.next_chunk()
-                if status:
-                    current_progress = status.progress() * 100
-                    await progress_message(current_progress, 100, "Uploading to Google Drive", sts, start_time)
-
-            file_link = response.get('webViewLink')
+            file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await msg.reply_text(
                 f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
                 f"**Uploaded File**: {output_filename}\n"
                 f"**Request User:** {msg.from_user.mention}\n\n"
-                f"**Size**: {filesize_human}",
+                f"**Size**: {humanbytes(filesize)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
+            # Send modified file to user's PM
             await bot.send_document(
                 msg.from_user.id,
                 document=output_file,
@@ -808,9 +748,10 @@ async def attach_photo(bot, msg):
                 progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
             )
 
+            # Notify in the group about the upload
             await msg.reply_text(
                 f"┏📥 **File Name:** {output_filename}\n"
-                f"┠💾 **Size:** {filesize_human}\n"
+                f"┠💾 **Size:** {humanbytes(filesize)}\n"
                 f"┠♻️ **Mode:** Attach Photo\n"
                 f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
                 f"❄ **File has been sent to your PM in the bot!**"
@@ -818,53 +759,422 @@ async def attach_photo(bot, msg):
 
         await sts.delete()
     except Exception as e:
-        await sts.edit(f"Error uploading modified file: {e}")
+        await safe_edit_message(sts, f"Error uploading modified file: {e}")
     finally:
         os.remove(downloaded)
         os.remove(output_file)
         if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb) 
+
+#changeindexaudio
+
+@Client.on_message(filters.private & filters.command("changeindexaudio"))
+async def change_index_audio(bot, msg):
+    global CHANGE_INDEX_ENABLED
+
+    if not CHANGE_INDEX_ENABLED:
+        return await msg.reply_text("The changeindexaudio feature is currently disabled.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the index command\nFormat: `/changeindexaudio a-3 -n filename.mkv` (Audio)")
+
+    if len(msg.command) < 3:
+        return await msg.reply_text("Please provide the index command with a filename\nFormat: `/changeindexaudio a-3 -n filename.mkv` (Audio)")
+
+    index_cmd = None
+    output_filename = None
+
+    # Extract index command and output filename from the command
+    for i in range(1, len(msg.command)):
+        if msg.command[i] == "-n":
+            output_filename = " ".join(msg.command[i + 1:])  # Join all the parts after the flag
+            break
+
+    index_cmd = " ".join(msg.command[1:i])  # Get the index command before the flag
+
+    if not output_filename:
+        return await msg.reply_text("Please provide a filename using the `-n` flag.")
+
+    if not index_cmd or not index_cmd.startswith("a-"):
+        return await msg.reply_text("Invalid format. Use `/changeindexaudio a-3 -n filename.mkv` for audio.")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the index command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        # Download the media file
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await safe_edit_message(sts, f"Error downloading media: {e}")
+        return
+
+    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+
+    index_params = index_cmd.split('-')
+    stream_type = index_params[0]
+    indexes = [int(i) - 1 for i in index_params[1:]]
+
+    # Construct the FFmpeg command to modify indexes
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0:v']  # Always map video stream
+
+    for idx in indexes:
+        ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
+
+    # Copy all subtitle streams if they exist
+    ffmpeg_cmd.extend(['-map', '0:s?'])
+
+    ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
+
+    await safe_edit_message(sts, "💠 Changing audio indexing... ⚡")
+    process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        await safe_edit_message(sts, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        os.remove(downloaded)
+        return
+
+    # Thumbnail handling
+    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+
+    if os.path.exists(thumbnail_path):
+        file_thumb = thumbnail_path
+    else:
+        try:
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+        except Exception as e:
+            file_thumb = None
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+    await safe_edit_message(sts, "💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"File successfully Change Index Audio and uploaded to Google Drive!\n\n"
+            f"Google Drive Link: [View File]({file_link})\n\n"
+            f"Uploaded File: {output_filename}\n"
+            f"Request User: {msg.from_user.mention}\n\n"
+            f"Size: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
+            await bot.send_document(
+                msg.from_user.id,
+                document=output_file,
+                thumb=file_thumb,
+                caption=cap,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡️", sts, c_time)
+            )
+            await sts.delete()
+            await msg.reply_text(
+                f"┏📥 **File Name:** {output_filename}\n"
+                f"┠💾 **Size:** {filesize_human}\n"
+                f"┠♻️ **Mode:** Change audio Index\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄**File have been Sent in Bot PM!**"
+            )
+        except Exception as e:
+            await safe_edit_message(sts, f"Upload failed: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
+
+#changeindex subtitles 
+@Client.on_message(filters.private & filters.command("changeindexsub"))
+async def change_index_subtitle(bot, msg):
+    global CHANGE_INDEX_ENABLED
+
+    if not CHANGE_INDEX_ENABLED:
+        return await msg.reply_text("The changeindexsub feature is currently disabled.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the index command\nFormat: `/changeindexsub s-3 -n filename.mkv` (Subtitle)")
+
+    if len(msg.command) < 3:
+        return await msg.reply_text("Please provide the index command with a filename\nFormat: `/changeindexsub s-3 -n filename.mkv` (Subtitle)")
+
+    index_cmd = None
+    output_filename = None
+
+    # Extract index command and output filename from the command
+    for i in range(1, len(msg.command)):
+        if msg.command[i] == "-n":
+            output_filename = " ".join(msg.command[i + 1:])  # Join all the parts after the flag
+            break
+
+    index_cmd = " ".join(msg.command[1:i])  # Get the index command before the flag
+
+    if not output_filename:
+        return await msg.reply_text("Please provide a filename using the `-n` flag.")
+
+    if not index_cmd or not index_cmd.startswith("s-"):
+        return await msg.reply_text("Invalid format. Use `/changeindexsub s-3 -n filename.mkv` for subtitles.")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the index command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        # Download the media file
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await safe_edit_message(sts, f"Error downloading media: {e}")
+        return
+
+    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+
+    index_params = index_cmd.split('-')
+    stream_type = index_params[0]
+    indexes = [int(i) - 1 for i in index_params[1:]]
+
+    # Construct the FFmpeg command to modify indexes
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
+
+    for idx in indexes:
+        ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
+
+    # Copy all audio and video streams
+    ffmpeg_cmd.extend(['-map', '0:v?', '-map', '0:a?', '-c', 'copy', output_file, '-y'])
+
+    await safe_edit_message(sts, "💠 Changing subtitle indexing... ⚡")
+    process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        await safe_edit_message(sts, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        os.remove(downloaded)
+        return
+
+    # Thumbnail handling
+    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+
+    if os.path.exists(thumbnail_path):
+        file_thumb = thumbnail_path
+    else:
+        try:
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+        except Exception as e:
+            file_thumb = None
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+    await safe_edit_message(sts, "🔼 Uploading cleaned file... ⚡")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"File successfully changed index subtitles and uploaded to Google Drive!\n\n"
+            f"Google Drive Link: [View File]({file_link})\n\n"
+            f"Uploaded File: {output_filename}\n"
+            f"Request User: {msg.from_user.mention}\n\n"
+            f"Size: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
+            await bot.send_document(
+                msg.from_user.id,
+                document=output_file,
+                thumb=file_thumb,
+                caption=cap,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡️", sts, c_time)
+            )
+            await sts.delete()
+            await msg.reply_text(
+                f"┏📥 **File Name:** {output_filename}\n"
+                f"┠💾 **Size:** {filesize_human}\n"
+                f"┠♻️ **Mode:** Change subtitle Index\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄ **File has been sent to your PM in the bot!**"
+            )
+        except Exception as e:
+            await safe_edit_message(sts, f"Upload failed: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
+
+#merge command 
+
+@Client.on_message(filters.private & filters.command("merge"))
+async def start_merge_command(bot, msg):
+    global MERGE_ENABLED
+    if not MERGE_ENABLED:
+        return await msg.reply_text("The merge feature is currently disabled.")
+
+    user_id = msg.from_user.id
+    merge_state[user_id] = {"files": [], "output_filename": None}
+
+    await msg.reply_text("Send up to 10 video/document files one by one. Once done, send `/videomerge filename`.")
+
+@Client.on_message(filters.private & filters.command("videomerge"))
+async def start_video_merge_command(bot, msg):
+    user_id = msg.from_user.id
+    if user_id not in merge_state or not merge_state[user_id]["files"]:
+        return await msg.reply_text("No files received for merging. Please send files using /merge command first.")
+
+    output_filename = msg.text.split(' ', 1)[1].strip()  # Extract output filename from command
+    merge_state[user_id]["output_filename"] = output_filename
+
+    await merge_and_upload(bot, msg)
+
+@Client.on_message(filters.document | filters.video & filters.private)
+async def handle_media_files(bot, msg):
+    user_id = msg.from_user.id
+    if user_id in merge_state and len(merge_state[user_id]["files"]) < 10:
+        merge_state[user_id]["files"].append(msg)
+        await msg.reply_text("File received. Send another file or use `/videomerge filename` to start merging.")
+
+async def merge_and_upload(bot, msg):
+    user_id = msg.from_user.id
+    if user_id not in merge_state:
+        return await msg.reply_text("No merge state found for this user. Please start the merge process again.")
+
+    files_to_merge = merge_state[user_id]["files"]
+    output_filename = merge_state[user_id].get("output_filename", "merged_output.mp4")  # Default output filename
+    output_path = os.path.join(DOWNLOAD_LOCATION, output_filename)
+
+    sts = await msg.reply_text("🚀 Starting merge process...")
+
+    try:
+        file_paths = []
+        for file_msg in files_to_merge:
+            file_path = await download_media(file_msg, sts)
+            file_paths.append(file_path)
+
+        input_file = os.path.join(DOWNLOAD_LOCATION, "input.txt")
+        with open(input_file, "w") as f:
+            for file_path in file_paths:
+                f.write(f"file '{file_path}'\n")
+
+        await safe_edit_message(sts, "💠 Merging videos... ⚡")
+        await merge_videos(input_file, output_path)
+
+        filesize = os.path.getsize(output_path)
+        filesize_human = humanbytes(filesize)
+        cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+        await safe_edit_message(sts, "💠 Uploading... ⚡")
+
+        file_thumb = None  # Initialize file_thumb
+
+        if len(files_to_merge) > 0:
+            first_file = files_to_merge[0]
+            if first_file.document:
+                file_thumb = await download_thumbnail(bot, first_file)
+
+        c_time = time.time()
+
+        if filesize <= FILE_SIZE_LIMIT:
+            # Upload to Telegram
+            await bot.send_document(
+                user_id,
+                document=output_path,
+                thumb=file_thumb,
+                caption=cap,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, c_time)
+            )
+
+            await msg.reply_text(
+                f"┏📥 **File Name:** {output_filename}\n"
+                f"┠💾 **Size:** {filesize_human}\n"
+                f"┠♻️ **Mode:** Merge : Video + Video\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄ **File has been sent in Bot PM!**"
+            )
+        else:
+            # Upload to Google Drive
+            drive_link = await upload_to_google_drive(output_path, output_filename, sts)
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{drive_link}")]]
+            await msg.reply_text(
+                f"File successfully merged and uploaded to Google Drive!\n\n"
+                f"Google Drive Link: [View File]({drive_link})\n\n"
+                f"Uploaded File: {output_filename}\n"
+                f"Request User: {msg.from_user.mention}\n\n"
+                f"Size: {filesize_human}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+
+        await sts.delete()
+
+    except Exception as e:
+        await safe_edit_message(sts, f"❌ Error: {e}")
+
+    finally:
+        # Clean up temporary files
+        for file_path in file_paths:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        if os.path.exists(input_file):
+            os.remove(input_file)
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
+
+        # Clear merge state for the user
+        if user_id in merge_state:
+            del merge_state[user_id]
+
+        await sts.delete()
 
 
 
 
 #leech command 
 
-@Client.on_message(filters.private & filters.command("leech"))
-async def link_to_file(bot, msg: Message):
-    global RENAME_ENABLED, GDRIVE_FOLDER_ID, DOWNLOAD_LOCATION, CAPTION
-
-    if not RENAME_ENABLED:
-        return await msg.reply_text("The leech feature is currently disabled.")
-
-    if not GDRIVE_FOLDER_ID:
-        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
-
+@Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
+async def linktofile(bot, msg: Message):
     reply = msg.reply_to_message
     if len(msg.command) < 2 or not reply:
         return await msg.reply_text("Please reply to a file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
 
     new_name = msg.text.split(" ", 1)[1]
-    if not new_name.endswith((".mkv", ".mp4", ".zip")):
-        return await msg.reply_text("Please specify a filename ending with .mkv, .mp4, or .zip.")
+    if not new_name.endswith(".mkv"):
+        return await msg.reply_text("Please specify a filename ending with .mkv.")
 
     media = reply.document or reply.audio or reply.video
     if not media and not reply.text:
         return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
 
-    sts = await msg.reply_text("🚀 Downloading...")
-    c_time = time.time()
+    if reply.text and ("seedr" in reply.text or "workers" in reply.text):
+        await handle_link_download(bot, msg, reply.text, new_name, media)
+    else:
+        if not media:
+            return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
 
-    try:
-        if reply.text and ("seedr" in reply.text or "workers" in reply.text):
-            await handle_link_download(bot, msg, reply.text, new_name, media)
-        else:
-            downloaded = await bot.download_media(message=reply, file_name=new_name, progress=progress_message, progress_args=("Downloading", sts, c_time))
+        sts = await msg.reply_text("🚀 Downloading...")
+        c_time = time.time()
+        try:
+            downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))
+        except RPCError as e:
+            return await sts.edit(f"Download failed: {e}")
 
         await upload_file(bot, msg, downloaded, new_name, sts, c_time, media)
-
-    except Exception as e:
-        await sts.edit(f"Error during leeching: {e}")
 
 async def handle_link_download(bot, msg: Message, link: str, new_name: str, media):
     sts = await msg.reply_text("🚀 Downloading from link...")
@@ -965,6 +1275,11 @@ async def edit_message(message, new_text):
     except MessageNotModified:
         pass
 
+        
+
+
+
+    
 #MultiTask Command 
 @Client.on_message(filters.private & filters.command("multitask"))
 async def multitask_command(bot, msg):
@@ -3669,7 +3984,7 @@ async def upload_to_google_drive(file_path, file_name, sts):
 
     return response.get('webViewLink')
 """
-"""
+
 async def upload_to_google_drive(file_path, file_name, sts):
     file_metadata = {'name': file_name}
     media = MediaFileUpload(file_path, resumable=True)
@@ -3683,769 +3998,12 @@ async def upload_to_google_drive(file_path, file_name, sts):
             await progress_message(status.resumable_progress, os.path.getsize(file_path), "Uploading to Google Drive", sts, start_time)
 
     return response.get('webViewLink')
-"""
 
-"""
-@Client.on_message(filters.private & filters.command("rename"))
-async def rename_file(bot, msg):
-    if len(msg.command) < 2 or not msg.reply_to_message:
-        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
-
-    reply = msg.reply_to_message
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
-
-    new_name = msg.text.split(" ", 1)[1]
-    sts = await msg.reply_text("🚀 Downloading... ⚡")
-    c_time = time.time()
-    downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-    filesize = humanbytes(media.file_size)
-
-    if CAPTION:
-        try:
-            cap = CAPTION.format(file_name=new_name, file_size=filesize)
-        except KeyError as e:
-            return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
-    else:
-        cap = f"{new_name}\n\n🌟 Size: {filesize}"
-
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    og_thumbnail = None
-    if os.path.exists(thumbnail_path):
-        og_thumbnail = thumbnail_path
-    else:
-        if hasattr(media, 'thumbs') and media.thumbs:
-            try:
-                og_thumbnail = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-            except Exception:
-                pass
-
-    await sts.edit("💠 Uploading... ⚡")
-    c_time = time.time()
-
-    if os.path.getsize(downloaded) > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(downloaded, new_name, sts)
-        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
-    else:
-        try:
-            await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
-        except Exception as e:
-            return await sts.edit(f"Error: {e}")
-
-    os.remove(downloaded)
-    if og_thumbnail and os.path.exists(og_thumbnail):
-        os.remove(og_thumbnail)
-    await sts.delete()
-
-
-
-@Client.on_message(filters.private & filters.command("changemetadata"))
-async def change_metadata(bot, msg):
-    global METADATA_ENABLED, user_settings
-
-    if not METADATA_ENABLED:
-        return await msg.reply_text("Metadata changing feature is currently disabled.")
-
-    user_id = msg.from_user.id
-    if user_id not in user_settings or not any(user_settings[user_id].values()):
-        return await msg.reply_text("Metadata titles are not set. Please set metadata titles using `/setmetadata video_title audio_title subtitle_title`.")
-
-    reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a media file with the metadata command\nFormat: `changemetadata -n filename.mkv`")
-
-    if len(msg.command) < 3 or msg.command[1] != "-n":
-        return await msg.reply_text("Please provide the filename with the `-n` flag\nFormat: `changemetadata -n filename.mkv`")
-
-    output_filename = " ".join(msg.command[2:]).strip()
-
-    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
-        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
-
-    video_title = user_settings[user_id]['video_title']
-    audio_title = user_settings[user_id]['audio_title']
-    subtitle_title = user_settings[user_id]['subtitle_title']
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the metadata command.")
-
-    sts = await msg.reply_text("🚀 Downloading media... ⚡")
-    c_time = time.time()
-    try:
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-    except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
-        return
-
-    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
-
-    await safe_edit_message(sts, "💠 Changing metadata... ⚡")
-    try:
-        change_video_metadata(downloaded, video_title, audio_title, subtitle_title, output_file)
-    except Exception as e:
-        await safe_edit_message(sts, f"Error changing metadata: {e}")
-        os.remove(downloaded)
-        return
-
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    if not os.path.exists(thumbnail_path):
-        try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-        except Exception as e:
-            file_thumb = None
-    else:
-        file_thumb = thumbnail_path
-
-    filesize = os.path.getsize(output_file)
-    filesize_human = humanbytes(filesize)
-    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
-
-    await safe_edit_message(sts, "💠 Uploading... ⚡")
-    c_time = time.time()
-
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, output_filename, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {output_filename}\n"
-            f"**Request User:** {msg.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-    else:
-        try:
-            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
-        except Exception as e:
-            return await safe_edit_message(sts, f"Error: {e}")
-
-    os.remove(downloaded)
-    os.remove(output_file)
-    if file_thumb and os.path.exists(file_thumb):
-        os.remove(file_thumb)
-    await sts.delete()
-
-#attach photo
-
-@Client.on_message(filters.private & filters.command("attachphoto"))
-async def attach_photo(bot, msg):
-    global PHOTO_ATTACH_ENABLED
-
-    if not PHOTO_ATTACH_ENABLED:
-        return await msg.reply_text("Photo attachment feature is currently disabled.")
-
-    reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a media file with the attach photo command and specify the output filename\nFormat: `attachphoto -n filename.mkv`")
-
-    command_text = " ".join(msg.command[1:]).strip()
-    if "-n" not in command_text:
-        return await msg.reply_text("Please provide the output filename using the `-n` flag\nFormat: `attachphoto -n filename.mkv`")
-
-    filename_part = command_text.split('-n', 1)[1].strip()
-    output_filename = filename_part if filename_part else None
-
-    if not output_filename:
-        return await msg.reply_text("Please provide a valid filename\nFormat: `attachphoto -n filename.mkv`")
-
-    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
-        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the attach photo command.")
-
-    sts = await msg.reply_text("🚀 Downloading media... ⚡")
-    c_time = time.time()
-    try:
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-    except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
-        return
-
-    attachment_path = f"{DOWNLOAD_LOCATION}/attachment_{msg.from_user.id}.jpg"
-    if not os.path.exists(attachment_path):
-        await safe_edit_message(sts, "Please send a photo to be attached using the `setphoto` command.")
-        os.remove(downloaded)
-        return
-
-    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
-
-    await safe_edit_message(sts, "💠 Adding photo attachment... ⚡")
-    try:
-        add_photo_attachment(downloaded, attachment_path, output_file)
-    except Exception as e:
-        await safe_edit_message(sts, f"Error adding photo attachment: {e}")
-        os.remove(downloaded)
-        return
-
-    file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    if not os.path.exists(file_thumb):
-        try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=file_thumb)
-        except Exception as e:
-            print(e)
-            file_thumb = None
-
-    filesize = os.path.getsize(output_file)
-
-    await safe_edit_message(sts, "🔼 Uploading modified file... ⚡")
-    try:
-        # Upload to Google Drive if file size exceeds the limit
-        if filesize > FILE_SIZE_LIMIT:
-            file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
-            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-            await msg.reply_text(
-                f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
-                f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {output_filename}\n"
-                f"**Request User:** {msg.from_user.mention}\n\n"
-                f"**Size**: {humanbytes(filesize)}",
-                reply_markup=InlineKeyboardMarkup(button)
-            )
-        else:
-            # Send modified file to user's PM
-            await bot.send_document(
-                msg.from_user.id,
-                document=output_file,
-                thumb=file_thumb,
-                caption="Here is your file with the photo attached.",
-                progress=progress_message,
-                progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
-            )
-
-            # Notify in the group about the upload
-            await msg.reply_text(
-                f"┏📥 **File Name:** {output_filename}\n"
-                f"┠💾 **Size:** {humanbytes(filesize)}\n"
-                f"┠♻️ **Mode:** Attach Photo\n"
-                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄ **File has been sent to your PM in the bot!**"
-            )
-
-        await sts.delete()
-    except Exception as e:
-        await safe_edit_message(sts, f"Error uploading modified file: {e}")
-    finally:
-        os.remove(downloaded)
-        os.remove(output_file)
-        if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb) 
-
-#changeindexaudio
-
-@Client.on_message(filters.private & filters.command("changeindexaudio"))
-async def change_index_audio(bot, msg):
-    global CHANGE_INDEX_ENABLED
-
-    if not CHANGE_INDEX_ENABLED:
-        return await msg.reply_text("The changeindexaudio feature is currently disabled.")
-
-    reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a media file with the index command\nFormat: `/changeindexaudio a-3 -n filename.mkv` (Audio)")
-
-    if len(msg.command) < 3:
-        return await msg.reply_text("Please provide the index command with a filename\nFormat: `/changeindexaudio a-3 -n filename.mkv` (Audio)")
-
-    index_cmd = None
-    output_filename = None
-
-    # Extract index command and output filename from the command
-    for i in range(1, len(msg.command)):
-        if msg.command[i] == "-n":
-            output_filename = " ".join(msg.command[i + 1:])  # Join all the parts after the flag
-            break
-
-    index_cmd = " ".join(msg.command[1:i])  # Get the index command before the flag
-
-    if not output_filename:
-        return await msg.reply_text("Please provide a filename using the `-n` flag.")
-
-    if not index_cmd or not index_cmd.startswith("a-"):
-        return await msg.reply_text("Invalid format. Use `/changeindexaudio a-3 -n filename.mkv` for audio.")
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the index command.")
-
-    sts = await msg.reply_text("🚀 Downloading media... ⚡")
-    c_time = time.time()
-    try:
-        # Download the media file
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-    except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
-        return
-
-    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
-
-    index_params = index_cmd.split('-')
-    stream_type = index_params[0]
-    indexes = [int(i) - 1 for i in index_params[1:]]
-
-    # Construct the FFmpeg command to modify indexes
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0:v']  # Always map video stream
-
-    for idx in indexes:
-        ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
-
-    # Copy all subtitle streams if they exist
-    ffmpeg_cmd.extend(['-map', '0:s?'])
-
-    ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
-
-    await safe_edit_message(sts, "💠 Changing audio indexing... ⚡")
-    process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await process.communicate()
-
-    if process.returncode != 0:
-        await safe_edit_message(sts, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
-        os.remove(downloaded)
-        return
-
-    # Thumbnail handling
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-
-    if os.path.exists(thumbnail_path):
-        file_thumb = thumbnail_path
-    else:
-        try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-        except Exception as e:
-            file_thumb = None
-
-    filesize = os.path.getsize(output_file)
-    filesize_human = humanbytes(filesize)
-    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
-
-    await safe_edit_message(sts, "💠 Uploading... ⚡")
-    c_time = time.time()
-
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, output_filename, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"File successfully Change Index Audio and uploaded to Google Drive!\n\n"
-            f"Google Drive Link: [View File]({file_link})\n\n"
-            f"Uploaded File: {output_filename}\n"
-            f"Request User: {msg.from_user.mention}\n\n"
-            f"Size: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-    else:
-        try:
-            await bot.send_document(
-                msg.from_user.id,
-                document=output_file,
-                thumb=file_thumb,
-                caption=cap,
-                progress=progress_message,
-                progress_args=("💠 Upload Started... ⚡️", sts, c_time)
-            )
-            await sts.delete()
-            await msg.reply_text(
-                f"┏📥 **File Name:** {output_filename}\n"
-                f"┠💾 **Size:** {filesize_human}\n"
-                f"┠♻️ **Mode:** Change audio Index\n"
-                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄**File have been Sent in Bot PM!**"
-            )
-        except Exception as e:
-            await safe_edit_message(sts, f"Upload failed: {e}")
-
-    os.remove(downloaded)
-    os.remove(output_file)
-    if file_thumb and os.path.exists(file_thumb):
-        os.remove(file_thumb)
-
-#changeindex subtitles 
-@Client.on_message(filters.private & filters.command("changeindexsub"))
-async def change_index_subtitle(bot, msg):
-    global CHANGE_INDEX_ENABLED
-
-    if not CHANGE_INDEX_ENABLED:
-        return await msg.reply_text("The changeindexsub feature is currently disabled.")
-
-    reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a media file with the index command\nFormat: `/changeindexsub s-3 -n filename.mkv` (Subtitle)")
-
-    if len(msg.command) < 3:
-        return await msg.reply_text("Please provide the index command with a filename\nFormat: `/changeindexsub s-3 -n filename.mkv` (Subtitle)")
-
-    index_cmd = None
-    output_filename = None
-
-    # Extract index command and output filename from the command
-    for i in range(1, len(msg.command)):
-        if msg.command[i] == "-n":
-            output_filename = " ".join(msg.command[i + 1:])  # Join all the parts after the flag
-            break
-
-    index_cmd = " ".join(msg.command[1:i])  # Get the index command before the flag
-
-    if not output_filename:
-        return await msg.reply_text("Please provide a filename using the `-n` flag.")
-
-    if not index_cmd or not index_cmd.startswith("s-"):
-        return await msg.reply_text("Invalid format. Use `/changeindexsub s-3 -n filename.mkv` for subtitles.")
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the index command.")
-
-    sts = await msg.reply_text("🚀 Downloading media... ⚡")
-    c_time = time.time()
-    try:
-        # Download the media file
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-    except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
-        return
-
-    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
-
-    index_params = index_cmd.split('-')
-    stream_type = index_params[0]
-    indexes = [int(i) - 1 for i in index_params[1:]]
-
-    # Construct the FFmpeg command to modify indexes
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
-
-    for idx in indexes:
-        ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
-
-    # Copy all audio and video streams
-    ffmpeg_cmd.extend(['-map', '0:v?', '-map', '0:a?', '-c', 'copy', output_file, '-y'])
-
-    await safe_edit_message(sts, "💠 Changing subtitle indexing... ⚡")
-    process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await process.communicate()
-
-    if process.returncode != 0:
-        await safe_edit_message(sts, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
-        os.remove(downloaded)
-        return
-
-    # Thumbnail handling
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-
-    if os.path.exists(thumbnail_path):
-        file_thumb = thumbnail_path
-    else:
-        try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-        except Exception as e:
-            file_thumb = None
-
-    filesize = os.path.getsize(output_file)
-    filesize_human = humanbytes(filesize)
-    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
-
-    await safe_edit_message(sts, "🔼 Uploading cleaned file... ⚡")
-    c_time = time.time()
-
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, output_filename, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"File successfully changed index subtitles and uploaded to Google Drive!\n\n"
-            f"Google Drive Link: [View File]({file_link})\n\n"
-            f"Uploaded File: {output_filename}\n"
-            f"Request User: {msg.from_user.mention}\n\n"
-            f"Size: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-    else:
-        try:
-            await bot.send_document(
-                msg.from_user.id,
-                document=output_file,
-                thumb=file_thumb,
-                caption=cap,
-                progress=progress_message,
-                progress_args=("💠 Upload Started... ⚡️", sts, c_time)
-            )
-            await sts.delete()
-            await msg.reply_text(
-                f"┏📥 **File Name:** {output_filename}\n"
-                f"┠💾 **Size:** {filesize_human}\n"
-                f"┠♻️ **Mode:** Change subtitle Index\n"
-                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄ **File has been sent to your PM in the bot!**"
-            )
-        except Exception as e:
-            await safe_edit_message(sts, f"Upload failed: {e}")
-
-    os.remove(downloaded)
-    os.remove(output_file)
-    if file_thumb and os.path.exists(file_thumb):
-        os.remove(file_thumb)
-
-#merge command 
-
-@Client.on_message(filters.private & filters.command("merge"))
-async def start_merge_command(bot, msg):
-    global MERGE_ENABLED
-    if not MERGE_ENABLED:
-        return await msg.reply_text("The merge feature is currently disabled.")
-
-    user_id = msg.from_user.id
-    merge_state[user_id] = {"files": [], "output_filename": None}
-
-    await msg.reply_text("Send up to 10 video/document files one by one. Once done, send `/videomerge filename`.")
-
-@Client.on_message(filters.private & filters.command("videomerge"))
-async def start_video_merge_command(bot, msg):
-    user_id = msg.from_user.id
-    if user_id not in merge_state or not merge_state[user_id]["files"]:
-        return await msg.reply_text("No files received for merging. Please send files using /merge command first.")
-
-    output_filename = msg.text.split(' ', 1)[1].strip()  # Extract output filename from command
-    merge_state[user_id]["output_filename"] = output_filename
-
-    await merge_and_upload(bot, msg)
-
-@Client.on_message(filters.document | filters.video & filters.private)
-async def handle_media_files(bot, msg):
-    user_id = msg.from_user.id
-    if user_id in merge_state and len(merge_state[user_id]["files"]) < 10:
-        merge_state[user_id]["files"].append(msg)
-        await msg.reply_text("File received. Send another file or use `/videomerge filename` to start merging.")
-
-async def merge_and_upload(bot, msg):
-    user_id = msg.from_user.id
-    if user_id not in merge_state:
-        return await msg.reply_text("No merge state found for this user. Please start the merge process again.")
-
-    files_to_merge = merge_state[user_id]["files"]
-    output_filename = merge_state[user_id].get("output_filename", "merged_output.mp4")  # Default output filename
-    output_path = os.path.join(DOWNLOAD_LOCATION, output_filename)
-
-    sts = await msg.reply_text("🚀 Starting merge process...")
-
-    try:
-        file_paths = []
-        for file_msg in files_to_merge:
-            file_path = await download_media(file_msg, sts)
-            file_paths.append(file_path)
-
-        input_file = os.path.join(DOWNLOAD_LOCATION, "input.txt")
-        with open(input_file, "w") as f:
-            for file_path in file_paths:
-                f.write(f"file '{file_path}'\n")
-
-        await safe_edit_message(sts, "💠 Merging videos... ⚡")
-        await merge_videos(input_file, output_path)
-
-        filesize = os.path.getsize(output_path)
-        filesize_human = humanbytes(filesize)
-        cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
-
-        await safe_edit_message(sts, "💠 Uploading... ⚡")
-
-        file_thumb = None  # Initialize file_thumb
-
-        if len(files_to_merge) > 0:
-            first_file = files_to_merge[0]
-            if first_file.document:
-                file_thumb = await download_thumbnail(bot, first_file)
-
-        c_time = time.time()
-
-        if filesize <= FILE_SIZE_LIMIT:
-            # Upload to Telegram
-            await bot.send_document(
-                user_id,
-                document=output_path,
-                thumb=file_thumb,
-                caption=cap,
-                progress=progress_message,
-                progress_args=("💠 Upload Started... ⚡", sts, c_time)
-            )
-
-            await msg.reply_text(
-                f"┏📥 **File Name:** {output_filename}\n"
-                f"┠💾 **Size:** {filesize_human}\n"
-                f"┠♻️ **Mode:** Merge : Video + Video\n"
-                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄ **File has been sent in Bot PM!**"
-            )
-        else:
-            # Upload to Google Drive
-            drive_link = await upload_to_google_drive(output_path, output_filename, sts)
-            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{drive_link}")]]
-            await msg.reply_text(
-                f"File successfully merged and uploaded to Google Drive!\n\n"
-                f"Google Drive Link: [View File]({drive_link})\n\n"
-                f"Uploaded File: {output_filename}\n"
-                f"Request User: {msg.from_user.mention}\n\n"
-                f"Size: {filesize_human}",
-                reply_markup=InlineKeyboardMarkup(button)
-            )
-
-        await sts.delete()
-
-    except Exception as e:
-        await safe_edit_message(sts, f"❌ Error: {e}")
-
-    finally:
-        # Clean up temporary files
-        for file_path in file_paths:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        if os.path.exists(input_file):
-            os.remove(input_file)
-        if os.path.exists(output_path):
-            os.remove(output_path)
-        if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
-
-        # Clear merge state for the user
-        if user_id in merge_state:
-            del merge_state[user_id]
-
-        await sts.delete()
-
-
-
-
-#leech command 
-
-@Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
-async def linktofile(bot, msg: Message):
-    reply = msg.reply_to_message
-    if len(msg.command) < 2 or not reply:
-        return await msg.reply_text("Please reply to a file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
-
-    new_name = msg.text.split(" ", 1)[1]
-    if not new_name.endswith(".mkv"):
-        return await msg.reply_text("Please specify a filename ending with .mkv.")
-
-    media = reply.document or reply.audio or reply.video
-    if not media and not reply.text:
-        return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
-
-    if reply.text and ("seedr" in reply.text or "workers" in reply.text):
-        await handle_link_download(bot, msg, reply.text, new_name, media)
-    else:
-        if not media:
-            return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
-
-        sts = await msg.reply_text("🚀 Downloading...")
-        c_time = time.time()
-        try:
-            downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))
-        except RPCError as e:
-            return await sts.edit(f"Download failed: {e}")
-
-        await upload_file(bot, msg, downloaded, new_name, sts, c_time, media)
-
-async def handle_link_download(bot, msg: Message, link: str, new_name: str, media):
-    sts = await msg.reply_text("🚀 Downloading from link...")
-    c_time = time.time()
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(link) as resp:
-                if resp.status == 200:
-                    with open(new_name, 'wb') as f:
-                        f.write(await resp.read())
-                else:
-                    await sts.edit(f"Failed to download file from link. Status code: {resp.status}")
-                    return
-    except Exception as e:
-        await sts.edit(f"Error during download: {e}")
-        return
-
-    if not os.path.exists(new_name):
-        await sts.edit("File not found after download. Please check the link and try again.")
-        return
-
-    await upload_file(bot, msg, new_name, new_name, sts, c_time, media)
-
-async def upload_file(bot, msg, file_path, new_name, sts, c_time, media):
-    filesize = os.path.getsize(file_path)
-    filesize_human = humanbytes(filesize)
-
-    if CAPTION:
-        try:
-            cap = CAPTION.format(file_name=new_name, file_size=filesize_human)
-        except Exception as e:
-            return await sts.edit(text=f"Your caption has an error: unexpected keyword ({e})")
-    else:
-        cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
-
-    # Thumbnail handling
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    if not os.path.exists(thumbnail_path):
-        try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-        except Exception as e:
-            print(f"Error downloading thumbnail: {e}")
-            file_thumb = None
-    else:
-        file_thumb = thumbnail_path
-
-    await edit_message(sts, "💠 Uploading...")
-    c_time = time.time()
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(file_path, new_name, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"File successfully leeched and uploaded to Google Drive!\n\n"
-            f"Google Drive Link: [View File]({file_link})\n\n"
-            f"Uploaded File: {new_name}\n"
-            f"Request User: {msg.from_user.mention}\n\n"
-            f"Size: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-    else:
-        try:
-            await bot.send_document(
-                msg.chat.id, 
-                document=file_path, 
-                thumb=file_thumb, 
-                caption=cap, 
-                progress=progress_message, 
-                progress_args=("💠 Upload Started...", sts, c_time)
-            )
-
-            await msg.reply_text(
-                f"┏📥 **File Name:** {os.path.basename(new_name)}\n"
-                f"┠💾 **Size:** {filesize_human}\n"
-                f"┠♻️ **Mode:** Leech\n"
-                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄ **File has been sent to your PM in the bot!**"
-            )
-
-        except RPCError as e:
-            await sts.edit(f"Upload failed: {e}")
-        except TimeoutError as e:
-            await sts.edit(f"Upload timed out: {e}")
-        finally:
-            try:
-                if file_thumb and os.path.exists(file_thumb):
-                    os.remove(file_thumb)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-            except Exception as e:
-                print(f"Error deleting files: {e}")
-            await sts.delete()
-
-async def edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit(new_text)
-    except MessageNotModified:
-        pass
-"""
-        
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
+
+
+
+
