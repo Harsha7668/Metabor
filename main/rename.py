@@ -910,10 +910,10 @@ async def change_index_subtitle(bot, msg):
 
     reply = msg.reply_to_message
     if not reply:
-        return await msg.reply_text("Please reply to a media file with the index command\nFormat: `/changeindexsub s-1 -n filename.srt` (Subtitle)")
+        return await msg.reply_text("Please reply to a media file with the index command\nFormat: `/changeindexsub s-3 -n filename.mkv` (Subtitle)")
 
     if len(msg.command) < 3:
-        return await msg.reply_text("Please provide the index command with a filename\nFormat: `/changeindexsub s-1 -n filename.srt` (Subtitle)")
+        return await msg.reply_text("Please provide the index command with a filename\nFormat: `/changeindexsub s-3 -n filename.mkv` (Subtitle)")
 
     index_cmd = None
     output_filename = None
@@ -930,7 +930,7 @@ async def change_index_subtitle(bot, msg):
         return await msg.reply_text("Please provide a filename using the `-n` flag.")
 
     if not index_cmd or not index_cmd.startswith("s-"):
-        return await msg.reply_text("Invalid format. Use `/changeindexsub s-1 -n filename.srt` for subtitles.")
+        return await msg.reply_text("Invalid format. Use `/changeindexsub s-3 -n filename.mkv` for subtitles.")
 
     media = reply.document or reply.audio or reply.video
     if not media:
@@ -952,13 +952,13 @@ async def change_index_subtitle(bot, msg):
     indexes = [int(i) - 1 for i in index_params[1:]]
 
     # Construct the FFmpeg command to modify indexes
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]  # Initial command
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
 
     for idx in indexes:
         ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
 
-    # Specify output format and file name
-    ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
+    # Copy all audio and video streams
+    ffmpeg_cmd.extend(['-map', '0:v?', '-map', '0:a?', '-c', 'copy', output_file, '-y'])
 
     await sts.edit("💠 Changing subtitle indexing... ⚡")
     process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
