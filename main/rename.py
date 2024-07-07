@@ -784,7 +784,7 @@ async def change_index_audio(bot, msg: Message):
         return await msg.reply_text("Please provide the index command with a filename\nFormat: `/changeindexaudio a-3 -n filename.mkv` (Audio)")
 
     index_cmd = None
-    output_filenam = None
+    output_filename = None
 
     # Extract index command and output filename from the command
     for i in range(1, len(msg.command)):
@@ -898,11 +898,31 @@ async def change_index_audio(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting files: {e}")
 
+async def safe_edit_message(message, new_text):
+    try:
+        if message.text != new_text:
+            await message.edit(new_text)
+    except MessageNotModified:
+        pass
 
 
 
 #changeindex subtitles 
 # Command to change index subtitle
+import os
+import time
+import asyncio
+from pyrogram import Client, filters
+from pyrogram.errors import RPCError, MessageNotModified
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from googleapiclient.http import MediaFileUpload
+
+# Constants and global variables
+GDRIVE_FOLDER_ID = "your_google_drive_folder_id"
+DOWNLOAD_LOCATION = "downloads"
+FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB limit
+CHANGE_INDEX_ENABLED = True  # Flag to enable or disable the change index feature
+
 @Client.on_message(filters.private & filters.command("changeindexsub"))
 async def change_index_subtitle(bot, msg: Message):
     global CHANGE_INDEX_ENABLED
@@ -1030,6 +1050,12 @@ async def change_index_subtitle(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting files: {e}")
 
+async def safe_edit_message(message, new_text):
+    try:
+        if message.text != new_text:
+            await message.edit(new_text)
+    except MessageNotModified:
+        pass
 
 
 
@@ -1167,6 +1193,8 @@ async def merge_and_upload(bot, msg: Message):
 
 
 #leech command 
+
+
 @Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
 async def linktofile(bot, msg: Message):
     reply = msg.reply_to_message
@@ -1257,6 +1285,7 @@ async def linktofile(bot, msg: Message):
                     os.remove(downloaded)
                 await sts.delete()
 
+
 async def handle_link_download(bot, msg: Message, link: str, new_name: str, media):
     sts = await msg.reply_text("🚀 Downloading from link...")
     c_time = time.time()
@@ -1332,8 +1361,6 @@ async def edit_message(message, new_text):
             await message.edit(new_text)
     except MessageNotModified:
         pass
-
-
 
 
     
