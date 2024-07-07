@@ -770,7 +770,7 @@ async def attach_photo(bot, msg):
 
 # Command to change index audio
 @Client.on_message(filters.private & filters.command("changeindexaudio"))
-async def change_index_audio(bot, msg: Message):
+async def change_index_audio(bot, msg):
     global CHANGE_INDEX_ENABLED
 
     if not CHANGE_INDEX_ENABLED:
@@ -841,14 +841,12 @@ async def change_index_audio(bot, msg: Message):
 
     # Thumbnail handling
     thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    file_thumb = None
 
     if os.path.exists(thumbnail_path):
         file_thumb = thumbnail_path
     else:
         try:
-            if "thumbs" in media and media.thumbs:
-                file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
         except Exception as e:
             file_thumb = None
 
@@ -858,13 +856,13 @@ async def change_index_audio(bot, msg: Message):
 
     await sts.edit("💠 Uploading... ⚡")
     try:
-        if filesize > FILE_SIZE_LIMIT:
-            file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        if filesize > 2 * 1024 * 1024 * 1024:  # 2GB in bytes
+            file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await msg.reply_text(
-                f"File successfully indexed and uploaded to Google Drive!\n\n"
+                f"File successfully changed index and uploaded to Google Drive!\n\n"
                 f"Google Drive Link: [View File]({file_link})\n\n"
-                f"Uploaded File: {output_filename}\n"
+                f"Uploaded File: {os.path.basename(output_file)}\n"
                 f"Request User: {msg.from_user.mention}\n\n"
                 f"Size: {filesize_human}",
                 reply_markup=InlineKeyboardMarkup(button)
@@ -878,12 +876,13 @@ async def change_index_audio(bot, msg: Message):
                 progress=progress_message,
                 progress_args=("💠 Upload Started... ⚡️", sts, c_time)
             )
-            await msg.reply_text(
+            await sts.delete()
+            await msg.reply_text(          
                 f"┏📥 **File Name:** {output_filename}\n"
                 f"┠💾 **Size:** {filesize_human}\n"
                 f"┠♻️ **Mode:** Change audio Index\n"
                 f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄**File has been sent in Bot PM!**"
+                f"❄**File have been Sent in Bot PM!**"            
             )
     except RPCError as e:
         await sts.edit(f"Upload failed: {e}")
@@ -898,30 +897,10 @@ async def change_index_audio(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting files: {e}")
 
-async def safe_edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit(new_text)
-    except MessageNotModified:
-        pass
-
 
 
 #changeindex subtitles 
 # Command to change index subtitle
-import os
-import time
-import asyncio
-from pyrogram import Client, filters
-from pyrogram.errors import RPCError, MessageNotModified
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from googleapiclient.http import MediaFileUpload
-
-# Constants and global variables
-GDRIVE_FOLDER_ID = "your_google_drive_folder_id"
-DOWNLOAD_LOCATION = "downloads"
-FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB limit
-CHANGE_INDEX_ENABLED = True  # Flag to enable or disable the change index feature
 
 @Client.on_message(filters.private & filters.command("changeindexsub"))
 async def change_index_subtitle(bot, msg: Message):
