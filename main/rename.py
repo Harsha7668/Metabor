@@ -899,12 +899,10 @@ async def change_index_audio(bot, msg):
 
 
 
-
 #changeindex subtitles 
 # Command to change index subtitle
-
 @Client.on_message(filters.private & filters.command("changeindexsub"))
-async def change_index_subtitle(bot, msg: Message):
+async def change_index_subtitle(bot, msg):
     global CHANGE_INDEX_ENABLED
 
     if not CHANGE_INDEX_ENABLED:
@@ -912,10 +910,10 @@ async def change_index_subtitle(bot, msg: Message):
 
     reply = msg.reply_to_message
     if not reply:
-        return await msg.reply_text("Please reply to a media file with the index command\nFormat: `/changeindexsub s-3 -n filename.mkv` (Subtitle)")
+        return await msg.reply_text("Please reply to a media file with the index command\nFormat: `/changeindexsub s-1 -n filename.srt` (Subtitle)")
 
     if len(msg.command) < 3:
-        return await msg.reply_text("Please provide the index command with a filename\nFormat: `/changeindexsub s-3 -n filename.mkv` (Subtitle)")
+        return await msg.reply_text("Please provide the index command with a filename\nFormat: `/changeindexsub s-1 -n filename.srt` (Subtitle)")
 
     index_cmd = None
     output_filename = None
@@ -932,7 +930,7 @@ async def change_index_subtitle(bot, msg: Message):
         return await msg.reply_text("Please provide a filename using the `-n` flag.")
 
     if not index_cmd or not index_cmd.startswith("s-"):
-        return await msg.reply_text("Invalid format. Use `/changeindexsub s-3 -n filename.mkv` for subtitles.")
+        return await msg.reply_text("Invalid format. Use `/changeindexsub s-1 -n filename.srt` for subtitles.")
 
     media = reply.document or reply.audio or reply.video
     if not media:
@@ -954,13 +952,13 @@ async def change_index_subtitle(bot, msg: Message):
     indexes = [int(i) - 1 for i in index_params[1:]]
 
     # Construct the FFmpeg command to modify indexes
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]  # Initial command
 
     for idx in indexes:
         ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
 
-    # Copy all audio and video streams
-    ffmpeg_cmd.extend(['-map', '0:v?', '-map', '0:a?', '-c', 'copy', output_file, '-y'])
+    # Specify output format and file name
+    ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
     await sts.edit("💠 Changing subtitle indexing... ⚡")
     process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -973,14 +971,12 @@ async def change_index_subtitle(bot, msg: Message):
 
     # Thumbnail handling
     thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    file_thumb = None
 
     if os.path.exists(thumbnail_path):
         file_thumb = thumbnail_path
     else:
         try:
-            if "thumbs" in media and media.thumbs:
-                file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
         except Exception as e:
             file_thumb = None
 
@@ -990,13 +986,13 @@ async def change_index_subtitle(bot, msg: Message):
 
     await sts.edit("💠 Uploading... ⚡")
     try:
-        if filesize > FILE_SIZE_LIMIT:
-            file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        if filesize > 2 * 1024 * 1024 * 1024:  # 2GB in bytes
+            file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await msg.reply_text(
-                f"File successfully indexed and uploaded to Google Drive!\n\n"
+                f"File successfully changed index and uploaded to Google Drive!\n\n"
                 f"Google Drive Link: [View File]({file_link})\n\n"
-                f"Uploaded File: {output_filename}\n"
+                f"Uploaded File: {os.path.basename(output_file)}\n"
                 f"Request User: {msg.from_user.mention}\n\n"
                 f"Size: {filesize_human}",
                 reply_markup=InlineKeyboardMarkup(button)
@@ -1010,12 +1006,13 @@ async def change_index_subtitle(bot, msg: Message):
                 progress=progress_message,
                 progress_args=("💠 Upload Started... ⚡️", sts, c_time)
             )
-            await msg.reply_text(
+            await sts.delete()
+            await msg.reply_text(          
                 f"┏📥 **File Name:** {output_filename}\n"
                 f"┠💾 **Size:** {filesize_human}\n"
                 f"┠♻️ **Mode:** Change subtitle Index\n"
                 f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄**File has been sent in Bot PM!**"
+                f"❄**File have been Sent in Bot PM!**"            
             )
     except RPCError as e:
         await sts.edit(f"Upload failed: {e}")
@@ -1030,12 +1027,6 @@ async def change_index_subtitle(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting files: {e}")
 
-async def safe_edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit(new_text)
-    except MessageNotModified:
-        pass
 
 
 
