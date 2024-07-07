@@ -1211,12 +1211,12 @@ async def linktofile(bot, msg: Message):
             file_thumb = thumbnail_path
         else:
             try:
-                if "thumbs" in media and media.thumbs:
+                if media.thumbs:
                     file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
             except Exception as e:
                 print(f"Error downloading thumbnail: {e}")
 
-        await sts.edit("💠 Uploading...")
+        await edit_message(sts, "💠 Uploading...")
         if filesize > FILE_SIZE_LIMIT:
             file_link = await upload_to_google_drive(downloaded, new_name, sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
@@ -1289,12 +1289,12 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
         file_thumb = thumbnail_path
     else:
         try:
-            if "thumbs" in media and media.thumbs:
+            if media.thumbs:
                 file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
         except Exception as e:
             print(f"Error downloading thumbnail: {e}")
 
-    await sts.edit("💠 Uploading...")
+    await edit_message(sts, "💠 Uploading...")
     if filesize > FILE_SIZE_LIMIT:
         file_link = await upload_to_google_drive(new_name, new_name, sts)
         button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
@@ -1325,6 +1325,14 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
                 os.remove(file_thumb)
             os.remove(new_name)
             await sts.delete()
+
+async def edit_message(message, new_text):
+    try:
+        if message.text != new_text:
+            await message.edit(new_text)
+    except MessageNotModified:
+        pass
+
 
 
 
