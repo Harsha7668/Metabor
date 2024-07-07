@@ -596,8 +596,242 @@ async def rename_file(bot, msg):
         os.remove(og_thumbnail)
     await sts.delete()
 
+@Client.on_message(filters.private & filters.command("changemetadata"))
+async def change_metadata(bot, msg):
+    global METADATA_ENABLED, user_settings, GDRIVE_FOLDER_ID
+    DOWNLOAD_LOCATION = "downloads"
+    FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # Example file size limit (2GB)
+
+    if not METADATA_ENABLED:
+        return await msg.reply_text("Metadata changing feature is currently disabled.")
+
+    if not GDRIVE_FOLDER_ID:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    user_id = msg.from_user.id
+    if user_id not in user_settings or not any(user_settings[user_id].values()):
+        return await msg.reply_text("Metadata titles are not set. Please set metadata titles using `/setmetadata video_title audio_title subtitle_title`.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the metadata command\nFormat: `changemetadata -n filename.mkv`")
+
+    if len(msg.command) < 3 or msg.command[1] != "-n":
+        return await msg.reply_text("Please provide the filename with the `-n` flag\nFormat: `changemetadata -n filename.mkv`")
+
+    output_filename = " ".join(msg.command[2:]).strip()
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
+
+    video_title = user_settings[user_id]['video_title']
+    audio_title = user_settings[user_id]['audio_title']
+    subtitle_title = user_settings[user_id]['subtitle_title']
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the metadata command.")
+
+    try:
+        # Show progress message for downloading
+        sts = await msg.reply_text("🚀 Downloading media... ⚡")
+        c_time = time.time()
+        
+        # Download the file
+        downloaded_file = await bot.download_media(message=reply, file_name=os.path.join(DOWNLOAD_LOCATION, output_filename), progress=progress_message, progress_args=("Downloading", sts, c_time))
+        
+        # Update the message to indicate changing metadata
+        await sts.edit("💠 Changing metadata... ⚡")
+        
+        # Change metadata
+        change_video_metadata(downloaded_file, video_title, audio_title, subtitle_title, os.path.join(DOWNLOAD_LOCATION, output_filename))
+
+        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+        if not os.path.exists(thumbnail_path):
+            try:
+                file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+            except Exception as e:
+                file_thumb = None
+        else:
+            file_thumb = thumbnail_path
+
+        filesize = os.path.getsize(os.path.join(DOWNLOAD_LOCATION, output_filename))
+        filesize_human = humanbytes(filesize)
+
+        # Update the message to indicate uploading
+        await sts.edit("🔼 Uploading... ⚡")
+        c_time = time.time()
+
+        # Upload to Google Drive if file size exceeds the limit
+        if filesize > FILE_SIZE_LIMIT:
+            start_time = time.time()
+            file_metadata = {'name': output_filename, 'parents': [GDRIVE_FOLDER_ID]}
+            media = MediaFileUpload(os.path.join(DOWNLOAD_LOCATION, output_filename), resumable=True)
+            request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+            response = None
+            while response is None:
+                status, response = request.next_chunk()
+                if status:
+                    current_progress = status.progress() * 100
+                    await progress_message(current_progress, 100, "Uploading to Google Drive", sts, start_time)
+
+            file_link = response.get('webViewLink')
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+            await msg.reply_text(
+                f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
+                f"**Google Drive Link**: [View File]({file_link})\n\n"
+                f"**Uploaded File**: {output_filename}\n"
+                f"**Request User:** {msg.from_user.mention}\n\n"
+                f"**Size**: {filesize_human}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        else:
+            await bot.send_document(
+                msg.chat.id,
+                document=os.path.join(DOWNLOAD_LOCATION, output_filename),
+                thumb=file_thumb,
+                caption=f"{output_filename}\n\n🌟 Size: {filesize_human}",
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, c_time)
+            )
+
+            await msg.reply_text(
+                f"┏📥 **File Name:** {output_filename}\n"
+                f"┠💾 **Size:** {filesize_human}\n"
+                f"┠♻️ **Mode:** Change Metadata\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄ **File has been sent to your PM in the bot!**"
+            )
+
+        await sts.delete()
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+    finally:
+        os.remove(downloaded_file)
+        os.remove(os.path.join(DOWNLOAD_LOCATION, output_filename))
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
 
 
+@Client.on_message(filters.private & filters.command("attachphoto"))
+async def attach_photo(bot, msg):
+    global PHOTO_ATTACH_ENABLED, GDRIVE_FOLDER_ID
+    DOWNLOAD_LOCATION = "downloads"
+    FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # Example file size limit (2GB)
+
+    if not PHOTO_ATTACH_ENABLED:
+        return await msg.reply_text("Photo attachment feature is currently disabled.")
+
+    if not GDRIVE_FOLDER_ID:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the attach photo command and specify the output filename\nFormat: `attachphoto -n filename.mkv`")
+
+    command_text = " ".join(msg.command[1:]).strip()
+    if "-n" not in command_text:
+        return await msg.reply_text("Please provide the output filename using the `-n` flag\nFormat: `attachphoto -n filename.mkv`")
+
+    filename_part = command_text.split('-n', 1)[1].strip()
+    output_filename = filename_part if filename_part else None
+
+    if not output_filename:
+        return await msg.reply_text("Please provide a valid filename\nFormat: `attachphoto -n filename.mkv`")
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the attach photo command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        downloaded = await bot.download_media(message=reply, file_name=os.path.join(DOWNLOAD_LOCATION, output_filename), progress=progress_message, progress_args=("Downloading", sts, c_time))
+    except Exception as e:
+        await sts.edit(f"Error downloading media: {e}")
+        return
+
+    attachment_path = f"{DOWNLOAD_LOCATION}/attachment_{msg.from_user.id}.jpg"
+    if not os.path.exists(attachment_path):
+        await sts.edit("Please send a photo to be attached using the `setphoto` command.")
+        os.remove(downloaded)
+        return
+
+    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+
+    await sts.edit("💠 Adding photo attachment... ⚡")
+    try:
+        add_photo_attachment(downloaded, attachment_path, output_file)
+    except Exception as e:
+        await sts.edit(f"Error adding photo attachment: {e}")
+        os.remove(downloaded)
+        return
+
+    file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    if not os.path.exists(file_thumb):
+        try:
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=file_thumb)
+        except Exception as e:
+            file_thumb = None
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+
+    await sts.edit("🔼 Uploading modified file... ⚡")
+    try:
+        # Upload to Google Drive if file size exceeds the limit
+        if filesize > FILE_SIZE_LIMIT:
+            start_time = time.time()
+            file_metadata = {'name': output_filename, 'parents': [GDRIVE_FOLDER_ID]}
+            media = MediaFileUpload(output_file, resumable=True)
+            request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+            response = None
+            while response is None:
+                status, response = request.next_chunk()
+                if status:
+                    current_progress = status.progress() * 100
+                    await progress_message(current_progress, 100, "Uploading to Google Drive", sts, start_time)
+
+            file_link = response.get('webViewLink')
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+            await msg.reply_text(
+                f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
+                f"**Google Drive Link**: [View File]({file_link})\n\n"
+                f"**Uploaded File**: {output_filename}\n"
+                f"**Request User:** {msg.from_user.mention}\n\n"
+                f"**Size**: {filesize_human}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        else:
+            await bot.send_document(
+                msg.from_user.id,
+                document=output_file,
+                thumb=file_thumb,
+                caption="Here is your file with the photo attached.",
+                progress=progress_message,
+                progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
+            )
+
+            await msg.reply_text(
+                f"┏📥 **File Name:** {output_filename}\n"
+                f"┠💾 **Size:** {filesize_human}\n"
+                f"┠♻️ **Mode:** Attach Photo\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄ **File has been sent to your PM in the bot!**"
+            )
+
+        await sts.delete()
+    except Exception as e:
+        await sts.edit(f"Error uploading modified file: {e}")
+    finally:
+        os.remove(downloaded)
+        os.remove(output_file)
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
+            
 #MultiTask Command 
 @Client.on_message(filters.private & filters.command("multitask"))
 async def multitask_command(bot, msg):
@@ -3430,7 +3664,7 @@ async def upload_to_google_drive(file_path, file_name, sts):
 
     return response.get('webViewLink')
 """
-
+"""
 async def upload_to_google_drive(file_path, file_name, sts):
     file_metadata = {'name': file_name}
     media = MediaFileUpload(file_path, resumable=True)
@@ -3694,7 +3928,7 @@ async def attach_photo(bot, msg):
         os.remove(downloaded)
         os.remove(output_file)
         if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
+            os.remove(file_thumb)"""
 
 #changeindexaudio
 
