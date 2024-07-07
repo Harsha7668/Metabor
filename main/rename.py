@@ -1017,6 +1017,8 @@ async def change_index_subtitle(bot, msg):
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
 
+
+"""
 #merge command 
 
 @Client.on_message(filters.private & filters.command("merge"))
@@ -1141,7 +1143,7 @@ async def merge_and_upload(bot, msg):
             del merge_state[user_id]
 
         await sts.delete()
-
+"""
 
 
 
@@ -2755,7 +2757,7 @@ async def merge_and_upload(bot, msg):
         await sts.delete()"""
 
 
-"""
+
 
 @Client.on_message(filters.private & filters.command("merge"))
 async def start_merge_command(bot, msg):
@@ -2881,7 +2883,7 @@ async def merge_and_upload(bot, msg):
         if user_id in merge_state:
             del merge_state[user_id]
 
-        await sts.delete()"""
+        await sts.delete()
 
 
 
