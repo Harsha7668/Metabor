@@ -1137,6 +1137,7 @@ async def merge_and_upload(bot, msg: Message):
 #leech command 
 
 # Leech Handler Only Auth Users
+
 @Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
 async def linktofile(bot, msg: Message):
     reply = msg.reply_to_message
@@ -1152,7 +1153,7 @@ async def linktofile(bot, msg: Message):
         return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
 
     if reply.text and ("seedr" in reply.text or "workers" in reply.text):
-        await handle_link_download(bot, msg, reply.text, new_name)
+        await handle_link_download(bot, msg, reply.text, new_name, media)
     else:
         if not media:
             return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
@@ -1185,9 +1186,9 @@ async def linktofile(bot, msg: Message):
                 except Exception as e:
                     print(f"Error downloading thumbnail: {e}")
 
-        await safe_edit_message(sts, "💠 Uploading...")
+        await edit_message(sts, "💠 Uploading...")
         c_time = time.time()
-        
+
         if filesize > FILE_SIZE_LIMIT:
             file_link = await upload_to_google_drive(downloaded, new_name, sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
@@ -1214,7 +1215,7 @@ async def linktofile(bot, msg: Message):
             print(f"Error deleting files: {e}")
         await sts.delete()
 
-async def handle_link_download(bot, msg: Message, link: str, new_name: str):
+async def handle_link_download(bot, msg: Message, link: str, new_name: str, media):
     sts = await msg.reply_text("🚀 Downloading from link...")
     c_time = time.time()
 
@@ -1249,7 +1250,7 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str):
             except Exception as e:
                 print(f"Error downloading thumbnail: {e}")
 
-    await safe_edit_message(sts, "💠 Uploading...")
+    await edit_message(sts, "💠 Uploading...")
     c_time = time.time()
     try:
         await bot.send_document(msg.chat.id, document=new_name, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
@@ -1259,23 +1260,19 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str):
         await sts.edit(f"Upload timed out: {e}")
     finally:
         try:
-            if file_thumb and os.path.exists(file_thumb):
+            if file_thumb:
                 os.remove(file_thumb)
             os.remove(new_name)
         except Exception as e:
             print(f"Error deleting file: {e}")
         await sts.delete()
 
-async def safe_edit_message(message, new_text):
+async def edit_message(message, new_text):
     try:
         if message.text != new_text:
             await message.edit(new_text)
     except MessageNotModified:
         pass
-    
-
-
-
 
 
     
