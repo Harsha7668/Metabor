@@ -52,7 +52,7 @@ def extract_id_from_url(url):
     return match.group(1) if match else None
 
 
-
+"""
 # Copy a file to a new folder in Google Drive
 def copy_file(file_id, new_folder_id):
     try:
@@ -60,6 +60,52 @@ def copy_file(file_id, new_folder_id):
         copied_file = {'name': file['name'], 'parents': [new_folder_id]}
         return drive_service.files().copy(fileId=file_id, body=copied_file).execute()
     except HttpError as error:
+        print(f"An error occurred: {error}")
+        return None
+
+    """
+
+import threading
+
+# Use a lock to ensure only one clone operation runs at a time
+clone_lock = threading.Lock()
+
+# Function to copy a file to a new folder in Google Drive
+def copy_file(file_id, new_folder_id):
+    try:
+        # Acquire the lock
+        clone_lock.acquire()
+
+        # Retrieve the file's metadata
+        file = drive_service.files().get(fileId=file_id, fields='name').execute()
+        file_name = file['name']
+
+        # Check if a file with the same name exists in the destination folder
+        query = f"name='{file_name}' and '{new_folder_id}' in parents and trashed=false"
+        existing_files = drive_service.files().list(q=query, fields='files(id)').execute().get('files', [])
+
+        if existing_files:
+            # Release the lock and return the ID of the first existing file found
+            clone_lock.release()
+            return existing_files[0]['id']
+
+        # Prepare the metadata for copying the file
+        copied_file = {
+            'name': file_name,
+            'parents': [new_folder_id]
+        }
+
+        # Copy the file to the new folder
+        copied_file = drive_service.files().copy(fileId=file_id, body=copied_file).execute()
+
+        # Release the lock
+        clone_lock.release()
+
+        return copied_file
+    
+    except HttpError as error:
+        # Release the lock in case of error
+        clone_lock.release()
         print(f"An error occurred: {error}")
         return None
 
