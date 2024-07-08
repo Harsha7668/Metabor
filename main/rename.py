@@ -820,7 +820,7 @@ async def change_index_audio(bot, msg):
     indexes = [int(i) - 1 for i in index_params[1:]]
 
     # Construct the FFmpeg command to modify indexes
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0:v']  # Always map video stream
 
     for idx in indexes:
         ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
@@ -855,51 +855,41 @@ async def change_index_audio(bot, msg):
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
 
     await sts.edit("💠 Uploading... ⚡")
-    try:
-        # Upload to Google Drive if file size exceeds the limit
-        if filesize > 2 * 1024 * 1024 * 1024:  # 2GB in bytes
-            file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
-            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-            await msg.reply_text(
-                f"File successfully changed index and uploaded to Google Drive!\n\n"
-                f"Google Drive Link: [View File]({file_link})\n\n"
-                f"Uploaded File: {os.path.basename(output_file)}\n"
-                f"Request User: {msg.from_user.mention}\n\n"
-                f"Size: {filesize_human}",
-                reply_markup=InlineKeyboardMarkup(button)
-            )
-        else:
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**File successfully changed audio index and uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {output_filename}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
             await bot.send_document(
-                msg.from_user.id,
+                msg.chat.id,
                 document=output_file,
                 thumb=file_thumb,
                 caption=cap,
                 progress=progress_message,
                 progress_args=("💠 Upload Started... ⚡️", sts, c_time)
             )
-            await sts.delete()
-            await msg.reply_text(          
-                f"┏📥 **File Name:** {output_filename}\n"
-                f"┠💾 **Size:** {filesize_human}\n"
-                f"┠♻️ **Mode:** Change audio Index\n"
-                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄**File have been Sent in Bot PM!**"            
-            )
-    except RPCError as e:
-        await sts.edit(f"Upload failed: {e}")
-    except TimeoutError as e:
-        await sts.edit(f"Upload timed out: {e}")
-    finally:
-        try:
-            if file_thumb and os.path.exists(file_thumb):
-                os.remove(file_thumb)
-            os.remove(downloaded)
-            os.remove(output_file)
         except Exception as e:
-            print(f"Error deleting files: {e}")
+            return await sts.edit(f"Error: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
+    await sts.delete()
 
 #changeindex subtitles 
 # Command to change index subtitle
+
 @Client.on_message(filters.private & filters.command("changeindexsub"))
 async def change_index_subtitle(bot, msg):
     global CHANGE_INDEX_ENABLED
@@ -941,7 +931,7 @@ async def change_index_subtitle(bot, msg):
         # Download the media file
         downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
     except Exception as e:
-        await sts.edit(f"Error downloading media: {e}")
+        await safe_edit_message(sts, f"Error downloading media: {e}")
         return
 
     output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
@@ -959,12 +949,12 @@ async def change_index_subtitle(bot, msg):
     # Copy all audio and video streams
     ffmpeg_cmd.extend(['-map', '0:v?', '-map', '0:a?', '-c', 'copy', output_file, '-y'])
 
-    await sts.edit("💠 Changing subtitle indexing... ⚡")
+    await safe_edit_message(sts, "💠 Changing subtitle indexing... ⚡")
     process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        await sts.edit(f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        await safe_edit_message(sts, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
         os.remove(downloaded)
         return
 
@@ -983,49 +973,31 @@ async def change_index_subtitle(bot, msg):
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
 
-    await sts.edit("💠 Uploading... ⚡")
-    try:
-        if filesize > 2 * 1024 * 1024 * 1024:  # 2GB in bytes
-            file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
-            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-            await msg.reply_text(
-                f"File successfully changed index and uploaded to Google Drive!\n\n"
-                f"Google Drive Link: [View File]({file_link})\n\n"
-                f"Uploaded File: {os.path.basename(output_file)}\n"
-                f"Request User: {msg.from_user.mention}\n\n"
-                f"Size: {filesize_human}",
-                reply_markup=InlineKeyboardMarkup(button)
-            )
-        else:
-            await bot.send_document(
-                msg.from_user.id,
-                document=output_file,
-                thumb=file_thumb,
-                caption=cap,
-                progress=progress_message,
-                progress_args=("💠 Upload Started... ⚡️", sts, c_time)
-            )
-            await sts.delete()
-            await msg.reply_text(          
-                f"┏📥 **File Name:** {output_filename}\n"
-                f"┠💾 **Size:** {filesize_human}\n"
-                f"┠♻️ **Mode:** Change subtitle Index\n"
-                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
-                f"❄**File have been Sent in Bot PM!**"            
-            )
-    except RPCError as e:
-        await sts.edit(f"Upload failed: {e}")
-    except TimeoutError as e:
-        await sts.edit(f"Upload timed out: {e}")
-    finally:
-        try:
-            if file_thumb and os.path.exists(file_thumb):
-                os.remove(file_thumb)
-            os.remove(downloaded)
-            os.remove(output_file)
-        except Exception as e:
-            print(f"Error deleting files: {e}")
+    await safe_edit_message(sts, "💠 Uploading... ⚡")
+    c_time = time.time()
 
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**File successfully changed subtitle index and uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {output_filename}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except Exception as e:
+            return await safe_edit_message(sts, f"Error: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
+    await sts.delete()
 
 
 
