@@ -1137,7 +1137,6 @@ async def merge_and_upload(bot, msg: Message):
 #leech command 
 
 # Leech Handler Only Auth Users
-
 @Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
 async def linktofile(bot, msg: Message):
     reply = msg.reply_to_message
@@ -1203,8 +1202,10 @@ async def linktofile(bot, msg: Message):
         else:
             try:
                 await bot.send_document(msg.chat.id, document=downloaded, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
-            except RPCError as e:
+            except ValueError as e:
                 return await sts.edit(f"Upload failed: {e}")
+            except TimeoutError as e:
+                return await sts.edit(f"Upload timed out: {e}")
 
         try:
             if file_thumb and os.path.exists(file_thumb):
@@ -1252,20 +1253,33 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
 
     await edit_message(sts, "💠 Uploading...")
     c_time = time.time()
-    try:
-        await bot.send_document(msg.chat.id, document=new_name, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
-    except RPCError as e:
-        await sts.edit(f"Upload failed: {e}")
-    except TimeoutError as e:
-        await sts.edit(f"Upload timed out: {e}")
-    finally:
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(new_name, new_name, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**File successfully uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {new_name}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
         try:
-            if file_thumb:
-                os.remove(file_thumb)
-            os.remove(new_name)
-        except Exception as e:
-            print(f"Error deleting file: {e}")
-        await sts.delete()
+            await bot.send_document(msg.chat.id, document=new_name, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
+        except ValueError as e:
+            return await sts.edit(f"Upload failed: {e}")
+        except TimeoutError as e:
+            return await sts.edit(f"Upload timed out: {e}")
+
+    try:
+        if file_thumb:
+            os.remove(file_thumb)
+        os.remove(new_name)
+    except Exception as e:
+        print(f"Error deleting file: {e}")
+    await sts.delete()
 
 async def edit_message(message, new_text):
     try:
@@ -1273,6 +1287,7 @@ async def edit_message(message, new_text):
             await message.edit(new_text)
     except MessageNotModified:
         pass
+
 
 
     
