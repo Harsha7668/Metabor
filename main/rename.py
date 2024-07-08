@@ -1816,7 +1816,7 @@ async def clone_file(bot, msg: Message):
                 [InlineKeyboardButton("☁️ View File ☁️", url=file_link)]
             ]
             await msg.reply_text(
-                f"File cloned successfully: {copied_file['name']}\n[View File]({file_link})",
+                f"File Cloned Successfully ✅: {copied_file['name']}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
