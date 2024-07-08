@@ -52,7 +52,7 @@ def extract_id_from_url(url):
     return match.group(1) if match else None
 
 
-
+"""
 # Copy a file to a new folder in Google Drive
 def copy_file(file_id, new_folder_id):
     try:
@@ -62,5 +62,24 @@ def copy_file(file_id, new_folder_id):
     except HttpError as error:
         print(f"An error occurred: {error}")
         return None
+"""
 
+def copy_file(file_id, new_folder_id):
+    try:
+        # Check if a file with the same name already exists in the destination folder
+        existing_files = drive_service.files().list(q=f"'{new_folder_id}' in parents and trashed=false",
+                                                    fields="files(id,name)").execute().get('files', [])
+        for existing_file in existing_files:
+            if existing_file['name'] == file_id:
+                # File with the same name already exists, you may want to overwrite it or skip
+                # For simplicity, let's skip cloning if the file already exists
+                return None
+        
+        # If the file doesn't exist, proceed with copying
+        file = drive_service.files().get(fileId=file_id, fields='name').execute()
+        copied_file = {'name': file['name'], 'parents': [new_folder_id]}
+        return drive_service.files().copy(fileId=file_id, body=copied_file).execute()
+    except HttpError as error:
+        print(f"An error occurred: {error}")
+        return None
 
