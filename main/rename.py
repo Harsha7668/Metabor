@@ -1177,16 +1177,15 @@ async def linktofile(bot, msg: Message):
 
         # Thumbnail handling
         thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-        if not os.path.exists(thumbnail_path):
-            try:
-                file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-            except Exception as e:
-                print(f"Error downloading thumbnail: {e}")
-                file_thumb = None
-        else:
-            file_thumb = thumbnail_path
+        file_thumb = None
+        if media.thumbs:
+            if not os.path.exists(thumbnail_path):
+                try:
+                    file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+                except Exception as e:
+                    print(f"Error downloading thumbnail: {e}")
 
-        await sts.edit("💠 Uploading...")
+        await safe_edit_message(sts, "💠 Uploading...")
         c_time = time.time()
         
         if filesize > FILE_SIZE_LIMIT:
@@ -1242,16 +1241,15 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
 
     # Thumbnail handling
     thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    if not os.path.exists(thumbnail_path):
-        try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-        except Exception as e:
-            print(f"Error downloading thumbnail: {e}")
-            file_thumb = None
-    else:
-        file_thumb = thumbnail_path
+    file_thumb = None
+    if media.thumbs:
+        if not os.path.exists(thumbnail_path):
+            try:
+                file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+            except Exception as e:
+                print(f"Error downloading thumbnail: {e}")
 
-    await sts.edit("💠 Uploading...")
+    await safe_edit_message(sts, "💠 Uploading...")
     c_time = time.time()
     try:
         await bot.send_document(msg.chat.id, document=new_name, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
@@ -1261,20 +1259,19 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
         await sts.edit(f"Upload timed out: {e}")
     finally:
         try:
-            if file_thumb:
+            if file_thumb and os.path.exists(file_thumb):
                 os.remove(file_thumb)
             os.remove(new_name)
         except Exception as e:
             print(f"Error deleting file: {e}")
         await sts.delete()
 
-async def edit_message(message, new_text):
+async def safe_edit_message(message, new_text):
     try:
         if message.text != new_text:
             await message.edit(new_text)
     except MessageNotModified:
         pass
-
 
 
 
