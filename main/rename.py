@@ -21,8 +21,7 @@ from pyrogram.errors import RPCError, FloodWait
 import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
 from googleapiclient.http import MediaFileUpload
-from main.gdrive import upload_to_google_drive 
-
+from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
