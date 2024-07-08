@@ -1824,6 +1824,94 @@ async def clone_file(bot, msg: Message):
         await sts.edit(f"Error: {e}")
 
 
+
+
+async def safe_edit_message(message, new_text):
+    try:
+        if message.text != new_text:
+            await message.edit(new_text)
+    except Exception as e:
+        print(f"Failed to edit message: {e}")
+
+@Client.on_message(filters.private & filters.command("extractaudios"))
+async def extract_audios(bot, msg):
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the extractaudios command.")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the extractaudios command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await safe_edit_message(sts, f"Error downloading media: {e}")
+        return
+
+    await safe_edit_message(sts, "🎵 Extracting audio streams... ⚡")
+    try:
+        extracted_files = extract_audios_from_file(downloaded)
+        if not extracted_files:
+            raise Exception("No audio streams found or extraction failed.")
+    except Exception as e:
+        await safe_edit_message(sts, f"Error extracting audio streams: {e}")
+        os.remove(downloaded)
+        return
+
+    await safe_edit_message(sts, "🔼 Uploading extracted audio files... ⚡")
+    try:
+        for file in extracted_files:
+            await bot.send_document(
+                msg.from_user.id,
+                file,
+                caption="Here is an extracted audio file.",
+                progress=progress_message,
+                progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
+            )
+                
+        await msg.reply_text(
+            f"Audio streams extracted and sent to your PM in the bot!"
+        )
+
+        await sts.delete()
+    except Exception as e:
+        await safe_edit_message(sts, f"Error uploading extracted audio files: {e}")
+    finally:
+        os.remove(downloaded)
+        for file in extracted_files:
+            os.remove(file)
+
+def extract_audio_stream(input_path, output_path, stream_index):
+    command = [
+        'ffmpeg',
+        '-i', input_path,
+        '-map', f'0:{stream_index}',
+        '-c', 'copy',
+        output_path,
+        '-y'
+    ]
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
+
+def extract_audios_from_file(input_path):
+    video_streams_data = ffmpeg.probe(input_path)
+    audios = [stream for stream in video_streams_data.get("streams") if stream.get("codec_type") == "audio"]
+
+    extracted_files = []
+    for audio in audios:
+        output_file = os.path.join(os.path.dirname(input_path), f"{audio['index']}.{audio['codec_type']}.aac")
+        extract_audio_stream(input_path, output_file, audio['index'])
+        extracted_files.append(output_file)
+
+    return extracted_files
+
+
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
