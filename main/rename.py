@@ -1152,7 +1152,7 @@ async def linktofile(bot, msg: Message):
         return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
 
     if reply.text and ("seedr" in reply.text or "workers" in reply.text):
-        await handle_link_download(bot, msg, reply.text, new_name, media)
+        await handle_link_download(bot, msg, reply.text, new_name)
     else:
         if not media:
             return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
@@ -1178,7 +1178,7 @@ async def linktofile(bot, msg: Message):
         # Thumbnail handling
         thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
         file_thumb = None
-        if media.thumbs:
+        if media and media.thumbs:
             if not os.path.exists(thumbnail_path):
                 try:
                     file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
@@ -1214,7 +1214,7 @@ async def linktofile(bot, msg: Message):
             print(f"Error deleting files: {e}")
         await sts.delete()
 
-async def handle_link_download(bot, msg: Message, link: str, new_name: str, media):
+async def handle_link_download(bot, msg: Message, link: str, new_name: str):
     sts = await msg.reply_text("🚀 Downloading from link...")
     c_time = time.time()
 
@@ -1242,7 +1242,7 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
     # Thumbnail handling
     thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
     file_thumb = None
-    if media.thumbs:
+    if media and media.thumbs:
         if not os.path.exists(thumbnail_path):
             try:
                 file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
@@ -1272,6 +1272,7 @@ async def safe_edit_message(message, new_text):
             await message.edit(new_text)
     except MessageNotModified:
         pass
+    
 
 
 
