@@ -64,21 +64,24 @@ def copy_file(file_id, new_folder_id):
         return None
 """
 
-# Update the copy_file function to check if the file already exists in the destination folder
+# Updated copy_file function with additional debugging output
 def copy_file(file_id, new_folder_id):
     try:
         # Check if the file already exists in the destination folder
         query = f"'{new_folder_id}' in parents and trashed=false and name='{file_id}'"
+        print(f"Query: {query}")  # Output the query for debugging
+        
         existing_files = drive_service.files().list(q=query, fields='files(id)').execute().get('files', [])
         
         if existing_files:
             # If file already exists, return its ID
-            return existing_files[0]
+            print("File already exists in destination folder.")
+            return existing_files[0]['id']
         
         # If file doesn't exist, proceed with copying
         file = drive_service.files().get(fileId=file_id, fields='name').execute()
         copied_file = {'name': file['name'], 'parents': [new_folder_id]}
-        return drive_service.files().copy(fileId=file_id, body=copied_file).execute()
+        return drive_service.files().copy(fileId=file_id, body=copied_file).execute()['id']
     
     except HttpError as error:
         print(f"An error occurred: {error}")
