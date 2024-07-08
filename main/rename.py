@@ -2091,16 +2091,10 @@ def extract_video_from_file(input_path):
 
 
 
-async def safe_edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit(new_text)
-    except Exception as e:
-        print(f"Failed to edit message: {e}")
-
+# Main command handler for /extract
 @Client.on_message(filters.private & filters.command("extract"))
 async def extract_command(bot, msg):
-    if msg.reply_to_message and msg.reply_to_message.video:
+    if msg.reply_to_message and (msg.reply_to_message.video or msg.reply_to_message.document):
         await msg.reply_text(
             "Choose what you want to extract:",
             reply_markup=InlineKeyboardMarkup(
@@ -2112,61 +2106,69 @@ async def extract_command(bot, msg):
             )
         )
     else:
-        await msg.reply_text("Please reply to a video file with the /extract command.")
+        await msg.reply_text("Please reply to a video or document file with the /extract command.")
 
-@Client.on_callback_query()
-async def callback_handler(bot, query):
-    media_type = query.data.split("_")[-1]  # Extract media type from callback data
-    if query.message.reply_to_message and query.message.reply_to_message.video:
-        await extract_media(query.message, media_type)
-    else:
-        await query.answer("Please reply to a video file with the /extract command.")
+# Callback query handler for extract commands
+@Client.on_callback_query(filters.regex(r"extract_.*"))
+async def handle_extract_callback(bot, callback_query: CallbackQuery):
+    data = callback_query.data
+    if data == "extract_audio":
+        await extract_audio(bot, callback_query.message)
+    elif data == "extract_subtitle":
+        await extract_subtitles(bot, callback_query.message)
+    elif data == "extract_video":
+        await extract_video(bot, callback_query.message)
+    await callback_query.answer()
 
-async def extract_media(message, media_type):
-    reply = message.reply_to_message
-    if reply.document:
-        file_path = await bot.download_media(reply.document.file_id)
-    elif reply.video:
-        file_path = await bot.download_media(reply.video.file_id)
-    else:
-        await message.reply_text("Unsupported media type.")
-        return
+# Function to extract audio from media file
+async def extract_audio(bot, msg):
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the /extract command.")
+    media = reply.document or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (video or document) with the /extract command.")
 
-    sts = await message.reply_text(f"🚀 Downloading media... ⚡")
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
     c_time = time.time()
     try:
-        await safe_edit_message(sts, f"🎬 Extracting {media_type}... ⚡")
-        extracted_files = extract_media_from_file(file_path, media_type)
-        if not extracted_files:
-            raise Exception(f"No {media_type} streams found or extraction failed.")
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
     except Exception as e:
-        await safe_edit_message(sts, f"Error extracting {media_type}: {e}")
-        os.remove(file_path)
+        await safe_edit_message(sts, f"Error downloading media: {e}")
         return
 
-    await safe_edit_message(sts, f"🔼 Uploading extracted {media_type} files... ⚡")
+    await safe_edit_message(sts, "🎵 Extracting audio streams... ⚡")
+    try:
+        extracted_files = extract_audios_from_file(downloaded)
+        if not extracted_files:
+            raise Exception("No audio streams found or extraction failed.")
+    except Exception as e:
+        await safe_edit_message(sts, f"Error extracting audio streams: {e}")
+        os.remove(downloaded)
+        return
+
+    await safe_edit_message(sts, "🔼 Uploading extracted audio files... ⚡")
     try:
         for file, metadata in extracted_files:
-            converted_file = convert_to_supported_format(file, media_type)
             language = metadata.get('tags', {}).get('language', 'Unknown')
-            caption = f"[{language}] Here is an extracted {media_type} file."
+            caption = f"[{language}] Here is an extracted audio file."
             await bot.send_document(
-                message.chat.id,
-                converted_file,
+                msg.chat.id,
+                file,
                 caption=caption,
                 progress=progress_message,
                 progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
             )
-
-        await message.reply_text(
-            f"{media_type.capitalize()} streams extracted and sent to your PM in the bot!"
+                
+        await msg.reply_text(
+            "Audio streams extracted and sent to your PM in the bot!"
         )
 
         await sts.delete()
     except Exception as e:
-        await safe_edit_message(sts, f"Error uploading extracted {media_type} files: {e}")
+        await safe_edit_message(sts, f"Error uploading extracted audio files: {e}")
     finally:
-        os.remove(file_path)
+        os.remove(downloaded)
         for file, _ in extracted_files:
             os.remove(file)
 
@@ -2184,6 +2186,70 @@ def extract_audio_stream(input_path, output_path, stream_index):
     if process.returncode != 0:
         raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
 
+def extract_audios_from_file(input_path):
+    video_streams_data = ffmpeg.probe(input_path)
+    audios = [stream for stream in video_streams_data.get("streams") if stream.get("codec_type") == "audio"]
+
+    extracted_files = []
+    for audio in audios:
+        output_file = os.path.join(os.path.dirname(input_path), f"{audio['index']}.{audio['codec_type']}.aac")
+        extract_audio_stream(input_path, output_file, audio['index'])
+        extracted_files.append((output_file, audio))
+
+    return extracted_files
+
+# Function to extract subtitles from media file
+async def extract_subtitles(bot, msg):
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the /extract command.")
+    media = reply.document or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (video or document) with the /extract command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await safe_edit_message(sts, f"Error downloading media: {e}")
+        return
+
+    await safe_edit_message(sts, "🎥 Extracting subtitle streams... ⚡")
+    try:
+        extracted_files = extract_subtitles_from_file(downloaded)
+        if not extracted_files:
+            raise Exception("No subtitle streams found or extraction failed.")
+    except Exception as e:
+        await safe_edit_message(sts, f"Error extracting subtitle streams: {e}")
+        os.remove(downloaded)
+        return
+
+    await safe_edit_message(sts, "🔼 Uploading extracted subtitle files... ⚡")
+    try:
+        for file, metadata in extracted_files:
+            language = metadata.get('tags', {}).get('language', 'Unknown')
+            caption = f"[{language}] Here is an extracted subtitle file."
+            await bot.send_document(
+                msg.chat.id,
+                file,
+                caption=caption,
+                progress=progress_message,
+                progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
+            )
+
+        await msg.reply_text(
+            "Subtitle streams extracted and sent to your PM in the bot!"
+        )
+
+        await sts.delete()
+    except Exception as e:
+        await safe_edit_message(sts, f"Error uploading extracted subtitle files: {e}")
+    finally:
+        os.remove(downloaded)
+        for file, _ in extracted_files:
+            os.remove(file)
+
 def extract_subtitle_stream(input_path, output_path, stream_index):
     command = [
         'ffmpeg',
@@ -2198,65 +2264,68 @@ def extract_subtitle_stream(input_path, output_path, stream_index):
     if process.returncode != 0:
         raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
 
-def extract_video_stream(input_path, output_path):
-    command = [
-        'ffmpeg',
-        '-i', input_path,
-        '-c', 'copy',
-        output_path,
-        '-y'
-    ]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
-
-def convert_to_supported_format(file_path, media_type):
-    output_path = file_path
-    if media_type == "audio" and not file_path.endswith(".mp3"):
-        output_path = file_path.rsplit(".", 1)[0] + ".mp3"
-        command = ['ffmpeg', '-i', file_path, '-vn', '-acodec', 'libmp3lame', output_path, '-y']
-    elif media_type == "video" and not (file_path.endswith(".mp4") or file_path.endswith(".mkv")):
-        output_path = file_path.rsplit(".", 1)[0] + ".mp4"  # Default to .mp4
-        command = ['ffmpeg', '-i', file_path, '-c', 'copy', output_path, '-y']
-    else:
-        return file_path
-
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
-
-    return output_path
-
-def extract_media_from_file(input_path, media_type):
+def extract_subtitles_from_file(input_path):
     video_streams_data = ffmpeg.probe(input_path)
-    if media_type == "audio":
-        streams = [stream for stream in video_streams_data.get("streams") if stream.get("codec_type") == "audio"]
-        extract_function = extract_audio_stream
-        extension = "aac"
-    elif media_type == "subtitle":
-        streams = [stream for stream in video_streams_data.get("streams") if stream.get("codec_type") == "subtitle"]
-        extract_function = extract_subtitle_stream
-        extension = "srt"
-    elif media_type == "video":
-        streams = [stream for stream in video_streams_data.get("streams") if stream.get("codec_type") == "video"]
-        extract_function = extract_video_stream
-        extension = "mp4"  # Default video extension
-        for format in video_streams_data.get("format", []):
-            if "filename" in format:
-                extension = os.path.splitext(format["filename"])[-1][1:].lower()  # Get the extension from the filename
-                break
-    else:
-        raise ValueError("Unsupported media_type. Supported values are 'audio', 'subtitle', 'video'.")
+    subtitles = [stream for stream in video_streams_data.get("streams") if stream.get("codec_type") == "subtitle"]
 
     extracted_files = []
-    for stream in streams:
-        output_file = os.path.join(os.path.dirname(input_path), f"{stream['index']}.{stream['codec_type']}.{extension}")
-        extract_function(input_path, output_file, stream['index'])
-        extracted_files.append((output_file, stream))
+    for subtitle in subtitles:
+        output_file = os.path.join(os.path.dirname(input_path), f"{subtitle['index']}.{subtitle['codec_type']}.srt")
+        extract_subtitle_stream(input_path, output_file, subtitle['index'])
+        extracted_files.append((output_file, subtitle))
 
     return extracted_files
+
+# Function to extract video from media file
+async def extract_video(bot, msg):
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the /extract command.")
+    media = reply.document or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (video or document) with the /extract command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await safe_edit_message(sts, f"Error downloading media: {e}")
+        return
+
+    await safe_edit_message(sts, "🎥 Extracting video stream... ⚡")
+    try:
+        extracted_file = extract_video_from_file(downloaded)
+        if not extracted_file:
+            raise Exception("No video stream found or extraction failed.")
+    except Exception as e:
+        await safe_edit_message(sts, f"Error extracting video stream: {e}")
+        os.remove(downloaded)
+        return
+
+    await safe_edit_message(sts, "🔼 Uploading extracted video... ⚡")
+    try:
+        if extracted_file.lower().endswith(('.mkv', '.mp4')):
+            await bot.send_video(
+                msg.chat.id,
+                extracted_file,
+                progress=progress_message,
+                progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
+            )
+        else:
+            raise Exception("Unsupported file format for upload.")
+
+        await msg.reply_text(
+            "Video stream extracted and sent to your PM in the bot!"
+        )
+
+        await sts.delete()
+    except Exception as e:
+        await safe_edit_message(sts, f"Error uploading extracted video: {e}")
+    finally:
+        os.remove(downloaded)
+        if extracted_file:
+            os.remove(extracted_file)
 
 
 if __name__ == '__main__':
