@@ -48,6 +48,10 @@ CHANGE_INDEX_ENABLED = True
 MERGE_ENABLED = True
 EXTRACT_ENABLED = True
 
+
+# Global variable to track if cloning process is in progress
+is_cloning = False
+
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Command handler to start the interaction (only in admin)
 @Client.on_message(filters.command("bsettings") & filters.chat(ADMIN))
@@ -1826,8 +1830,7 @@ async def clone_file(bot, msg: Message):
 
 """
 
-# Global variable to track if cloning process is in progress
-is_cloning = False
+
 
 @Client.on_message(filters.private & filters.command("clone"))
 async def clone_file(bot, msg: Message):
