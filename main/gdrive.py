@@ -58,6 +58,15 @@ def extract_id_from_url(url):
 
 
 
+
+# Use a lock to ensure only one clone operation runs at a time
+clone_lock = threading.Lock()
+
+# Function to send a message to Telegram (replace with your actual Telegram bot API implementation)
+def send_telegram_message(message):
+    # Replace this with your actual implementation to send messages to Telegram
+    print(f"Sending message to Telegram: {message}")
+
 # Function to copy a file to a new folder in Google Drive
 def copy_file(file_id, new_folder_id):
     try:
@@ -75,21 +84,21 @@ def copy_file(file_id, new_folder_id):
         if existing_files:
             # Release the lock
             clone_lock.release()
-            
-            # Print or log a message indicating the file already exists
-            print(f"The file '{file_name}' already exists in the destination folder.")
-            
-            # Return the ID of the first existing file found
+
+            # Send message to Telegram bot about file existence
+            message = f"The file '{file_name}' already exists in the destination folder."
+            send_telegram_message(message)
+
             return existing_files[0]['id']
 
         # Prepare the metadata for copying the file
-        copied_file = {
+        copied_file_metadata = {
             'name': file_name,
             'parents': [new_folder_id]
         }
 
         # Copy the file to the new folder
-        copied_file = drive_service.files().copy(fileId=file_id, body=copied_file).execute()
+        copied_file = drive_service.files().copy(fileId=file_id, body=copied_file_metadata).execute()
 
         # Release the lock
         clone_lock.release()
@@ -99,5 +108,12 @@ def copy_file(file_id, new_folder_id):
     except HttpError as error:
         # Release the lock in case of error
         clone_lock.release()
-        print(f"An error occurred: {error}")
+        message = f"An error occurred: {error}"
+        send_telegram_message(message)
+        return None
+    except Exception as e:
+        # Release the lock in case of any other exception
+        clone_lock.release()
+        message = f"An unexpected error occurred: {e}"
+        send_telegram_message(message)
         return None
