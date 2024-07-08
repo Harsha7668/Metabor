@@ -2005,12 +2005,13 @@ def extract_subtitles_from_file(input_path):
     return extracted_files
 
 
+
 @Client.on_message(filters.private & filters.command("extractvideo"))
 async def extract_video(bot, msg):
     global EXTRACT_ENABLED
     
     if not EXTRACT_ENABLED:
-        return await msg.reply_text("The Extract Video feature is currently disabled.")
+        return await msg.reply_text("The extract feature is currently disabled.")
 
     reply = msg.reply_to_message
     if not reply:
@@ -2090,7 +2091,6 @@ def extract_video_from_file(input_path):
     extract_video_stream(input_path, output_file, video_stream['index'])
 
     return output_file
-
 
 
 if __name__ == '__main__':
