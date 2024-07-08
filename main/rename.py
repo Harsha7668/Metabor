@@ -306,7 +306,7 @@ async def inline_preview_gdrive(bot, callback_query):
     
     # Check if the Gdrive ID is set
     if not GDRIVE_FOLDER_ID:
-        return await callback_query.message.reply_text("Google Drive Folder IDis not set. Use /gofilesetup {your_api_key} to set it.")
+        return await callback_query.message.reply_text("Google Drive Folder IDis not set. Use /gdriveid `yourgdriveformirtor` to set it.")
     
     # Reply with the current API key
     await callback_query.message.reply_text(f"Current Google Drive Folder ID: {GDRIVE_FOLDER_ID}")
@@ -446,7 +446,7 @@ async def setup_gdrive_id(bot, msg: Message):
         return await msg.reply_text("Please provide a Google Drive folder ID after the command.")
 
     GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
-    await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}")
+    await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}\n\n Google Drive folder ID set successfully✅!")
 
 
 # Command to set up Gofile API key
