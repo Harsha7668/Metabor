@@ -46,7 +46,6 @@ async def upload_to_google_drive(file_path, file_name, sts):
 
     return response.get('webViewLink')
 
-"""
 # Extract the file ID from a Google Drive URL
 def extract_id_from_url(url):
     match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
@@ -63,40 +62,5 @@ def copy_file(file_id, new_folder_id):
     except HttpError as error:
         print(f"An error occurred: {error}")
         return None
-"""
 
-
-# Function to extract file ID from Google Drive URL
-def extract_id_from_url(url):
-    match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
-    return match.group(1) if match else None
-
-# Function to check if a file with the same name exists in the destination folder
-def check_existing_file(file_name, new_folder_id):
-    try:
-        response = drive_service.files().list(q=f"'{new_folder_id}' in parents and trashed=false and name='{file_name}'").execute()
-        files = response.get('files', [])
-        return files[0] if files else None
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        return None
-
-# Function to copy a file to a new folder in Google Drive
-def copy_file(file_id, new_folder_id):
-    try:
-        file = drive_service.files().get(fileId=file_id, fields='name').execute()
-        existing_file = check_existing_file(file['name'], new_folder_id)
-        
-        if existing_file:
-            # File with the same name already exists, update it
-            existing_file_id = existing_file['id']
-            return drive_service.files().update(fileId=existing_file_id, body={'name': file['name'], 'parents': [new_folder_id]}).execute()
-        else:
-            # File doesn't exist, create a new copy
-            copied_file = {'name': file['name'], 'parents': [new_folder_id]}
-            return drive_service.files().copy(fileId=file_id, body=copied_file).execute()
-            
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        return None
 
