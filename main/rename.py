@@ -2100,182 +2100,142 @@ async def safe_edit_message(message, text):
 # Command handler to initiate extraction options
 @Client.on_message(filters.private & filters.command("extract"))
 async def extract_command(bot, msg):
-    if msg.reply_to_message and (msg.reply_to_message.video or msg.reply_to_message.document):
-        await msg.reply_text(
-            "Choose what you want to extract:",
-            reply_markup=InlineKeyboardMarkup(
-                [
-                    [InlineKeyboardButton("Audio", callback_data="extract_audio")],
-                    [InlineKeyboardButton("Subtitle", callback_data="extract_subtitles")],
-                    [InlineKeyboardButton("Video", callback_data="extract_video")],
-                ]
+    if msg.reply_to_message:
+        reply = msg.reply_to_message
+        if reply.video or reply.document:
+            await msg.reply_text(
+                "Choose what you want to extract:",
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [InlineKeyboardButton("Audio", callback_data="extract_audio")],
+                        [InlineKeyboardButton("Subtitle", callback_data="extract_subtitles")],
+                        [InlineKeyboardButton("Video", callback_data="extract_video")],
+                    ]
+                )
             )
-        )
+        else:
+            await msg.reply_text("Please reply to a video file or document with the /extract command.")
     else:
-        await msg.reply_text("Please reply to a video file with the /extract command.")
+        await msg.reply_text("Please reply to a message with the /extract command.")
 
 
 # Callback query handler for extracting audio
 @Client.on_callback_query(filters.regex("^extract_audio$"))
 async def extract_audio_callback(bot, cb):
-    msg = cb.message  # Get the message associated with the callback query
-    reply = msg.reply_to_message
-
-    if not reply:
-        return await cb.answer("Please reply to a media file with the extract_audio command.", show_alert=True)
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await cb.answer("Please reply to a valid media file (audio, video, or document) with the extract_audio command.", show_alert=True)
-
-    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    sts = await cb.answer("🚀 Downloading media... ⚡", show_alert=False)
     c_time = time.time()
+    
     try:
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+        downloaded = await cb.message.reply_to_message.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
     except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
+        await safe_edit_message(sts.message, f"Error downloading media: {e}")
         return
 
-    await safe_edit_message(sts, "🎵 Extracting audio streams... ⚡")
     try:
+        await safe_edit_message(sts, "🎵 Extracting audio streams... ⚡")
         extracted_files = extract_audios_from_file(downloaded)
         if not extracted_files:
             raise Exception("No audio streams found or extraction failed.")
-    except Exception as e:
-        await safe_edit_message(sts, f"Error extracting audio streams: {e}")
-        os.remove(downloaded)
-        return
-
-    await safe_edit_message(sts, "🔼 Uploading extracted audio files... ⚡")
-    try:
+        
+        await safe_edit_message(sts, "🔼 Uploading extracted audio files... ⚡")
         for file, metadata in extracted_files:
             language = metadata.get('tags', {}).get('language', 'Unknown')
             caption = f"[{language}] Here is an extracted audio file."
             await bot.send_document(
-                msg.chat.id,  # Send to the chat where the command originated
+                cb.message.chat.id,
                 file,
                 caption=caption,
                 progress=progress_message,
                 progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
             )
-                
+        
         await cb.answer("Audio streams extracted and sent to your PM in the bot!")
-        await sts.delete()
     except Exception as e:
-        await safe_edit_message(sts, f"Error uploading extracted audio files: {e}")
+        await safe_edit_message(sts, f"Error processing or uploading extracted audio files: {e}")
     finally:
         os.remove(downloaded)
         for file, _ in extracted_files:
             os.remove(file)
+
 
 # Callback query handler for extracting subtitles
 @Client.on_callback_query(filters.regex("^extract_subtitles$"))
 async def extract_subtitles_callback(bot, cb):
-    msg = cb.message  # Get the message associated with the callback query
-    reply = msg.reply_to_message
-
-    if not reply:
-        return await cb.answer("Please reply to a media file with the extract_subtitles command.", show_alert=True)
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await cb.answer("Please reply to a valid media file (audio, video, or document) with the extract_subtitles command.", show_alert=True)
-
-    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    sts = await cb.answer("🚀 Downloading media... ⚡", show_alert=False)
     c_time = time.time()
+    
     try:
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+        downloaded = await cb.message.reply_to_message.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
     except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
+        await safe_edit_message(sts.message, f"Error downloading media: {e}")
         return
 
-    await safe_edit_message(sts, "🎥 Extracting subtitle streams... ⚡")
     try:
+        await safe_edit_message(sts, "🎥 Extracting subtitle streams... ⚡")
         extracted_files = extract_subtitles_from_file(downloaded)
         if not extracted_files:
             raise Exception("No subtitle streams found or extraction failed.")
-    except Exception as e:
-        await safe_edit_message(sts, f"Error extracting subtitle streams: {e}")
-        os.remove(downloaded)
-        return
-
-    await safe_edit_message(sts, "🔼 Uploading extracted subtitle files... ⚡")
-    try:
+        
+        await safe_edit_message(sts, "🔼 Uploading extracted subtitle files... ⚡")
         for file, metadata in extracted_files:
             language = metadata.get('tags', {}).get('language', 'Unknown')
             caption = f"[{language}] Here is an extracted subtitle file."
             await bot.send_document(
-                msg.chat.id,  # Send to the chat where the command originated
+                cb.message.chat.id,
                 file,
                 caption=caption,
                 progress=progress_message,
                 progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
             )
-
+        
         await cb.answer("Subtitle streams extracted and sent to your PM in the bot!")
-        await sts.delete()
     except Exception as e:
-        await safe_edit_message(sts, f"Error uploading extracted subtitle files: {e}")
+        await safe_edit_message(sts, f"Error processing or uploading extracted subtitle files: {e}")
     finally:
         os.remove(downloaded)
         for file, _ in extracted_files:
             os.remove(file)
-            
+
+
 # Callback query handler for extracting video
 @Client.on_callback_query(filters.regex("^extract_video$"))
 async def extract_video_callback(bot, cb):
-    msg = cb.message  # Get the message associated with the callback query
-    reply = msg.reply_to_message
-
-    if not reply:
-        return await cb.answer("Please reply to a media file with the extract_video command.", show_alert=True)
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await cb.answer("Please reply to a valid media file (audio, video, or document) with the extract_video command.", show_alert=True)
-
-    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    sts = await cb.answer("🚀 Downloading media... ⚡", show_alert=False)
     c_time = time.time()
+    
     try:
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+        downloaded = await cb.message.reply_to_message.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
     except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
+        await safe_edit_message(sts.message, f"Error downloading media: {e}")
         return
 
-    await safe_edit_message(sts, "🎥 Extracting video stream... ⚡")
     try:
+        await safe_edit_message(sts, "🎥 Extracting video stream... ⚡")
         extracted_file = extract_video_from_file(downloaded)
         if not extracted_file:
             raise Exception("No video stream found or extraction failed.")
-    except Exception as e:
-        await safe_edit_message(sts, f"Error extracting video stream: {e}")
-        os.remove(downloaded)
-        return
-
-    await safe_edit_message(sts, "🔼 Uploading extracted video... ⚡")
-    try:
-        # Determine the file type for upload
+        
+        await safe_edit_message(sts, "🔼 Uploading extracted video... ⚡")
         if extracted_file.lower().endswith('.mkv'):
             await bot.send_video(
-                msg.chat.id,  # Send to the chat where the command originated
+                cb.message.chat.id,
                 extracted_file,
                 progress=progress_message,
                 progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
             )
         elif extracted_file.lower().endswith('.mp4'):
             await bot.send_video(
-                msg.chat.id,  # Send to the chat where the command originated
+                cb.message.chat.id,
                 extracted_file,
                 progress=progress_message,
                 progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
             )
         else:
             raise Exception("Unsupported file format for upload.")
-
+        
         await cb.answer("Video stream extracted and sent to your PM in the bot!")
-        await sts.delete()
     except Exception as e:
-        await safe_edit_message(sts, f"Error uploading extracted video: {e}")
+        await safe_edit_message(sts, f"Error processing or uploading extracted video: {e}")
     finally:
         os.remove(downloaded)
         if extracted_file:
