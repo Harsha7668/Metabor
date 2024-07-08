@@ -1789,6 +1789,42 @@ async def gofile_upload(bot, msg: Message):
             print(f"Error deleting file: {e}")
 
 
+
+@Client.on_message(filters.private & filters.command("clone"))
+async def clone_file(bot, msg: Message):
+    global GDRIVE_FOLDER_ID
+
+    if not GDRIVE_FOLDER_ID:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please specify the Google Drive file URL.")
+
+    src_url = msg.text.split(" ", 1)[1]
+    src_id = extract_id_from_url(src_url)
+
+    if not src_id:
+        return await msg.reply_text("Invalid Google Drive URL. Please provide a valid file URL.")
+
+    sts = await msg.reply_text("Starting cloning process...")
+
+    try:
+        copied_file = copy_file(src_id, GDRIVE_FOLDER_ID)
+        if copied_file:
+            file_link = f"https://drive.google.com/file/d/{copied_file['id']}/view"
+            button = [
+                [InlineKeyboardButton("☁️ View File ☁️", url=file_link)]
+            ]
+            await msg.reply_text(
+                f"File cloned successfully: {copied_file['name']}\n[View File]({file_link})",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        else:
+            await sts.edit("Failed to clone the file.")
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
