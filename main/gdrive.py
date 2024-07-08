@@ -7,6 +7,8 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from main.utils import progress_message
+import re
+from googleapiclient.errors import HttpError
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
@@ -44,3 +46,17 @@ async def upload_to_google_drive(file_path, file_name, sts):
 
     return response.get('webViewLink')
 
+# Extract the file ID from a Google Drive URL
+def extract_id_from_url(url):
+    match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
+    return match.group(1) if match else None
+
+# Copy a file to a new folder in Google Drive
+def copy_file(file_id, new_folder_id):
+    try:
+        file = drive_service.files().get(fileId=file_id, fields='name').execute()
+        copied_file = {'name': file['name'], 'parents': [new_folder_id]}
+        return drive_service.files().copy(fileId=file_id, body=copied_file).execute()
+    except HttpError as error:
+        print(f"An error occurred: {error}")
+        return None
