@@ -2188,7 +2188,40 @@ async def list_files(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
-   
+@Client.on_message(filters.private & filters.command("clean"))
+async def clean_files_by_name(bot, msg: Message):
+    global GDRIVE_FOLDER_ID  # Assuming you have a global variable for the folder ID
+
+    if not GDRIVE_FOLDER_ID:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    try:
+        # Extract file name from the command
+        command_parts = msg.text.split(maxsplit=1)
+        if len(command_parts) < 2:
+            return await msg.reply_text("Please provide a file name to clean.")
+
+        file_name = command_parts[1].strip()
+
+        # Define query to find files by name in the specified folder
+        query = f"'{GDRIVE_FOLDER_ID}' in parents and trashed=false and name='{file_name}'"
+
+        # Execute the query to find matching files
+        response = service.files().list(q=query, fields='files(id, name)').execute()
+        files = response.get('files', [])
+
+        if not files:
+            return await msg.reply_text(f"No files found with the name '{file_name}' in the specified folder.")
+
+        # Delete each found file
+        for file in files:
+            service.files().delete(fileId=file['id']).execute()
+            await msg.reply_text(f"Deleted File '{file['name']}' Successfully ✅.")
+
+    except Exception as e:
+        await msg.reply_text(f"An error occurred: {e}")
+
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
