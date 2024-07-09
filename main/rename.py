@@ -23,6 +23,8 @@ import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
 from googleapiclient.http import MediaFileUpload
 from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, get_files_in_folder, drive_service
+from googleapiclient.errors import HttpError
+
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
@@ -2268,7 +2270,7 @@ async def clean_files_by_name(bot, msg: Message):
         query = f"'{GDRIVE_FOLDER_ID}' in parents and trashed=false and name='{file_name}'"
 
         # Execute the query to find matching files
-        response = service.files().list(q=query, fields='files(id, name)').execute()
+        response = drive_service.files().list(q=query, fields='files(id, name)').execute()
         files = response.get('files', [])
 
         if not files:
@@ -2276,8 +2278,8 @@ async def clean_files_by_name(bot, msg: Message):
 
         # Delete each found file
         for file in files:
-            service.files().delete(fileId=file['id']).execute()
-            await msg.reply_text(f"Deleted file '{file['name']}' successfully.")
+            drive_service.files().delete(fileId=file['id']).execute()
+            await msg.reply_text(f"Deleted File '{file['name']}' Successfully ✅.")
 
     except HttpError as error:
         await msg.reply_text(f"An error occurred: {error}")
