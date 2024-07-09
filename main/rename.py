@@ -1866,7 +1866,6 @@ async def clone_file(bot, msg: Message):
             await sts.edit("Failed to clone the file.")
     except Exception as e:
         await sts.edit(f"Error: {e}")
-        
 
 
 async def safe_edit_message(message, new_text):
