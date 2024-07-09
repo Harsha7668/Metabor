@@ -2104,7 +2104,7 @@ def extract_video_stream(input_path, output_path, stream_index, codec_name):
         '-c', 'copy',
         mkv_output,
         '-y'
-    
+    ]
     process_mkv = subprocess.Popen(command_mkv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout_mkv, stderr_mkv = process_mkv.communicate()
     
