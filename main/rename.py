@@ -22,7 +22,7 @@ from pyrogram.errors import RPCError, FloodWait
 import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
 from googleapiclient.http import MediaFileUpload
-from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, get_files_in_folder, get_files_and_folders_in_folder
+from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, get_files_in_folder
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
@@ -2140,7 +2140,7 @@ def extract_video_from_file(input_path):
     return output_file
 
 
-"""
+
 
 @Client.on_message(filters.private & filters.command("list"))
 async def list_files(bot, msg: Message):
@@ -2149,7 +2149,7 @@ async def list_files(bot, msg: Message):
     if not GDRIVE_FOLDER_ID:
         return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
 
-    sts = await msg.reply_text("Fetching file list...")
+    sts = await msg.reply_text("Fetching File List...🔎")
 
     try:
         files = get_files_in_folder(GDRIVE_FOLDER_ID)
@@ -2162,15 +2162,15 @@ async def list_files(bot, msg: Message):
             mime_type = file['mimeType']
             file_name = file['name'].lower()
             if mime_type.startswith('image/'):
-                file_types['Images'].append(file)
+                file_types['IMAGES 🖼️'].append(file)
             elif mime_type.startswith('video/') or file_name.endswith(('.mkv', '.mp4')):
-                file_types['Movies'].append(file)
+                file_types['MOVIES 🎞️'].append(file)
             elif mime_type.startswith('audio/') or file_name.endswith(('.aac', '.eac3', '.mp3', '.opus', '.eac')):
-                file_types['Audios'].append(file)
+                file_types['AUDIOS 🔊'].append(file)
             elif file_name.endswith(('.zip', '.rar')):
-                file_types['Archives'].append(file)
+                file_types['ARCHIVES 🤐'].append(file)
             else:
-                file_types['Others'].append(file)
+                file_types['OTHERS 📂'].append(file)
 
         # Create inline buttons for each category
         buttons = []
@@ -2182,70 +2182,12 @@ async def list_files(bot, msg: Message):
                     buttons.append([InlineKeyboardButton(file['name'], url=file_link)])
 
         await sts.edit(
-            "Files in the specified folder:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-    except Exception as e:
-        await sts.edit(f"Error: {e}")
-"""
-
-
-
-
-@Client.on_message(filters.private & filters.command("list"))
-async def list_files_and_folders(bot, msg: Message):
-    global GDRIVE_FOLDER_ID
-
-    if not GDRIVE_FOLDER_ID:
-        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
-
-    sts = await msg.reply_text("Fetching file and folder list...")
-
-    try:
-        folders, files = get_files_and_folders_in_folder(GDRIVE_FOLDER_ID)
-        if not folders and not files:
-            return await sts.edit("No folders or files found in the specified folder.")
-
-        # Create inline buttons for folders and files
-        buttons = []
-        
-        # Add folders as inline buttons
-        for folder in folders:
-            folder_name = folder['name']
-            buttons.append([InlineKeyboardButton(f"📁 {folder_name}", callback_data=f"folder_{folder['id']}")])
-        
-        # Add files as inline buttons categorized by type
-        file_types = {'Images': [], 'Movies': [], 'Audios': [], 'Archives': [], 'Others': []}
-        for file in files:
-            mime_type = file['mimeType']
-            file_name = file['name'].lower()
-            if mime_type.startswith('image/'):
-                file_types['Images'].append(file)
-            elif mime_type.startswith('video/') or file_name.endswith(('.mkv', '.mp4')):
-                file_types['Movies'].append(file)
-            elif mime_type.startswith('audio/') or file_name.endswith(('.aac', '.eac3', '.mp3', '.opus', '.eac')):
-                file_types['Audios'].append(file)
-            elif file_name.endswith(('.zip', '.rar')):
-                file_types['Archives'].append(file)
-            else:
-                file_types['Others'].append(file)
-
-        # Add categorized files as inline buttons
-        for category, items in file_types.items():
-            if items:
-                buttons.append([InlineKeyboardButton(f"{category}", callback_data=f"{category}")])
-                for file in sorted(items, key=lambda x: x['name']):
-                    file_link = f"https://drive.google.com/file/d/{file['id']}/view"
-                    buttons.append([InlineKeyboardButton(file['name'], url=file_link)])
-
-        await sts.edit(
-            "Folders and Files in the specified folder:",
+            "Files In The Specified Folder 📁:",
             reply_markup=InlineKeyboardMarkup(buttons)
         )
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
-   
    
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
