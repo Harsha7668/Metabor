@@ -2108,8 +2108,8 @@ def extract_video_stream(input_path, output_path, stream_index, codec_name):
     process_mkv = subprocess.Popen(command_mkv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout_mkv, stderr_mkv = process_mkv.communicate()
     
-    if process_mkv.returncode != 0 and process_mp4.returncode != 0:
-        raise Exception(f"FFmpeg error during conversion: {stderr_mkv.decode('utf-8')} {stderr_mp4.decode('utf-8')}")
+    if process_mkv.returncode != 0:
+        raise Exception(f"FFmpeg error during conversion: {stderr_mkv.decode('utf-8')}")
 
     os.remove(temp_output)  # Remove temporary file
     return mkv_output
