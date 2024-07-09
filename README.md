@@ -54,9 +54,7 @@ Press Below Button to Deploy!
 
 * `FSUB_GROUP` - forcesub username group and admin it
 
-* `GROUP` - group id add and admin it 
-
-* `SUNRISES_PIC=` - Start Pic
+* `SUNRISES_PIC` - Start Pic
 
 * `AUTH_USERS` - for restart owner id 
 
