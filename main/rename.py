@@ -2226,6 +2226,7 @@ async def list_files(bot, msg: Message):
         await sts.edit(f"Error: {e}")
 
 
+
 async def send_file_list(bot, chat_id, file_types, category, page):
     files = file_types.get(category, [])
     if not files:
@@ -2242,7 +2243,7 @@ async def send_file_list(bot, chat_id, file_types, category, page):
         buttons.append([InlineKeyboardButton(file['name'], url=file_link)])
 
     navigation_buttons = []
-    if start > 0:
+    if page > 0:
         navigation_buttons.append(InlineKeyboardButton("Previous", callback_data=f"{category}_prev_{page-1}"))
     if end < len(files):
         navigation_buttons.append(InlineKeyboardButton("Next", callback_data=f"{category}_next_{page+1}"))
