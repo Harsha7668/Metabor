@@ -2023,7 +2023,6 @@ def extract_subtitles_from_file(input_path):
 
     return extracted_files
 
-
 @Client.on_message(filters.private & filters.command("extractvideo"))
 async def extract_video(bot, msg: Message):
     global EXTRACT_ENABLED
@@ -2059,7 +2058,10 @@ async def extract_video(bot, msg: Message):
 
     await safe_edit_message(sts, "🔼 Uploading extracted video... ⚡")
     try:
-        output_file = extracted_file
+        output_extension = ".mkv"
+        output_file = os.path.join(os.path.dirname(downloaded), f"extracted_By_Sunrises_24_video{output_extension}")
+        os.rename(extracted_file, output_file)
+
         await bot.send_document(
             msg.from_user.id,
             output_file,
