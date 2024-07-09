@@ -26,6 +26,8 @@ from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, 
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
+PAGE_SIZE = 5
+
 # Global dictionary to store user settings
 merge_state = {}
 user_settings = {}
@@ -2137,32 +2139,6 @@ def extract_video_from_file(input_path):
 
     return output_file
 
-"""
-@Client.on_message(filters.private & filters.command("list"))
-async def list_files(bot, msg: Message):
-    global GDRIVE_FOLDER_ID
-
-    if not GDRIVE_FOLDER_ID:
-        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
-
-    sts = await msg.reply_text("Fetching file list...")
-
-    try:
-        files = get_files_in_folder(GDRIVE_FOLDER_ID)
-        if not files:
-            return await sts.edit("No files found in the specified folder.")
-
-        buttons = []
-        for file in files:
-            file_link = f"https://drive.google.com/file/d/{file['id']}/view"
-            buttons.append([InlineKeyboardButton(file['name'], url=file_link)])
-
-        await sts.edit(
-            "Files in the specified folder:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-    except Exception as e:
-        await sts.edit(f"Error: {e}")
 
 """
 
@@ -2211,7 +2187,99 @@ async def list_files(bot, msg: Message):
         )
     except Exception as e:
         await sts.edit(f"Error: {e}")
-        
+   """
+
+
+
+@Client.on_message(filters.private & filters.command("list"))
+async def list_files(bot, msg: Message):
+    global GDRIVE_FOLDER_ID
+
+    if not GDRIVE_FOLDER_ID:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    sts = await msg.reply_text("Fetching file list...")
+
+    try:
+        files = get_files_in_folder(GDRIVE_FOLDER_ID)
+        if not files:
+            return await sts.edit("No files found in the specified folder.")
+
+        # Categorize files
+        file_types = {'Images': [], 'Movies': [], 'Audios': [], 'Archives': [], 'Others': []}
+        for file in files:
+            mime_type = file['mimeType']
+            file_name = file['name'].lower()
+            if mime_type.startswith('image/'):
+                file_types['Images'].append(file)
+            elif mime_type.startswith('video/') or file_name.endswith(('.mkv', '.mp4')):
+                file_types['Movies'].append(file)
+            elif mime_type.startswith('audio/') or file_name.endswith(('.aac', '.eac3', '.mp3', '.opus', '.eac')):
+                file_types['Audios'].append(file)
+            elif file_name.endswith(('.zip', '.rar')):
+                file_types['Archives'].append(file)
+            else:
+                file_types['Others'].append(file)
+
+        await send_file_list(bot, msg.chat.id, file_types, "Images", 0)
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+
+async def send_file_list(bot, chat_id, file_types, category, page):
+    files = file_types.get(category, [])
+    if not files:
+        await bot.send_message(chat_id, f"No files found in {category}.")
+        return
+
+    start = page * PAGE_SIZE
+    end = start + PAGE_SIZE
+    page_files = files[start:end]
+
+    buttons = []
+    for file in page_files:
+        file_link = f"https://drive.google.com/file/d/{file['id']}/view"
+        buttons.append([InlineKeyboardButton(file['name'], url=file_link)])
+
+    navigation_buttons = []
+    if start > 0:
+        navigation_buttons.append(InlineKeyboardButton("Previous", callback_data=f"{category}_prev_{page-1}"))
+    if end < len(files):
+        navigation_buttons.append(InlineKeyboardButton("Next", callback_data=f"{category}_next_{page+1}"))
+
+    buttons.append(navigation_buttons)
+    reply_markup = InlineKeyboardMarkup(buttons)
+
+    await bot.send_message(chat_id, f"{category} files (Page {page + 1}):", reply_markup=reply_markup)
+
+@Client.on_callback_query(filters.regex(r'^(Images|Movies|Audios|Archives|Others)_(prev|next)_\d+$'))
+async def paginate_files(bot, query: CallbackQuery):
+    category, direction, page = query.data.split('_')
+    page = int(page)
+    if direction == "prev":
+        page -= 1
+    else:
+        page += 1
+
+    files = get_files_in_folder(GDRIVE_FOLDER_ID)
+    file_types = {'Images': [], 'Movies': [], 'Audios': [], 'Archives': [], 'Others': []}
+    for file in files:
+        mime_type = file['mimeType']
+        file_name = file['name'].lower()
+        if mime_type.startswith('image/'):
+            file_types['Images'].append(file)
+        elif mime_type.startswith('video/') or file_name.endswith(('.mkv', '.mp4')):
+            file_types['Movies'].append(file)
+        elif mime_type.startswith('audio/') or file_name.endswith(('.aac', '.eac3', '.mp3', '.opus', '.eac')):
+            file_types['Audios'].append(file)
+        elif file_name.endswith(('.zip', '.rar')):
+            file_types['Archives'].append(file)
+        else:
+            file_types['Others'].append(file)
+
+    await send_file_list(bot, query.message.chat.id, file_types, category, page)
+    await query.answer()
+
 
 
     
