@@ -2023,114 +2023,8 @@ def extract_subtitles_from_file(input_path):
 
     return extracted_files
 
-@Client.on_message(filters.private & filters.command("extractvideo"))
-async def extract_video(bot, msg: Message):
-    global EXTRACT_ENABLED
+
     
-    if not EXTRACT_ENABLED:
-        return await msg.reply_text("The extract feature is currently disabled.")
-
-    reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a media file (video or document) with the extractvideo command.")
-
-    media = reply.video or reply.document
-    if not media:
-        return await msg.reply_text("Please reply to a valid video or document file with the extractvideo command.")
-
-    sts = await msg.reply_text("🚀 Downloading media... ⚡")
-    c_time = time.time()
-    try:
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-    except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
-        return
-
-    await safe_edit_message(sts, "🎥 Extracting video stream... ⚡")
-    try:
-        extracted_file = extract_video_from_file(downloaded)
-        if not extracted_file:
-            raise Exception("No video stream found or extraction failed.")
-    except Exception as e:
-        await safe_edit_message(sts, f"Error extracting video stream: {e}")
-        os.remove(downloaded)
-        return
-
-    await safe_edit_message(sts, "🔼 Uploading extracted video... ⚡")
-    try:
-        output_extension = ".mkv"
-        output_file = os.path.join(os.path.dirname(downloaded), f"extracted_By_Sunrises_24_video{output_extension}")
-        os.rename(extracted_file, output_file)
-
-        await bot.send_document(
-            msg.from_user.id,
-            output_file,
-            progress=progress_message,
-            progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
-        )
-        await msg.reply_text(
-            "Video stream extracted and sent to your PM in the bot!"
-        )
-
-        await sts.delete()
-    except Exception as e:
-        await safe_edit_message(sts, f"Error uploading extracted video: {e}")
-    finally:
-        os.remove(downloaded)
-        if os.path.exists(output_file):
-            os.remove(output_file)
-
-
-def extract_video_stream(input_path, output_path, stream_index, codec_name):
-    temp_output = f"{output_path}.{codec_name}"  # Temporary output file
-    command = [
-        'ffmpeg',
-        '-i', input_path,
-        '-map', f'0:{stream_index}',
-        '-c', 'copy',
-        temp_output,
-        '-y'
-    ]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
-
-    # Convert to .mkv or .mp4
-    mkv_output = f"{output_path}.mkv"   
-    command_mkv = [
-        'ffmpeg',
-        '-i', temp_output,
-        '-c', 'copy',
-        mkv_output,
-        '-y'
-    ]
-    process_mkv = subprocess.Popen(command_mkv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout_mkv, stderr_mkv = process_mkv.communicate()
-    
-    if process_mkv.returncode != 0:
-        raise Exception(f"FFmpeg error during conversion: {stderr_mkv.decode('utf-8')}")
-
-    os.remove(temp_output)  # Remove temporary file
-    return mkv_output
-
-def extract_video_from_file(input_path):
-    video_streams_data = ffmpeg.probe(input_path)
-    video_streams = [stream for stream in video_streams_data.get("streams") if stream.get("codec_type") == "video"]
-
-    if not video_streams:
-        return None
-
-    video_stream = video_streams[0]  # Assuming we extract the first video stream found
-    codec_name = video_stream['codec_name']
-    output_file = os.path.join(os.path.dirname(input_path), f"{video_stream['index']}")
-    output_file = extract_video_stream(input_path, output_file, video_stream['index'], codec_name)
-
-    return output_file
-
-
-
-"""  
 @Client.on_message(filters.private & filters.command("extractvideo"))
 async def extract_video(bot, msg: Message):
     global EXTRACT_ENABLED
@@ -2167,7 +2061,7 @@ async def extract_video(bot, msg: Message):
     await safe_edit_message(sts, "🔼 Uploading extracted video... ⚡")
     try:
         output_extension = os.path.splitext(extracted_file)[1]
-        output_file = os.path.join(os.path.dirname(downloaded), f"extracted_video{output_extension}")
+        output_file = os.path.join(os.path.dirname(downloaded), f"Extracted_By_Sunrises_24_Video{output_extension}")
         os.rename(extracted_file, output_file)
 
         await bot.send_document(
@@ -2245,7 +2139,7 @@ def extract_video_from_file(input_path):
     output_file = extract_video_stream(input_path, output_file, video_stream['index'], codec_name)
 
     return output_file
-"""
+
 
 #list for seeing the files in drive 
 @Client.on_message(filters.private & filters.command("list"))
