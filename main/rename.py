@@ -2224,7 +2224,7 @@ async def extract_video_command_handler(_, msg):
     # Option 2: Rename the file
     if not output_format:
         try:
-            new_name = await app.ask(msg.chat.id, "Please enter the new filename (without extension).", timeout=30)
+            new_name = await Client.ask(msg.chat.id, "Please enter the new filename (without extension).", timeout=30)
         except Exception as e:
             new_name = None
             print(f"Error asking for new filename: {e}")
