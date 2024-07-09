@@ -1840,6 +1840,16 @@ async def safe_edit_message(message, new_text):
     except Exception as e:
         print(f"Failed to edit message: {e}")
 
+
+
+
+async def safe_edit_message(message, new_text):
+    try:
+        if message.text != new_text:
+            await message.edit(new_text[:4096])  # Ensure text does not exceed 4096 characters
+    except Exception as e:
+        print(f"Failed to edit message: {e}")
+
 @Client.on_message(filters.private & filters.command("extractaudios"))
 async def extract_audios(bot, msg):
     global EXTRACT_ENABLED
@@ -1918,12 +1928,12 @@ def extract_audios_from_file(input_path):
 
     extracted_files = []
     for audio in audios:
-        output_file = os.path.join(os.path.dirname(input_path), f"{audio['index']}.{audio['codec_type']}.aac")
+        codec_name = audio.get('codec_name', 'aac')
+        output_file = os.path.join(os.path.dirname(input_path), f"{audio['index']}.{codec_name}")
         extract_audio_stream(input_path, output_file, audio['index'])
         extracted_files.append((output_file, audio))
 
     return extracted_files
-
 
 @Client.on_message(filters.private & filters.command("extractsubtitles"))
 async def extract_subtitles(bot, msg):
