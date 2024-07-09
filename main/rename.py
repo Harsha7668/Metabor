@@ -2134,6 +2134,8 @@ def extract_video_from_file(input_path):
     """
 
 
+
+
 # Safe edit message function to handle exceptions
 async def safe_edit_message(message, text):
     try:
@@ -2208,14 +2210,16 @@ async def extract_video_command_handler(_, msg):
     if not media:
         return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the extractvideo command.")
 
-    # Parse the user's choice from the command
+    # Parse the filename from the command
     command_parts = msg.text.split()
-    if len(command_parts) != 3:
-        return await msg.reply_text("Invalid command format. Use '/extractvideo <filename> <output_format>' where output_format is 'mkv' or 'mp4'.")
+    if len(command_parts) != 2:
+        return await msg.reply_text("Invalid command format. Use '/extractvideo <filename>'.")
 
-    output_format = command_parts[2].lower()
-    if output_format not in ['mkv', 'mp4']:
-        return await msg.reply_text("Unsupported output format. Use 'mkv' or 'mp4'.")
+    filename = command_parts[1]
+
+    # Determine output format based on filename extension
+    _, file_extension = os.path.splitext(filename)
+    output_format = 'mkv' if file_extension.lower() == '.mkv' else 'mp4'
 
     sts = await msg.reply_text("🚀 Downloading media... ⚡")
     c_time = time.time()
