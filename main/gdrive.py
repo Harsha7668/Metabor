@@ -102,18 +102,4 @@ def get_files_in_folder(folder_id):
         return None
 
 
-def get_files_and_folders_in_folder(folder_id):
-    try:
-        query = f"'{folder_id}' in parents and trashed=false"
-        results = drive_service.files().list(q=query, fields="files(id, name, mimeType)", pageSize=1000).execute()
-        files = results.get('files', [])
 
-        folders = []
-        for file in files:
-            if file['mimeType'] == 'application/vnd.google-apps.folder':
-                folders.append(file)
-        
-        return folders, files
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        return None, None
