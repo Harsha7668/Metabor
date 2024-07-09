@@ -2134,7 +2134,6 @@ def extract_video_from_file(input_path):
     """
 
 
-
 # Safe edit message function to handle exceptions
 async def safe_edit_message(message, text):
     try:
@@ -2209,39 +2208,15 @@ async def extract_video_command_handler(_, msg):
     if not media:
         return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the extractvideo command.")
 
-    # Option 1: Ask the user for format choice
-    try:
-        format_choice = await app.ask(msg.chat.id, "Do you want to extract the video as .mkv or .mp4? Reply with 'mkv' or 'mp4'.", timeout=30)
-    except Exception as e:
-        format_choice = None
-        print(f"Error asking for format choice: {e}")
+    # Parse the user's choice from the command
+    command_parts = msg.text.split()
+    if len(command_parts) != 3:
+        return await msg.reply_text("Invalid command format. Use '/extractvideo <filename> <output_format>' where output_format is 'mkv' or 'mp4'.")
 
-    if format_choice and format_choice.text.lower() in ['mkv', 'mp4']:
-        output_format = format_choice.text.lower()
-    else:
-        output_format = None
+    output_format = command_parts[2].lower()
+    if output_format not in ['mkv', 'mp4']:
+        return await msg.reply_text("Unsupported output format. Use 'mkv' or 'mp4'.")
 
-    # Option 2: Rename the file
-    if not output_format:
-        try:
-            new_name = await Client.ask(msg.chat.id, "Please enter the new filename (without extension).", timeout=30)
-        except Exception as e:
-            new_name = None
-            print(f"Error asking for new filename: {e}")
-
-        if new_name:
-            new_filename = f"{new_name.text}.{media.file_name.split('.')[-1]}"
-            try:
-                downloaded = await reply.download()
-                os.rename(downloaded, os.path.join(os.path.dirname(downloaded), new_filename))
-                await msg.reply_text(f"File renamed to `{new_filename}`.")
-                return
-            except Exception as e:
-                return await msg.reply_text(f"Error renaming file: {e}")
-        else:
-            return await msg.reply_text("Operation cancelled.")
-
-    # Proceed with extraction if format choice was made
     sts = await msg.reply_text("🚀 Downloading media... ⚡")
     c_time = time.time()
     try:
@@ -2279,7 +2254,6 @@ async def extract_video_command_handler(_, msg):
         os.remove(downloaded)
         if extracted_file:
             os.remove(extracted_file)
-
 
 
     
