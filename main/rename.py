@@ -2079,10 +2079,13 @@ async def extract_video(bot, msg: Message):
         if os.path.exists(output_file):
             os.remove(output_file)
 
+
+
 def extract_video_stream(input_path, output_path, stream_index, codec_name):
     temp_output = f"{output_path}.{codec_name}"  # Temporary output file
     command = [
         'ffmpeg',
+        '-fflags', '+genpts',
         '-i', input_path,
         '-map', f'0:{stream_index}',
         '-c', 'copy',
@@ -2097,6 +2100,7 @@ def extract_video_stream(input_path, output_path, stream_index, codec_name):
     mkv_output = f"{output_path}_video.mkv"
     command_mkv = [
         'ffmpeg',
+        '-fflags', '+genpts',
         '-i', temp_output,
         '-c', 'copy',
         mkv_output,
