@@ -140,18 +140,6 @@ async def copy_file(file_id, new_folder_id):
         print(f"An error occurred: {error}")
         return None
 
-"""
-
-def get_files_in_folder(folder_id):
-    try:
-        query = f"'{folder_id}' in parents and trashed=false"
-        results = drive_service.files().list(q=query, fields="files(id, name, mimeType)").execute()
-        return results.get('files', [])
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        return None
-"""
-
 
 
 def get_files_in_folder(folder_id):
@@ -162,4 +150,5 @@ def get_files_in_folder(folder_id):
     except HttpError as error:
         print(f"An error occurred: {error}")
         return None
+
 
