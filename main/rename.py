@@ -2223,15 +2223,6 @@ async def list_files(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
-def get_files_in_folder(folder_id):
-    try:
-        query = f"'{folder_id}' in parents and trashed=false"
-        results = drive_service.files().list(q=query, fields="files(id, name, mimeType)").execute()
-        return results.get('files', [])
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        return None
-
 async def send_file_list(bot, chat_id, file_types, category, page):
     files = file_types.get(category, [])
     if not files:
