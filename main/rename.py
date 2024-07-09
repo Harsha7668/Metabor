@@ -1790,42 +1790,7 @@ async def gofile_upload(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
 
-"""
-@Client.on_message(filters.private & filters.command("clone"))
-async def clone_file(bot, msg: Message):
-    global GDRIVE_FOLDER_ID
 
-    if not GDRIVE_FOLDER_ID:
-        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
-
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please specify the Google Drive file URL.")
-
-    src_url = msg.text.split(" ", 1)[1]
-    src_id = extract_id_from_url(src_url)
-
-    if not src_id:
-        return await msg.reply_text("Invalid Google Drive URL. Please provide a valid file URL.")
-
-    sts = await msg.reply_text("Starting cloning process...")
-
-    try:
-        copied_file = copy_file(src_id, GDRIVE_FOLDER_ID)
-        if copied_file:
-            file_link = f"https://drive.google.com/file/d/{copied_file['id']}/view"
-            button = [
-                [InlineKeyboardButton("☁️ View File ☁️", url=file_link)]
-            ]
-            await msg.reply_text(
-                f"File Cloned Successfully ✅: {copied_file['name']}\n[View File]({file_link})",
-                reply_markup=InlineKeyboardMarkup(button)
-            )
-        else:
-            await sts.edit("Failed to clone the file.")
-    except Exception as e:
-        await sts.edit(f"Error: {e}")
-
-"""
 
 @Client.on_message(filters.private & filters.command("clone"))
 async def clone_file(bot, msg: Message):
@@ -1854,7 +1819,7 @@ async def clone_file(bot, msg: Message):
             ]
             if copied_file_info['status'] == 'existing':
                 await sts.edit(
-                    f"File already exists: {copied_file_info['name']}\n[View File]({file_link})",
+                    f"File Already Exists 📂 : {copied_file_info['name']}\n[View File]({file_link})",
                     reply_markup=InlineKeyboardMarkup(button)
                 )
             else:
@@ -2047,91 +2012,6 @@ def extract_subtitles_from_file(input_path):
 
 
 
-@Client.on_message(filters.private & filters.command("extractvideo"))
-async def extract_video(bot, msg):
-    global EXTRACT_ENABLED
-    
-    if not EXTRACT_ENABLED:
-        return await msg.reply_text("The extract feature is currently disabled.")
-
-    reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a media file with the extractvideo command.")
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the extractvideo command.")
-
-    sts = await msg.reply_text("🚀 Downloading media... ⚡")
-    c_time = time.time()
-    try:
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-    except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
-        return
-
-    await safe_edit_message(sts, "🎥 Extracting video stream... ⚡")
-    try:
-        extracted_file = extract_video_from_file(downloaded)
-        if not extracted_file:
-            raise Exception("No video stream found or extraction failed.")
-    except Exception as e:
-        await safe_edit_message(sts, f"Error extracting video stream: {e}")
-        os.remove(downloaded)
-        return
-
-    await safe_edit_message(sts, "🔼 Uploading extracted video... ⚡")
-    try:
-        # Determine the file type for upload
-        file_extension = os.path.splitext(extracted_file)[1].lower()
-        if file_extension in ['.mkv', '.mp4']:
-            await bot.send_video(
-                msg.from_user.id,
-                extracted_file,
-                progress=progress_message,
-                progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
-            )
-        else:
-            raise Exception(f"Unsupported file format for upload: {file_extension}")
-
-        await msg.reply_text(
-            "Video stream extracted and sent to your PM in the bot!"
-        )
-
-        await sts.delete()
-    except Exception as e:
-        await safe_edit_message(sts, f"Error uploading extracted video: {e}")
-    finally:
-        os.remove(downloaded)
-        if extracted_file:
-            os.remove(extracted_file)
-
-def extract_video_stream(input_path, output_path, stream_index):
-    command = [
-        'ffmpeg',
-        '-i', input_path,
-        '-map', f'0:{stream_index}',
-        '-c', 'copy',
-        output_path,
-        '-y'
-    ]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
-
-def extract_video_from_file(input_path):
-    video_streams_data = ffmpeg.probe(input_path)
-    video_streams = [stream for stream in video_streams_data.get("streams") if stream.get("codec_type") == "video"]
-
-    if not video_streams:
-        return None
-
-    video_stream = video_streams[0]  # Assuming we extract the first video stream found
-    output_file = os.path.join(os.path.dirname(input_path), f"{video_stream['index']}.{video_stream['codec_type']}.{video_stream['codec_name']}")
-    extract_video_stream(input_path, output_file, video_stream['index'])
-
-    return output_file
 
 
 if __name__ == '__main__':
