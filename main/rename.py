@@ -1836,7 +1836,7 @@ async def clone_file(bot, msg: Message):
 async def safe_edit_message(message, new_text):
     try:
         if message.text != new_text:
-            await message.edit(new_text)
+            await message.edit(new_text[:4096])  # Ensure text does not exceed 4096 characters
     except Exception as e:
         print(f"Failed to edit message: {e}")
 
@@ -1877,11 +1877,11 @@ async def extract_audios(bot, msg):
     try:
         for file, metadata in extracted_files:
             language = metadata.get('tags', {}).get('language', 'Unknown')
-            caption = f"[{language}] Here is an extracted audio file."
+            caption = f"[{language}] Extracted audio file."
             await bot.send_document(
                 msg.from_user.id,
                 file,
-                caption=caption,
+                caption=caption[:1024],  # Ensure caption does not exceed 1024 characters
                 progress=progress_message,
                 progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
             )
@@ -1923,7 +1923,6 @@ def extract_audios_from_file(input_path):
         extracted_files.append((output_file, audio))
 
     return extracted_files
-
 
 
 @Client.on_message(filters.private & filters.command("extractsubtitles"))
