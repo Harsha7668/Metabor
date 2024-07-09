@@ -2023,6 +2023,7 @@ def extract_subtitles_from_file(input_path):
 
     return extracted_files
 
+
 @Client.on_message(filters.private & filters.command("extractvideo"))
 async def extract_video(bot, msg: Message):
     global EXTRACT_ENABLED
@@ -2058,9 +2059,7 @@ async def extract_video(bot, msg: Message):
 
     await safe_edit_message(sts, "🔼 Uploading extracted video... ⚡")
     try:
-        output_file = f"{os.path.splitext(downloaded)[0]}_video.mkv"
-        os.rename(extracted_file, output_file)
-
+        output_file = extracted_file
         await bot.send_document(
             msg.from_user.id,
             output_file,
@@ -2079,13 +2078,10 @@ async def extract_video(bot, msg: Message):
         if os.path.exists(output_file):
             os.remove(output_file)
 
-
-
 def extract_video_stream(input_path, output_path, stream_index, codec_name):
     temp_output = f"{output_path}.{codec_name}"  # Temporary output file
     command = [
         'ffmpeg',
-        '-fflags', '+genpts',
         '-i', input_path,
         '-map', f'0:{stream_index}',
         '-c', 'copy',
@@ -2097,10 +2093,10 @@ def extract_video_stream(input_path, output_path, stream_index, codec_name):
     if process.returncode != 0:
         raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
 
-    mkv_output = f"{output_path}_video.mkv"
+    # Convert to .mkv
+    mkv_output = f"{output_path}.mkv"
     command_mkv = [
         'ffmpeg',
-        '-fflags', '+genpts',
         '-i', temp_output,
         '-c', 'copy',
         mkv_output,
@@ -2129,6 +2125,8 @@ def extract_video_from_file(input_path):
     output_file = extract_video_stream(input_path, output_file, video_stream['index'], codec_name)
 
     return output_file
+
+
 
 """  
 @Client.on_message(filters.private & filters.command("extractvideo"))
