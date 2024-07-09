@@ -152,6 +152,7 @@ def get_files_in_folder(folder_id):
 """
 
 
+
 def get_files_in_folder(folder_id):
     try:
         query = f"'{folder_id}' in parents and trashed=false"
@@ -160,3 +161,6 @@ def get_files_in_folder(folder_id):
     except HttpError as error:
         print(f"An error occurred: {error}")
         return None
+
+
+
