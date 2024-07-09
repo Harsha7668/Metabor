@@ -100,7 +100,9 @@ def copy_file(file_id, new_folder_id):
 """
 
 
+
 clone_lock = asyncio.Lock()
+
 
 
 def extract_id_from_url(url):
@@ -110,37 +112,30 @@ def extract_id_from_url(url):
 async def copy_file(file_id, new_folder_id):
     try:
         # Acquire the lock
-        await clone_lock.acquire()
+        async with clone_lock:
+            # Retrieve the file's metadata
+            file = drive_service.files().get(fileId=file_id, fields='name').execute()
+            file_name = file['name']
 
-        # Retrieve the file's metadata
-        file = drive_service.files().get(fileId=file_id, fields='name').execute()
-        file_name = file['name']
+            # Check if a file with the same name exists in the destination folder
+            query = f"name='{file_name}' and '{new_folder_id}' in parents and trashed=false"
+            existing_files = drive_service.files().list(q=query, fields='files(id)').execute().get('files', [])
 
-        # Check if a file with the same name exists in the destination folder
-        query = f"name='{file_name}' and '{new_folder_id}' in parents and trashed=false"
-        existing_files = drive_service.files().list(q=query, fields='files(id)').execute().get('files', [])
+            if existing_files:
+                # Return the ID of the first existing file found
+                return {'id': existing_files[0]['id'], 'name': file_name, 'status': 'existing'}
 
-        if existing_files:
-            # Release the lock and return the ID of the first existing file found
-            await clone_lock.release()
-            return {'id': existing_files[0]['id'], 'name': file_name, 'status': 'existing'}
+            # Prepare the metadata for copying the file
+            copied_file_metadata = {
+                'name': file_name,
+                'parents': [new_folder_id]
+            }
 
-        # Prepare the metadata for copying the file
-        copied_file_metadata = {
-            'name': file_name,
-            'parents': [new_folder_id]
-        }
+            # Copy the file to the new folder
+            copied_file = drive_service.files().copy(fileId=file_id, body=copied_file_metadata).execute()
 
-        # Copy the file to the new folder
-        copied_file = drive_service.files().copy(fileId=file_id, body=copied_file_metadata).execute()
-
-        # Release the lock
-        await clone_lock.release()
-
-        return {'id': copied_file['id'], 'name': file_name, 'status': 'new'}
+            return {'id': copied_file['id'], 'name': file_name, 'status': 'new'}
     
     except HttpError as error:
-        # Release the lock in case of error
-        await clone_lock.release()
         print(f"An error occurred: {error}")
         return None
