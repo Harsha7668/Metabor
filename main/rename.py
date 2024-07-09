@@ -2260,7 +2260,7 @@ def extract_video_stream(input_path, output_path, stream_index, codec_name):
     os.remove(temp_output)  # Remove temporary file
     return mkv_output
 
-
+"""
 @Client.on_message(filters.private & filters.command("list"))
 async def list_files(bot, msg: Message):
     global GDRIVE_FOLDER_ID
@@ -2287,7 +2287,48 @@ async def list_files(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
+"""
 
+@Client.on_message(filters.private & filters.command("list"))
+async def list_files(bot, msg: Message):
+    global GDRIVE_FOLDER_ID
+
+    if not GDRIVE_FOLDER_ID:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    sts = await msg.reply_text("Fetching file list...")
+
+    try:
+        files = get_files_in_folder(GDRIVE_FOLDER_ID)
+        if not files:
+            return await sts.edit("No files found in the specified folder.")
+
+        # Categorize files
+        file_types = {'Documents': [], 'Images': [], 'Archives': [], 'Others': []}
+        for file in files:
+            mime_type = file['mimeType']
+            if mime_type.startswith('application/vnd.google-apps.'):
+                file_types['Documents'].append(file)
+            elif mime_type.startswith('image/'):
+                file_types['Images'].append(file)
+            elif mime_type == 'application/zip':
+                file_types['Archives'].append(file)
+            else:
+                file_types['Others'].append(file)
+
+        # Create inline buttons for each category
+        sections = []
+        for category, items in file_types.items():
+            if items:
+                sections.append(f"*{category}*")
+                for file in sorted(items, key=lambda x: x['name']):
+                    file_link = f"https://drive.google.com/file/d/{file['id']}/view"
+                    sections.append(f"[{file['name']}]({file_link})")
+        
+        message_text = "\n\n".join(sections)
+        await sts.edit(message_text)
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
 
 
 
