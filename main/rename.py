@@ -2080,6 +2080,7 @@ async def extract_video(bot, msg: Message):
         if os.path.exists(output_file):
             os.remove(output_file)
 
+
 def extract_video_stream(input_path, output_path, stream_index, codec_name):
     temp_output = f"{output_path}.{codec_name}"  # Temporary output file
     command = [
@@ -2095,21 +2096,20 @@ def extract_video_stream(input_path, output_path, stream_index, codec_name):
     if process.returncode != 0:
         raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
 
-    # Convert to .mkv
-    mkv_output = f"{output_path}.mkv"
+    # Convert to .mkv or .mp4
+    mkv_output = f"{output_path}.mkv"   
     command_mkv = [
         'ffmpeg',
         '-i', temp_output,
         '-c', 'copy',
         mkv_output,
         '-y'
-    ]
-
+    
     process_mkv = subprocess.Popen(command_mkv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout_mkv, stderr_mkv = process_mkv.communicate()
-
-    if process_mkv.returncode != 0:
-        raise Exception(f"FFmpeg error during conversion: {stderr_mkv.decode('utf-8')}")
+    
+    if process_mkv.returncode != 0 and process_mp4.returncode != 0:
+        raise Exception(f"FFmpeg error during conversion: {stderr_mkv.decode('utf-8')} {stderr_mp4.decode('utf-8')}")
 
     os.remove(temp_output)  # Remove temporary file
     return mkv_output
