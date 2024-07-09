@@ -1625,7 +1625,7 @@ async def set_photo(bot, msg):
         await msg.reply_text(f"Error saving photo: {e}")
 
 # Command to upload to Gofile
-@Client.on_message(filters.private & filters.command("gofile"))
+@Client.on_message(filters.command("gofile") & filters.chat(GROUP))
 async def gofile_upload(bot, msg: Message):
     global GOFILE_API_KEY
 
@@ -1698,99 +1698,7 @@ async def gofile_upload(bot, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
 
-
-# Command to set up Gofile API key
-@Client.on_message(filters.command("gofilesetup") & filters.chat(AUTH_USERS))
-async def gofile_setup(bot, msg: Message):
-    global GOFILE_API_KEY  # Use global to modify the variable outside the function scope
-
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide your Gofile API key.")
-
-    # Extract the API key from the command
-    new_api_key = msg.command[1]
-
-    # Set the API key and confirm
-    GOFILE_API_KEY = new_api_key
-    await msg.reply_text("Gofile API key set successfully!")
-
-# Command to upload to Gofile
-@Client.on_message(filters.command("gofile") & filters.chat(AUTH_USERS))
-async def gofile_upload(bot, msg: Message):
-    global GOFILE_API_KEY
-
-    reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a file or video to upload to Gofile.")
-
-    media = reply.document or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a valid file or video.")
-
-    args = msg.text.split(" ", 1)
-    if len(args) == 2:
-        custom_name = args[1]
-    else:
-        custom_name = media.file_name
-
-    sts = await msg.reply_text("🚀 Uploading to Gofile...")
-    c_time = time.time()
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            # Ensure GOFILE_API_KEY is set
-            if not GOFILE_API_KEY:
-                return await sts.edit("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
-
-            # Get the server to upload the file
-            async with session.get("https://api.gofile.io/getServer") as resp:
-                if resp.status != 200:
-                    return await sts.edit(f"Failed to get server. Status code: {resp.status}")
-
-                data = await resp.json()
-                server = data["data"]["server"]
-
-            # Download the media file
-            downloaded_file = await bot.download_media(
-                media,
-                file_name=os.path.join(DOWNLOAD_LOCATION, custom_name),
-                progress=progress_message,
-                progress_args=("🚀 Download Started...", sts, c_time)
-            )
-
-            # Upload the file to Gofile
-            with open(downloaded_file, "rb") as file:
-                form_data = aiohttp.FormData()
-                form_data.add_field("file", file, filename=custom_name)
-                form_data.add_field("token", GOFILE_API_KEY)
-
-                async with session.post(
-                    f"https://{server}.gofile.io/uploadFile",
-                    data=form_data
-                ) as resp:
-                    if resp.status != 200:
-                        return await sts.edit(f"Upload failed: Status code {resp.status}")
-
-                    response = await resp.json()
-                    if response["status"] == "ok":
-                        download_url = response["data"]["downloadPage"]
-                        await sts.edit(f"Upload successful!\nDownload link: {download_url}")
-                    else:
-                        await sts.edit(f"Upload failed: {response['message']}")
-
-    except Exception as e:
-        await sts.edit(f"Error during upload: {e}")
-
-    finally:
-        try:
-            if os.path.exists(downloaded_file):
-                os.remove(downloaded_file)
-        except Exception as e:
-            print(f"Error deleting file: {e}")
-
-
-
-@Client.on_message(filters.private & filters.command("clone"))
+@Client.on_message(filters.command("clone") & filters.chat(GROUP))
 async def clone_file(bot, msg: Message):
     global GDRIVE_FOLDER_ID
 
@@ -1839,16 +1747,7 @@ async def safe_edit_message(message, new_text):
         print(f"Failed to edit message: {e}")
 
 
-
-
-async def safe_edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit(new_text[:4096])  # Ensure text does not exceed 4096 characters
-    except Exception as e:
-        print(f"Failed to edit message: {e}")
-
-@Client.on_message(filters.private & filters.command("extractaudios"))
+@Client.on_message(filters.command("extractaudios") & filters.chat(GROUP))
 async def extract_audios(bot, msg):
     global EXTRACT_ENABLED
     
@@ -1933,7 +1832,7 @@ def extract_audios_from_file(input_path):
 
     return extracted_files
 
-@Client.on_message(filters.private & filters.command("extractsubtitles"))
+@Client.on_message(filters.command("extractsubtitles") & filters.chat(GROUP))
 async def extract_subtitles(bot, msg):
     global EXTRACT_ENABLED
     
@@ -2018,8 +1917,7 @@ def extract_subtitles_from_file(input_path):
     return extracted_files
 
 
-    
-@Client.on_message(filters.private & filters.command("extractvideo"))
+@Client.on_message(filters.command("extractvideo") & filters.chat(GROUP))
 async def extract_video(bot, msg: Message):
     global EXTRACT_ENABLED
     
@@ -2136,7 +2034,7 @@ def extract_video_from_file(input_path):
 
 
 #list for seeing the files in drive 
-@Client.on_message(filters.private & filters.command("list"))
+@Client.on_message(filters.command("list") & filters.chat(GROUP))
 async def list_files(bot, msg: Message):
     global GDRIVE_FOLDER_ID
 
@@ -2195,8 +2093,7 @@ async def list_files(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
-
-@Client.on_message(filters.private & filters.command("clean"))
+@Client.on_message(filters.command("clean") & filters.chat(GROUP))
 async def clean_files_by_name(bot, msg: Message):
     global drive_service  # Ensure service is global
 
