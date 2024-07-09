@@ -22,7 +22,7 @@ from pyrogram.errors import RPCError, FloodWait
 import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
 from googleapiclient.http import MediaFileUpload
-from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file
+from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, get_files_in_folder
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
@@ -2140,19 +2140,6 @@ def extract_video_from_file(input_path):
 """
 
 
-async def progress_message(current, total, message, msg, start):
-    elapsed = time.time() - start
-    speed = current / elapsed
-    eta = (total - current) / speed
-    text = f"{message}\n\n{current * 100 / total:.1f}% done\nSpeed: {speed / (1024 * 1024):.2f} MB/s\nETA: {eta:.1f}s"
-    await msg.edit_text(text)
-
-async def safe_edit_message(message, text):
-    try:
-        await message.edit_text(text)
-    except Exception as e:
-        print(f"Failed to edit message: {e}")
-
 @Client.on_message(filters.private & filters.command("extractvideo"))
 async def extract_video(bot, msg: Message):
     global EXTRACT_ENABLED
@@ -2162,18 +2149,18 @@ async def extract_video(bot, msg: Message):
 
     reply = msg.reply_to_message
     if not reply:
-        return await msg.reply_text("Please reply to a media file with the extractvideo command.")
+        return await msg.reply_text("Please reply to a media file (video or document) with the extractvideo command.")
 
-    media = reply.document  # Only consider document type for extraction
+    media = reply.video or reply.document
     if not media:
-        return await msg.reply_text("Please reply to a valid document file with the extractvideo command.")
+        return await msg.reply_text("Please reply to a valid video or document file with the extractvideo command.")
 
-    sts = await msg.reply_text("🚀 Downloading document... ⚡")
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
     c_time = time.time()
     try:
         downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
     except Exception as e:
-        await safe_edit_message(sts, f"Error downloading document: {e}")
+        await safe_edit_message(sts, f"Error downloading media: {e}")
         return
 
     await safe_edit_message(sts, "🎥 Extracting video stream... ⚡")
@@ -2188,9 +2175,13 @@ async def extract_video(bot, msg: Message):
 
     await safe_edit_message(sts, "🔼 Uploading extracted video... ⚡")
     try:
+        output_extension = os.path.splitext(extracted_file)[1]
+        output_file = os.path.join(os.path.dirname(downloaded), f"extracted_video{output_extension}")
+        os.rename(extracted_file, output_file)
+
         await bot.send_document(
             msg.from_user.id,
-            extracted_file,
+            output_file,
             progress=progress_message,
             progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
         )
@@ -2203,25 +2194,8 @@ async def extract_video(bot, msg: Message):
         await safe_edit_message(sts, f"Error uploading extracted video: {e}")
     finally:
         os.remove(downloaded)
-        if extracted_file:
-            os.remove(extracted_file)
-
-def extract_video_stream(input_path, output_path, stream_index, codec_name):
-    output_file = f"{output_path}.mkv"  # Output as .mkv
-    command = [
-        'ffmpeg',
-        '-i', input_path,
-        '-map', f'0:{stream_index}',
-        '-c', 'copy',
-        output_file,
-        '-y'
-    ]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
-
-    return output_file
+        if os.path.exists(output_file):
+            os.remove(output_file)
 
 def extract_video_from_file(input_path):
     video_streams_data = ffmpeg.probe(input_path)
@@ -2232,12 +2206,91 @@ def extract_video_from_file(input_path):
 
     video_stream = video_streams[0]  # Assuming we extract the first video stream found
     codec_name = video_stream['codec_name']
-    # Use the input filename as the base for the output file
-    output_file = os.path.splitext(input_path)[0]
+    output_file = os.path.join(os.path.dirname(input_path), f"{video_stream['index']}")
     output_file = extract_video_stream(input_path, output_file, video_stream['index'], codec_name)
 
     return output_file
     
+def extract_video_stream(input_path, output_path, stream_index, codec_name):
+    temp_output = f"{output_path}.{codec_name}"  # Temporary output file
+    command = [
+        'ffmpeg',
+        '-i', input_path,
+        '-map', f'0:{stream_index}',
+        '-c', 'copy',
+        temp_output,
+        '-y'
+    ]
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
+
+    # Determine original dimensions and aspect ratio
+    video_streams_data = ffmpeg.probe(input_path)
+    video_stream = next((stream for stream in video_streams_data['streams'] if stream['index'] == stream_index), None)
+    width = int(video_stream['width'])
+    height = int(video_stream['height'])
+    original_aspect_ratio = width / height
+    target_aspect_ratio = 16 / 9
+
+    # Adjust scaling if the aspect ratio is not close to 16:9
+    if abs(original_aspect_ratio - target_aspect_ratio) > 0.01:  # Allow a small margin for aspect ratio
+        scale_filter = 'scale=iw*sar*16/9:ih*16/9,setsar=1'
+    else:
+        scale_filter = 'scale=iw:ih,setsar=1'
+
+    # Convert to .mkv with scaling to 16:9 if necessary
+    mkv_output = f"{output_path}.mkv"
+    command_mkv = [
+        'ffmpeg',
+        '-i', temp_output,
+        '-vf', scale_filter,
+        '-c', 'copy',
+        mkv_output,
+        '-y'
+    ]
+
+    process_mkv = subprocess.Popen(command_mkv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout_mkv, stderr_mkv = process_mkv.communicate()
+
+    if process_mkv.returncode != 0:
+        raise Exception(f"FFmpeg error during conversion: {stderr_mkv.decode('utf-8')}")
+
+    os.remove(temp_output)  # Remove temporary file
+    return mkv_output
+
+
+@Client.on_message(filters.private & filters.command("list"))
+async def list_files(bot, msg: Message):
+    global GDRIVE_FOLDER_ID
+
+    if not GDRIVE_FOLDER_ID:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    sts = await msg.reply_text("Fetching file list...")
+
+    try:
+        files = get_files_in_folder(GDRIVE_FOLDER_ID)
+        if not files:
+            return await sts.edit("No files found in the specified folder.")
+
+        buttons = []
+        for file in files:
+            file_link = f"https://drive.google.com/file/d/{file['id']}/view"
+            buttons.append([InlineKeyboardButton(file['name'], url=file_link)])
+
+        await sts.edit(
+            "Files in the specified folder:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+
+
+
+
     
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
