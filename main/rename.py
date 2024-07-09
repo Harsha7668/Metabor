@@ -2202,62 +2202,62 @@ async def extract_video_command_handler(_, msg):
     if not EXTRACT_ENABLED:
         return await msg.reply_text("The extract feature is currently disabled.")
 
-    reply = msg.reply_to_message
-    if not reply:
+    if len(msg.command) < 2 or not msg.reply_to_message:
         return await msg.reply_text("Please reply to a media file with the extractvideo command.")
 
+    reply = msg.reply_to_message
     media = reply.document or reply.audio or reply.video
     if not media:
         return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the extractvideo command.")
 
     # Parse the filename from the command
-    command_parts = msg.text.split()
+    command_parts = msg.text.split(maxsplit=1)
     if len(command_parts) != 2:
         return await msg.reply_text("Invalid command format. Use '/extractvideo <filename>'.")
 
     filename = command_parts[1]
-
-    # Determine output format based on filename extension
-    _, file_extension = os.path.splitext(filename)
-    output_format = 'mkv' if file_extension.lower() == '.mkv' else 'mp4'
+    if not filename.lower().endswith(('.mkv', '.mp4')):
+        return await msg.reply_text("Please provide a valid file extension (.mkv or .mp4) with the new filename.")
 
     sts = await msg.reply_text("🚀 Downloading media... ⚡")
     c_time = time.time()
     try:
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+        downloaded = await reply.download(file_name=filename)
     except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
+        await sts.edit(f"Error downloading media: {e}")
         return
 
-    await safe_edit_message(sts, "🎥 Extracting video stream... ⚡")
+    await sts.edit("🎥 Extracting video stream... ⚡")
     try:
-        extracted_file = extract_video_from_file(downloaded, output_format)
+        # Example function to extract video stream and rename it
+        extracted_file = extract_video_from_file(downloaded, filename)
         if not extracted_file:
             raise Exception("No video stream found or extraction failed.")
     except Exception as e:
-        await safe_edit_message(sts, f"Error extracting video stream: {e}")
+        await sts.edit(f"Error extracting video stream: {e}")
         os.remove(downloaded)
         return
 
-    await safe_edit_message(sts, "🔼 Uploading extracted video... ⚡")
+    await sts.edit("🔼 Uploading extracted video... ⚡")
     try:
-        await app.send_document(
+        await app.send_video(
             msg.chat.id,
             extracted_file,
-            progress=progress_message,
-            progress_args=("🔼 Upload Started... ⚡️", sts, c_time)
+            caption=f"Extracted video: {filename}",
+            progress=progress_callback,
+            progress_args=(sts, c_time)
         )
         await msg.reply_text(
             "Video stream extracted and sent to your PM in the bot!"
         )
 
-        await sts.delete()
     except Exception as e:
-        await safe_edit_message(sts, f"Error uploading extracted video: {e}")
+        await sts.edit(f"Error uploading extracted video: {e}")
     finally:
         os.remove(downloaded)
-        if extracted_file:
+        if extracted_file and os.path.exists(extracted_file):
             os.remove(extracted_file)
+        await sts.delete()
 
 
     
