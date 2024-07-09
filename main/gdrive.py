@@ -9,7 +9,7 @@ from googleapiclient.http import MediaFileUpload
 from main.utils import progress_message
 import re
 from googleapiclient.errors import HttpError
-import threading
+import threading, asyncio
 
 # Use a lock to ensure only one clone operation runs at a time
 clone_lock = threading.Lock()
