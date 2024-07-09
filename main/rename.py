@@ -22,7 +22,7 @@ from pyrogram.errors import RPCError, FloodWait
 import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
 from googleapiclient.http import MediaFileUpload
-from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, get_files_in_folder
+from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, get_files_in_folder, drive_service
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
@@ -2251,7 +2251,7 @@ async def list_files(bot, msg: Message):
 
 @Client.on_message(filters.private & filters.command("clean"))
 async def clean_files_by_name(bot, msg: Message):
-    global GDRIVE_FOLDER_ID  # Assuming you have a global variable for the folder ID
+    global drive_service  # Ensure service is global
 
     if not GDRIVE_FOLDER_ID:
         return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
@@ -2277,10 +2277,13 @@ async def clean_files_by_name(bot, msg: Message):
         # Delete each found file
         for file in files:
             service.files().delete(fileId=file['id']).execute()
-            await msg.reply_text(f"Deleted File '{file['name']}' Successfully ✅.")
+            await msg.reply_text(f"Deleted file '{file['name']}' successfully.")
 
+    except HttpError as error:
+        await msg.reply_text(f"An error occurred: {error}")
     except Exception as e:
-        await msg.reply_text(f"An error occurred: {e}")
+        await msg.reply_text(f"An unexpected error occurred: {e}")
+
 
 
 if __name__ == '__main__':
