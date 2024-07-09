@@ -2189,6 +2189,7 @@ async def list_files(bot, msg: Message):
         await sts.edit(f"Error: {e}")
    """
 
+
 @Client.on_message(filters.private & filters.command("list"))
 async def list_files(bot, msg: Message):
     global GDRIVE_FOLDER_ID
@@ -2223,6 +2224,8 @@ async def list_files(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
+
+
 async def send_file_list(bot, chat_id, file_types, category, page):
     files = file_types.get(category, [])
     if not files:
@@ -2244,8 +2247,12 @@ async def send_file_list(bot, chat_id, file_types, category, page):
     if end < len(files):
         navigation_buttons.append(InlineKeyboardButton("Next", callback_data=f"{category}_next_{page+1}"))
 
-    buttons.append(navigation_buttons)
-    reply_markup = InlineKeyboardMarkup(buttons)
+    if len(files) <= PAGE_SIZE:
+        # Only one page, no need for navigation buttons
+        reply_markup = InlineKeyboardMarkup(buttons)
+    else:
+        buttons.append(navigation_buttons)
+        reply_markup = InlineKeyboardMarkup(buttons)
 
     await bot.send_message(chat_id, f"{category} files (Page {page + 1}):", reply_markup=reply_markup)
 
