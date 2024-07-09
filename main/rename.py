@@ -2140,6 +2140,13 @@ def extract_video_from_file(input_path):
 """
 
 
+async def progress_message(current, total, message, msg, start):
+    elapsed = time.time() - start
+    speed = current / elapsed
+    eta = (total - current) / speed
+    text = f"{message}\n\n{current * 100 / total:.1f}% done\nSpeed: {speed / (1024 * 1024):.2f} MB/s\nETA: {eta:.1f}s"
+    await msg.edit_text(text)
+
 async def safe_edit_message(message, text):
     try:
         await message.edit_text(text)
