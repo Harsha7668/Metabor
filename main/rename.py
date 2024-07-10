@@ -296,7 +296,6 @@ async def inline_preview_metadata_callback(_, callback_query):
 # Inline query handler to preview the Gofile API key
 @Client.on_callback_query(filters.regex("^preview_gofilekey$"))
 async def inline_preview_gofile_api_key(bot, callback_query):
-    global user_gofile_api_keys
     user_id = callback_query.from_user.id
     
     # Check if the API key is set for the user
@@ -461,23 +460,19 @@ async def setup_gdrive_id(bot, msg: Message):
     user_gdrive_folder_ids[user_id] = gdrive_folder_id
     await msg.reply_text(f"Google Drive folder ID set to: {gdrive_folder_id} for user `{user_id}`\n\nGoogle Drive folder ID set successfully✅!")
     
-# Command to set up Gofile API key
-@Client.on_message(filters.private & filters.command("gofilesetup"))
-async def gofile_setup(bot, msg: Message):
-    global user_gofile_api_keys  # Use global to modify the dictionary
 
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide your Gofile API key.")
-
+# Command to set Gofile API key for a user
+@Client.on_message(filters.command("gofilesetup") & filters.private)
+async def set_gofile_api_key(bot, msg):
     user_id = msg.from_user.id
-    # Extract the API key from the command
-    new_api_key = msg.command[1]
-
-    # Set the API key for the user and confirm
-    user_gofile_api_keys[user_id] = new_api_key
-    await msg.reply_text(f"Gofile API key set successfully for user `{user_id}`✅!")
+    args = msg.text.split(" ", 1)
+    if len(args) != 2:
+        return await msg.reply_text("Usage: /gofilesetup {your_api_key}")
     
-
+    api_key = args[1].strip()
+    user_gofile_api_keys[user_id] = api_key
+    await msg.reply_text("Your Gofile API key has been set successfully✅.")
+    
 # Command handler for /mirror
 @Client.on_message(filters.command("mirror") & filters.chat(GROUP))
 async def mirror_to_google_drive(bot, msg: Message):
@@ -1636,7 +1631,13 @@ async def set_photo(bot, msg):
 # Command to upload to Gofile
 @Client.on_message(filters.command("gofile") & filters.chat(GROUP))
 async def gofile_upload(bot, msg: Message):
-    global GOFILE_API_KEY
+    user_id = msg.from_user.id
+    
+    # Retrieve the user's Gofile API key or fallback to the global key
+    gofile_api_key = user_gofile_api_keys.get(user_id, GOFILE_API_KEY)
+
+    if not gofile_api_key:
+        return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it or ensure a global key is set.")
 
     reply = msg.reply_to_message
     if not reply:
@@ -1654,13 +1655,11 @@ async def gofile_upload(bot, msg: Message):
 
     sts = await msg.reply_text("🚀 Uploading to Gofile...")
     c_time = time.time()
+    
+    downloaded_file = None
 
     try:
         async with aiohttp.ClientSession() as session:
-            # Ensure GOFILE_API_KEY is set
-            if not GOFILE_API_KEY:
-                return await sts.edit("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
-
             # Get the server to upload the file
             async with session.get("https://api.gofile.io/getServer") as resp:
                 if resp.status != 200:
@@ -1681,7 +1680,7 @@ async def gofile_upload(bot, msg: Message):
             with open(downloaded_file, "rb") as file:
                 form_data = aiohttp.FormData()
                 form_data.add_field("file", file, filename=custom_name)
-                form_data.add_field("token", GOFILE_API_KEY)
+                form_data.add_field("token", gofile_api_key)
 
                 async with session.post(
                     f"https://{server}.gofile.io/uploadFile",
@@ -1702,7 +1701,7 @@ async def gofile_upload(bot, msg: Message):
 
     finally:
         try:
-            if os.path.exists(downloaded_file):
+            if downloaded_file and os.path.exists(downloaded_file):
                 os.remove(downloaded_file)
         except Exception as e:
             print(f"Error deleting file: {e}")
