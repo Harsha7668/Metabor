@@ -30,6 +30,8 @@ DOWNLOAD_LOCATION1 = "./screenshots"
 
 # Global dictionary to store user settings
 merge_state = {}
+user_gofile_api_keys = {}  # Dictionary to store Gofile API keys for each user
+
 user_settings = {}
 
 # Initialize Gofile API key variable
@@ -294,14 +296,16 @@ async def inline_preview_metadata_callback(_, callback_query):
 # Inline query handler to preview the Gofile API key
 @Client.on_callback_query(filters.regex("^preview_gofilekey$"))
 async def inline_preview_gofile_api_key(bot, callback_query):
-    global GOFILE_API_KEY
+    global user_gofile_api_keys
+    user_id = callback_query.from_user.id
     
-    # Check if the API key is set
-    if not GOFILE_API_KEY:
-        return await callback_query.message.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
+    # Check if the API key is set for the user
+    if user_id not in user_gofile_api_keys:
+        return await callback_query.message.reply_text(f"Gofile API key is not set for user `{user_id}`. Use /gofilesetup {{your_api_key}} to set it.")
     
-    # Reply with the current API key
-    await callback_query.message.reply_text(f"Current Gofile API Key: {GOFILE_API_KEY}")
+    # Reply with the current API key for the user
+    await callback_query.message.reply_text(f"Current Gofile API Key for user `{user_id}`: {user_gofile_api_keys[user_id]}")
+    
 
 # Inline query handler to preview the Gofile API key
 @Client.on_callback_query(filters.regex("^preview_gdrive$"))
@@ -454,20 +458,22 @@ async def setup_gdrive_id(bot, msg: Message):
 
 
 # Command to set up Gofile API key
+# Command to set up Gofile API key
 @Client.on_message(filters.private & filters.command("gofilesetup"))
 async def gofile_setup(bot, msg: Message):
-    global GOFILE_API_KEY  # Use global to modify the variable outside the function scope
+    global user_gofile_api_keys  # Use global to modify the dictionary
 
     if len(msg.command) < 2:
         return await msg.reply_text("Please provide your Gofile API key.")
 
+    user_id = msg.from_user.id
     # Extract the API key from the command
     new_api_key = msg.command[1]
 
-    # Set the API key and confirm
-    GOFILE_API_KEY = new_api_key
-    await msg.reply_text("Gofile API key set successfully✅!")
-
+    # Set the API key for the user and confirm
+    user_gofile_api_keys[user_id] = new_api_key
+    await msg.reply_text(f"Gofile API key set successfully for user `{user_id}`✅!")
+    
 
 # Command handler for /mirror
 @Client.on_message(filters.command("mirror") & filters.chat(GROUP))
