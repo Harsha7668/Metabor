@@ -31,14 +31,13 @@ DOWNLOAD_LOCATION1 = "./screenshots"
 # Global dictionary to store user settings
 merge_state = {}
 user_gofile_api_keys = {}  # Dictionary to store Gofile API keys for each user
-user_gdrive_folder_ids = {}  # Dictionary to store Google Drive folder IDs for each user
 user_settings = {}
 
 # Initialize Gofile API key variable
 GOFILE_API_KEY = ""
 
-# Variables to store Google Drive folder ID
-GDRIVE_FOLDER_ID = None
+# Dictionary to store user-specific Google Drive folder IDs
+user_gdrive_folder_ids = {}
 
 FILE_SIZE_LIMIT = 2000 * 1024 * 1024  # 2000 MB in bytes
 
@@ -304,12 +303,10 @@ async def inline_preview_gofile_api_key(bot, callback_query):
     
     # Reply with the current API key for the user
     await callback_query.message.reply_text(f"Current Gofile API Key for user `{user_id}`: {user_gofile_api_keys[user_id]}")
-    
 
-# Inline query handler to preview the Gofile API key
+# Inline query handler to preview the Google Drive folder ID
 @Client.on_callback_query(filters.regex("^preview_gdrive$"))
 async def inline_preview_gdrive(bot, callback_query):
-    global user_gdrive_folder_ids
     user_id = callback_query.from_user.id
     
     # Check if the Google Drive folder ID is set for the user
@@ -319,6 +316,7 @@ async def inline_preview_gdrive(bot, callback_query):
     # Reply with the current Google Drive folder ID for the user
     await callback_query.message.reply_text(f"Current Google Drive Folder ID for user `{user_id}`: {user_gdrive_folder_ids[user_id]}")
     
+
 # Inline query handler for attaching photo
 @Client.on_callback_query(filters.regex("^attach_photo$"))
 async def inline_attach_photo_callback(_, callback_query):
@@ -444,22 +442,19 @@ async def set_metadata_command(client, msg):
     
     await msg.reply_text("Metadata titles set successfully ✅.")
 
-
 # Command handler for /gdriveid setup
 @Client.on_message(filters.private & filters.command("gdriveid"))
 async def setup_gdrive_id(bot, msg: Message):
-    global user_gdrive_folder_ids  # Use global to modify the dictionary
-
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide a Google Drive folder ID after the command.")
-
     user_id = msg.from_user.id
-    gdrive_folder_id = msg.text.split(" ", 1)[1]
-
-    # Set the Google Drive folder ID for the user and confirm
+    args = msg.text.split(" ", 1)
+    if len(args) != 2:
+        return await msg.reply_text("Usage: /gdriveid {your_gdrive_folder_id}")
+    
+    gdrive_folder_id = args[1].strip()
     user_gdrive_folder_ids[user_id] = gdrive_folder_id
     await msg.reply_text(f"Google Drive folder ID set to: {gdrive_folder_id} for user `{user_id}`\n\nGoogle Drive folder ID set successfully✅!")
-    
+
+
 
 # Command to set Gofile API key for a user
 @Client.on_message(filters.command("gofilesetup") & filters.private)
@@ -472,7 +467,88 @@ async def set_gofile_api_key(bot, msg):
     api_key = args[1].strip()
     user_gofile_api_keys[user_id] = api_key
     await msg.reply_text("Your Gofile API key has been set successfully✅.")
+
+
+# Command handler for /mirror
+@Client.on_message(filters.command("mirror") & filters.chat(GROUP))
+async def mirror_to_google_drive(bot, msg: Message):
+    global MIRROR_ENABLED
+        
+    if not MIRROR_ENABLED:
+        return await msg.reply_text("The mirror feature is currently disabled.")
+
+    user_id = msg.from_user.id
     
+    # Retrieve the user's Google Drive folder ID
+    gdrive_folder_id = user_gdrive_folder_ids.get(user_id)
+    
+    if not gdrive_folder_id:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    reply = msg.reply_to_message
+    if len(msg.command) < 2 or not reply:
+        return await msg.reply_text("Please reply to a file with the new filename and extension.")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a file with the new filename and extension.")
+
+    new_name = msg.text.split(" ", 1)[1]
+    download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
+
+    try:
+        # Show progress message for downloading
+        sts = await msg.reply_text("🚀 Downloading...")
+        
+        # Download the file
+        downloaded_file = await bot.download_media(message=reply, file_name=download_path, progress=progress_message, progress_args=("Downloading", sts, time.time()))
+        filesize = os.path.getsize(downloaded_file)
+        
+        # Once downloaded, update the message to indicate uploading
+        await sts.edit("💠 Uploading...")
+        
+        start_time = time.time()
+
+        # Upload file to Google Drive
+        file_metadata = {'name': new_name, 'parents': [gdrive_folder_id]}
+        media = MediaFileUpload(downloaded_file, resumable=True)
+
+        # Upload with progress monitoring
+        request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                current_progress = status.progress() * 100
+                await progress_message(current_progress, 100, "Uploading to Google Drive", sts, start_time)
+
+        file_id = response.get('id')
+        file_link = response.get('webViewLink')
+
+        # Prepare caption for the uploaded file
+        if CAPTION:
+            caption_text = CAPTION.format(file_name=new_name, file_size=humanbytes(filesize))
+        else:
+            caption_text = f"Uploaded File: {new_name}\nSize: {humanbytes(filesize)}"
+
+        # Send the Google Drive link to the user
+        button = [
+            [InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]
+        ]
+        await msg.reply_text(
+            f"File successfully renamed and uploaded to Google Drive!\n\n"
+            f"Google Drive Link: [View File]({file_link})\n\n"
+            f"Uploaded File: {new_name}\n"
+            f"Size: {humanbytes(filesize)}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+        os.remove(downloaded_file)
+        await sts.delete()
+
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+"""
 # Command handler for /mirror
 @Client.on_message(filters.command("mirror") & filters.chat(GROUP))
 async def mirror_to_google_drive(bot, msg: Message):
@@ -546,6 +622,8 @@ async def mirror_to_google_drive(bot, msg: Message):
 
     except Exception as e:
         await sts.edit(f"Error: {e}")
+        
+"""
 
 #Rename Command
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
@@ -2040,7 +2118,7 @@ def extract_video_from_file(input_path):
 
     return output_file
 
-
+"""
 #list for seeing the files in drive 
 @Client.on_message(filters.command("list") & filters.chat(GROUP))
 async def list_files(bot, msg: Message):
@@ -2135,7 +2213,110 @@ async def clean_files_by_name(bot, msg: Message):
         await msg.reply_text(f"An error occurred: {error}")
     except Exception as e:
         await msg.reply_text(f"An unexpected error occurred: {e}")
+"""
 
+
+# Command handler for /list
+@Client.on_message(filters.private & filters.command("list"))
+async def list_files(bot, msg: Message):
+    user_id = msg.from_user.id
+
+    # Retrieve the user's Google Drive folder ID
+    gdrive_folder_id = user_gdrive_folder_ids.get(user_id)
+    
+    if not gdrive_folder_id:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    sts = await msg.reply_text("Fetching File List...🔎")
+
+    try:
+        files = get_files_in_folder(gdrive_folder_id)
+        if not files:
+            return await sts.edit("No files found in the specified folder.")
+
+        # Categorize files
+        file_types = {'Images': [], 'Movies': [], 'Audios': [], 'Archives': [], 'Others': []}
+        for file in files:
+            mime_type = file['mimeType']
+            file_name = file['name'].lower()
+            if mime_type.startswith('image/'):
+                file_types['Images'].append(file)
+            elif mime_type.startswith('video/') or file_name.endswith(('.mkv', '.mp4')):
+                file_types['Movies'].append(file)
+            elif mime_type.startswith('audio/') or file_name.endswith(('.aac', '.eac3', '.mp3', '.opus', '.eac')):
+                file_types['Audios'].append(file)
+            elif file_name.endswith(('.zip', '.rar')):
+                file_types['Archives'].append(file)
+            else:
+                file_types['Others'].append(file)
+
+        # Create inline buttons for each category with emojis
+        buttons = []
+        for category, items in file_types.items():
+            if items:
+                if category == 'Images':
+                    emoji = '🖼️'
+                elif category == 'Movies':
+                    emoji = '🎞️'
+                elif category == 'Audios':
+                    emoji = '🔊'
+                elif category == 'Archives':
+                    emoji = '📦'
+                else:
+                    emoji = '📁'
+                
+                buttons.append([InlineKeyboardButton(f"{emoji} {category}", callback_data=f"{category}")])
+                for file in sorted(items, key=lambda x: x['name']):
+                    file_link = f"https://drive.google.com/file/d/{file['id']}/view"
+                    buttons.append([InlineKeyboardButton(file['name'], url=file_link)])
+
+        await sts.edit(
+            "Files In The Specified Folder 📁:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+    except HttpError as error:
+        await sts.edit(f"An error occurred: {error}")
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+# Command handler for /clean
+@Client.on_message(filters.private & filters.command("clean"))
+async def clean_files_by_name(bot, msg: Message):
+    user_id = msg.from_user.id
+
+    # Retrieve the user's Google Drive folder ID
+    gdrive_folder_id = user_gdrive_folder_ids.get(user_id)
+    
+    if not gdrive_folder_id:
+        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+
+    try:
+        # Extract file name from the command
+        command_parts = msg.text.split(maxsplit=1)
+        if len(command_parts) < 2:
+            return await msg.reply_text("Please provide a file name to clean.")
+
+        file_name = command_parts[1].strip()
+
+        # Define query to find files by name in the specified folder
+        query = f"'{gdrive_folder_id}' in parents and trashed=false and name='{file_name}'"
+
+        # Execute the query to find matching files
+        response = drive_service.files().list(q=query, fields='files(id, name)').execute()
+        files = response.get('files', [])
+
+        if not files:
+            return await msg.reply_text(f"No files found with the name '{file_name}' in the specified folder.")
+
+        # Delete each found file
+        for file in files:
+            drive_service.files().delete(fileId=file['id']).execute()
+            await msg.reply_text(f"Deleted File '{file['name']}' Successfully ✅.")
+
+    except HttpError as error:
+        await msg.reply_text(f"An error occurred: {error}")
+    except Exception as e:
+        await msg.reply_text(f"An unexpected error occurred: {e}")
 
 
 if __name__ == '__main__':
