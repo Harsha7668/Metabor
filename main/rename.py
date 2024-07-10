@@ -548,82 +548,6 @@ async def mirror_to_google_drive(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
-"""
-# Command handler for /mirror
-@Client.on_message(filters.command("mirror") & filters.chat(GROUP))
-async def mirror_to_google_drive(bot, msg: Message):
-    global GDRIVE_FOLDER_ID, MIRROR_ENABLED
-        
-    if not MIRROR_ENABLED:
-        return await msg.reply_text("The rename feature is currently disabled.")
-
-    if not GDRIVE_FOLDER_ID:
-        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
-
-    reply = msg.reply_to_message
-    if len(msg.command) < 2 or not reply:
-        return await msg.reply_text("Please reply to a file with the new filename and extension.")
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a file with the new filename and extension.")
-
-    new_name = msg.text.split(" ", 1)[1]
-    download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
-
-    try:
-        # Show progress message for downloading
-        sts = await msg.reply_text("🚀 Downloading...")
-        
-        # Download the file
-        downloaded_file = await bot.download_media(message=reply, file_name=download_path, progress=progress_message, progress_args=("Downloading", sts, time.time()))
-        filesize = os.path.getsize(downloaded_file)
-        
-        # Once downloaded, update the message to indicate uploading
-        await sts.edit("💠 Uploading...")
-        
-        start_time = time.time()
-
-        # Upload file to Google Drive
-        file_metadata = {'name': new_name, 'parents': [GDRIVE_FOLDER_ID]}
-        media = MediaFileUpload(downloaded_file, resumable=True)
-
-        # Upload with progress monitoring
-        request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
-        response = None
-        while response is None:
-            status, response = request.next_chunk()
-            if status:
-                current_progress = status.progress() * 100
-                await progress_message(current_progress, 100, "Uploading to Google Drive", sts, start_time)
-
-        file_id = response.get('id')
-        file_link = response.get('webViewLink')
-
-        # Prepare caption for the uploaded file
-        if CAPTION:
-            caption_text = CAPTION.format(file_name=new_name, file_size=humanbytes(filesize))
-        else:
-            caption_text = f"Uploaded File: {new_name}\nSize: {humanbytes(filesize)}"
-
-        # Send the Google Drive link to the user
-        button = [
-            [InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]
-        ]
-        await msg.reply_text(
-            f"File successfully renamed and uploaded to Google Drive!\n\n"
-            f"Google Drive Link: [View File]({file_link})\n\n"
-            f"Uploaded File: {new_name}\n"
-            f"Size: {humanbytes(filesize)}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-        os.remove(downloaded_file)
-        await sts.delete()
-
-    except Exception as e:
-        await sts.edit(f"Error: {e}")
-        
-"""
 
 #Rename Command
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
@@ -2118,106 +2042,9 @@ def extract_video_from_file(input_path):
 
     return output_file
 
-"""
-#list for seeing the files in drive 
-@Client.on_message(filters.command("list") & filters.chat(GROUP))
-async def list_files(bot, msg: Message):
-    global GDRIVE_FOLDER_ID
-
-    if not GDRIVE_FOLDER_ID:
-        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
-
-    sts = await msg.reply_text("Fetching File List...🔎")
-
-    try:
-        files = get_files_in_folder(GDRIVE_FOLDER_ID)
-        if not files:
-            return await sts.edit("No files found in the specified folder.")
-
-        # Categorize files
-        file_types = {'Images': [], 'Movies': [], 'Audios': [], 'Archives': [], 'Others': []}
-        for file in files:
-            mime_type = file['mimeType']
-            file_name = file['name'].lower()
-            if mime_type.startswith('image/'):
-                file_types['Images'].append(file)
-            elif mime_type.startswith('video/') or file_name.endswith(('.mkv', '.mp4')):
-                file_types['Movies'].append(file)
-            elif mime_type.startswith('audio/') or file_name.endswith(('.aac', '.eac3', '.mp3', '.opus', '.eac')):
-                file_types['Audios'].append(file)
-            elif file_name.endswith(('.zip', '.rar')):
-                file_types['Archives'].append(file)
-            else:
-                file_types['Others'].append(file)
-
-        # Create inline buttons for each category with emojis
-        buttons = []
-        for category, items in file_types.items():
-            if items:
-                if category == 'Images':
-                    emoji = '🖼️'
-                elif category == 'Movies':
-                    emoji = '🎞️'
-                elif category == 'Audios':
-                    emoji = '🔊'
-                elif category == 'Archives':
-                    emoji = '📦'
-                else:
-                    emoji = '📁'
-                
-                buttons.append([InlineKeyboardButton(f"{emoji} {category}", callback_data=f"{category}")])
-                for file in sorted(items, key=lambda x: x['name']):
-                    file_link = f"https://drive.google.com/file/d/{file['id']}/view"
-                    buttons.append([InlineKeyboardButton(file['name'], url=file_link)])
-
-        await sts.edit(
-            "Files In The Specified Folder 📁:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-    except HttpError as error:
-        await sts.edit(f"An error occurred: {error}")
-    except Exception as e:
-        await sts.edit(f"Error: {e}")
-
-@Client.on_message(filters.command("clean") & filters.chat(GROUP))
-async def clean_files_by_name(bot, msg: Message):
-    global drive_service  # Ensure service is global
-
-    if not GDRIVE_FOLDER_ID:
-        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
-
-    try:
-        # Extract file name from the command
-        command_parts = msg.text.split(maxsplit=1)
-        if len(command_parts) < 2:
-            return await msg.reply_text("Please provide a file name to clean.")
-
-        file_name = command_parts[1].strip()
-
-        # Define query to find files by name in the specified folder
-        query = f"'{GDRIVE_FOLDER_ID}' in parents and trashed=false and name='{file_name}'"
-
-        # Execute the query to find matching files
-        response = drive_service.files().list(q=query, fields='files(id, name)').execute()
-        files = response.get('files', [])
-
-        if not files:
-            return await msg.reply_text(f"No files found with the name '{file_name}' in the specified folder.")
-
-        # Delete each found file
-        for file in files:
-            drive_service.files().delete(fileId=file['id']).execute()
-            await msg.reply_text(f"Deleted File '{file['name']}' Successfully ✅.")
-
-    except HttpError as error:
-        await msg.reply_text(f"An error occurred: {error}")
-    except Exception as e:
-        await msg.reply_text(f"An unexpected error occurred: {e}")
-"""
-
 
 # Command handler for /list
-@Client.on_message(filters.private & filters.command("list"))
+@Client.on_message(filters.command("list") & filters.chat(GROUP))
 async def list_files(bot, msg: Message):
     user_id = msg.from_user.id
 
@@ -2280,7 +2107,7 @@ async def list_files(bot, msg: Message):
         await sts.edit(f"Error: {e}")
 
 # Command handler for /clean
-@Client.on_message(filters.private & filters.command("clean"))
+@Client.on_message(filters.command("clean") & filters.chat(GROUP))
 async def clean_files_by_name(bot, msg: Message):
     user_id = msg.from_user.id
 
