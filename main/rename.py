@@ -31,7 +31,7 @@ DOWNLOAD_LOCATION1 = "./screenshots"
 # Global dictionary to store user settings
 merge_state = {}
 user_gofile_api_keys = {}  # Dictionary to store Gofile API keys for each user
-
+user_gdrive_folder_ids = {}  # Dictionary to store Google Drive folder IDs for each user
 user_settings = {}
 
 # Initialize Gofile API key variable
@@ -310,16 +310,16 @@ async def inline_preview_gofile_api_key(bot, callback_query):
 # Inline query handler to preview the Gofile API key
 @Client.on_callback_query(filters.regex("^preview_gdrive$"))
 async def inline_preview_gdrive(bot, callback_query):
-    global GDRIVE_FOLDER_ID
+    global user_gdrive_folder_ids
+    user_id = callback_query.from_user.id
     
-    # Check if the Gdrive ID is set
-    if not GDRIVE_FOLDER_ID:
-        return await callback_query.message.reply_text("Google Drive Folder IDis not set. Use /gdriveid `yourgdriveformirtor` to set it.")
+    # Check if the Google Drive folder ID is set for the user
+    if user_id not in user_gdrive_folder_ids:
+        return await callback_query.message.reply_text(f"Google Drive Folder ID is not set for user `{user_id}`. Use /gdriveid {{your_gdrive_folder_id}} to set it.")
     
-    # Reply with the current API key
-    await callback_query.message.reply_text(f"Current Google Drive Folder ID: {GDRIVE_FOLDER_ID}")
+    # Reply with the current Google Drive folder ID for the user
+    await callback_query.message.reply_text(f"Current Google Drive Folder ID for user `{user_id}`: {user_gdrive_folder_ids[user_id]}")
     
-
 # Inline query handler for attaching photo
 @Client.on_callback_query(filters.regex("^attach_photo$"))
 async def inline_attach_photo_callback(_, callback_query):
@@ -449,15 +449,18 @@ async def set_metadata_command(client, msg):
 # Command handler for /gdriveid setup
 @Client.on_message(filters.private & filters.command("gdriveid"))
 async def setup_gdrive_id(bot, msg: Message):
-    global GDRIVE_FOLDER_ID
+    global user_gdrive_folder_ids  # Use global to modify the dictionary
+
     if len(msg.command) < 2:
         return await msg.reply_text("Please provide a Google Drive folder ID after the command.")
 
-    GDRIVE_FOLDER_ID = msg.text.split(" ", 1)[1]
-    await msg.reply_text(f"Google Drive folder ID set to: {GDRIVE_FOLDER_ID}\n\n Google Drive folder ID set successfully✅!")
+    user_id = msg.from_user.id
+    gdrive_folder_id = msg.text.split(" ", 1)[1]
 
-
-# Command to set up Gofile API key
+    # Set the Google Drive folder ID for the user and confirm
+    user_gdrive_folder_ids[user_id] = gdrive_folder_id
+    await msg.reply_text(f"Google Drive folder ID set to: {gdrive_folder_id} for user `{user_id}`\n\nGoogle Drive folder ID set successfully✅!")
+    
 # Command to set up Gofile API key
 @Client.on_message(filters.private & filters.command("gofilesetup"))
 async def gofile_setup(bot, msg: Message):
