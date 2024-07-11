@@ -53,43 +53,7 @@ MERGE_ENABLED = True
 EXTRACT_ENABLED = True
 
 
-import motor.motor_asyncio
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message
-
-# Initialize MongoDB client
-mongo_client = motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017')
-db = mongo_client['your_database_name']
-user_settings_collection = db['user_settings']
-
-class UserSettingsDB:
-    def __init__(self, collection):
-        self.collection = collection
-
-    async def update_settings(self, user_id, settings):
-        await self.collection.update_one({'user_id': int(user_id)}, {'$set': {'settings': settings}}, upsert=True)
-
-    async def get_settings(self, user_id):
-        default = {
-            'sample_video_duration': 'Not set',
-            'screenshots': 'Not set',
-            'thumbnail': 'Not set',
-            'metadata': {
-                'video_title': 'Not set',
-                'audio_title': 'Not set',
-                'subtitle_title': 'Not set'
-            },
-            'attach_photo': 'Not set',
-            'photo': 'Not set',
-            'gofile_api_key': 'Not set',
-            'gdrive_folder_id': 'Not set'
-        }
-        user = await self.collection.find_one({'user_id': int(user_id)})
-        if user:
-            return user.get('settings', default)
-        return default
-
-user_settings_db = UserSettingsDB(user_settings_collection)
+from database.database import update_settings, get_settings
 
 @Client.on_message(filters.private & filters.command("usersettings"))
 async def display_user_settings(client, msg, edit=False):
