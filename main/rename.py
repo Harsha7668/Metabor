@@ -53,181 +53,7 @@ MERGE_ENABLED = True
 EXTRACT_ENABLED = True
 
 
-from database.database import update_settings, get_settings
 
-@Client.on_message(filters.private & filters.command("usersettings"))
-async def display_user_settings(client, msg, edit=False):
-    user_id = msg.from_user.id
-    user_settings = await user_settings_db.get_settings(user_id)
-    current_duration = user_settings.get("sample_video_duration", "Not set")
-    current_screenshots = user_settings.get("screenshots", "Not set")
-
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
-        [InlineKeyboardButton("Sample Video Settings 🎞️", callback_data="sample_video_option")],
-        [InlineKeyboardButton("Screenshots Settings 📸", callback_data="screenshots_option")],
-        [InlineKeyboardButton("Thumbnail Settings 📄", callback_data="thumbnail_settings")],
-        [InlineKeyboardButton("View Metadata ✨", callback_data="preview_metadata")],
-        [InlineKeyboardButton("Attach Photo 📎", callback_data="attach_photo"), 
-         InlineKeyboardButton("View Photo ✨", callback_data="preview_photo")],
-        [InlineKeyboardButton("View Gofile API Key 🔗", callback_data="preview_gofilekey")],
-        [InlineKeyboardButton("View Google Drive Folder ID 📂", callback_data="preview_gdrive")],
-        [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
-        [InlineKeyboardButton("Close ❌", callback_data="del")]
-    ])
-    settings_text = (
-        f"User Settings\n"
-        f"Current sample video duration: {current_duration}\n"
-        f"Current screenshots setting: {current_screenshots}"
-    )
-    if edit:
-        await msg.edit_text(settings_text, reply_markup=keyboard)
-    else:
-        await msg.reply(settings_text, reply_markup=keyboard)
-
-@Client.on_message(filters.private & filters.command("setmetadata"))
-async def set_metadata_command(client, msg):
-    if len(msg.command) < 2:
-        await msg.reply_text("Invalid command format. Use: setmetadata video_title | audio_title | subtitle_title")
-        return
-    
-    titles = msg.text.split(" ", 1)[1].split(" | ")
-    if len(titles) != 3:
-        await msg.reply_text("Invalid number of titles. Use: setmetadata video_title | audio_title | subtitle_title")
-        return
-    
-    user_id = msg.from_user.id
-    user_settings = await user_settings_db.get_settings(user_id)
-    user_settings['metadata'] = {
-        "video_title": titles[0].strip(),
-        "audio_title": titles[1].strip(),
-        "subtitle_title": titles[2].strip()
-    }
-    
-    await user_settings_db.update_settings(user_id, user_settings)
-    await msg.reply_text("Metadata titles set successfully ✅.")
-
-@Client.on_callback_query(filters.regex("^set_screenshots_"))
-async def set_screenshots(client, callback_query: CallbackQuery):
-    user_id = callback_query.from_user.id
-    num_str = callback_query.data.split("_")[-1]
-    num_screenshots = int(num_str)
-    
-    user_settings = await user_settings_db.get_settings(user_id)
-    user_settings["screenshots"] = num_screenshots
-    await user_settings_db.update_settings(user_id, user_settings)
-    
-    await callback_query.answer(f"Number of screenshots set to {num_screenshots}.")
-    await display_user_settings(client, callback_query.message, edit=True)
-
-@Client.on_callback_query(filters.regex("^preview_metadata$"))
-async def inline_preview_metadata_callback(_, callback_query):
-    await callback_query.answer()
-    user_id = callback_query.from_user.id
-    user_settings = await user_settings_db.get_settings(user_id)
-    metadata = user_settings.get("metadata", {})
-
-    if not metadata:
-        await callback_query.message.reply_text("Metadata titles are not fully set. Please set all titles first.")
-        return
-    
-    preview_text = f"Video Title: {metadata.get('video_title', '')}\n" \
-                   f"Audio Title: {metadata.get('audio_title', '')}\n" \
-                   f"Subtitle Title: {metadata.get('subtitle_title', '')}"
-    await callback_query.message.reply_text(f"Current Metadata Titles:\n\n{preview_text}")
-
-@Client.on_callback_query(filters.regex("^preview_gofilekey$"))
-async def inline_preview_gofile_api_key(bot, callback_query):
-    user_id = callback_query.from_user.id
-    user_settings = await user_settings_db.get_settings(user_id)
-    gofile_api_key = user_settings.get("gofile_api_key", "Not set")
-
-    await callback_query.message.reply_text(f"Current Gofile API Key for user `{user_id}`: {gofile_api_key}")
-
-@Client.on_callback_query(filters.regex("^preview_gdrive$"))
-async def inline_preview_gdrive(bot, callback_query):
-    user_id = callback_query.from_user.id
-    user_settings = await user_settings_db.get_settings(user_id)
-    gdrive_folder_id = user_settings.get("gdrive_folder_id", "Not set")
-
-    await callback_query.message.reply_text(f"Current Google Drive Folder ID for user `{user_id}`: {gdrive_folder_id}")
-
-@Client.on_callback_query(filters.regex("^attach_photo$"))
-async def inline_attach_photo_callback(_, callback_query):
-    await callback_query.answer()
-    user_id = callback_query.from_user.id
-    user_settings = await user_settings_db.get_settings(user_id)
-    user_settings["attach_photo"] = True
-    await user_settings_db.update_settings(user_id, user_settings)
-    
-    await callback_query.message.edit_text("Please send a photo to be attached using the setphoto command.")
-
-@Client.on_callback_query(filters.regex("^preview_photo$"))
-async def inline_preview_photo_callback(client, callback_query):
-    await callback_query.answer()
-    user_id = callback_query.from_user.id
-    user_settings = await user_settings_db.get_settings(user_id)
-    attachment_path = user_settings.get("photo", None)
-
-    if not attachment_path or not os.path.exists(attachment_path):
-        await callback_query.message.reply_text("No photo has been attached yet.")
-        return
-    
-    await callback_query.message.reply_photo(photo=attachment_path, caption="Attached Photo")
-
-@Client.on_message(filters.private & filters.command("setthumbnail"))
-async def set_thumbnail_command(client, message):
-    user_id = message.from_user.id
-    user_settings = await user_settings_db.get_settings(user_id)
-    thumbnail_path = user_settings.get("thumbnail", None)
-
-    if thumbnail_path:
-        await message.reply("You already have a permanent thumbnail set. Send a new photo to update it.")
-    else:
-        await message.reply("Send a photo to set as your permanent thumbnail.")
-
-@Client.on_message(filters.photo & filters.private)
-async def set_thumbnail_handler(client, message):
-    user_id = message.from_user.id
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
-
-    if os.path.isfile(thumbnail_path):
-        os.remove(thumbnail_path)
-
-    await client.download_media(message=message, file_name=thumbnail_path)
-    
-    user_settings = await user_settings_db.get_settings(user_id)
-    user_settings["thumbnail"] = thumbnail_path
-    await user_settings_db.update_settings(user_id, user_settings)
-    
-    await message.reply("Your permanent thumbnail is updated. If the bot is restarted, the new thumbnail will be preserved.")
-
-@Client.on_callback_query(filters.regex("^view_thumbnail$"))
-async def view_thumbnail(client, callback_query: CallbackQuery):
-    user_id = callback_query.from_user.id
-    user_settings = await user_settings_db.get_settings(user_id)
-    thumbnail_path = user_settings.get("thumbnail", None)
-
-    try:
-        await callback_query.message.reply_photo(photo=thumbnail_path, caption="This is your current thumbnail")
-    except Exception as e:
-        await callback_query.message.reply_text("You don't have any thumbnail.")
-
-@Client.on_callback_query(filters.regex("^delete_thumbnail$"))
-async def delete_thumbnail(client, callback_query: CallbackQuery):
-    user_id = callback_query.from_user.id
-    user_settings = await user_settings_db.get_settings(user_id)
-    thumbnail_path = user_settings.get("thumbnail", None)
-
-    try:
-        if thumbnail_path and os.path.exists(thumbnail_path):
-            os.remove(thumbnail_path)
-        user_settings["thumbnail"] = "Not set"
-        await user_settings_db.update_settings(user_id, user_settings)
-        await callback_query.message.reply_text("Thumbnail deleted successfully.")
-    except Exception as e:
-        await callback_query.message.reply_text(f"An error occurred while deleting the thumbnail: {e}")
-        
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Command handler to start the interaction (only in admin)
 @Client.on_message(filters.command("bsettings") & filters.chat(ADMIN))
@@ -393,7 +219,7 @@ async def sample_video_option(client, callback_query: CallbackQuery):
 @Client.on_callback_query(filters.regex("^back_to_settings$"))
 async def back_to_settings(client, callback_query: CallbackQuery):
     await display_user_settings(client, callback_query.message, edit=True)
-"""
+
 @Client.on_message(filters.private & filters.command("usersettings"))
 async def display_user_settings(client, msg, edit=False):
     user_id = msg.from_user.id
@@ -418,7 +244,7 @@ async def display_user_settings(client, msg, edit=False):
     else:
         await msg.reply(f"User Settings\nCurrent sample video duration: {current_duration}\nCurrent screenshots setting: {current_screenshots}", reply_markup=keyboard)
 
-"""
+
 @Client.on_callback_query(filters.regex("^screenshots_option$"))
 async def screenshots_option(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
@@ -437,7 +263,7 @@ async def screenshots_option(client, callback_query: CallbackQuery):
         [InlineKeyboardButton("Back", callback_data="back_to_settings")]
     ])
     await callback_query.message.edit_text(f"Screenshots Settings\nCurrent number: {current_screenshots}", reply_markup=keyboard)
-  """  
+    
 @Client.on_callback_query(filters.regex("^set_screenshots_"))
 async def set_screenshots(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
@@ -515,7 +341,7 @@ async def inline_preview_photo_callback(client, callback_query):
     
     await callback_query.message.reply_photo(photo=attachment_path, caption="Attached Photo")
 
-"""
+
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Inline query handler for thumbnail settings
@@ -531,7 +357,7 @@ async def inline_thumbnail_settings(client, callback_query: CallbackQuery):
     await callback_query.message.edit_text("Thumbnail Settings:", reply_markup=keyboard)
 
 
-""""
+
 # Command to set a permanent thumbnail
 @Client.on_message(filters.private & filters.command("setthumbnail"))
 async def set_thumbnail_command(client, message):
@@ -584,15 +410,13 @@ async def delete_thumbnail(client, callback_query: CallbackQuery):
             await callback_query.message.reply_text("You don't have any thumbnail ‼️")
     except Exception as e:
         await callback_query.message.reply_text("An error occurred while trying to remove your thumbnail. Please try again later.")
-
-"""
       
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Inline query handler to return to user settings
 @Client.on_callback_query(filters.regex("^back_to_settings$"))
 async def back_to_settings_callback(client, callback_query: CallbackQuery):
     await display_user_settings(client, callback_query.message)
-"""
+
 # Command to set metadata titles
 @Client.on_message(filters.private & filters.command("setmetadata"))
 async def set_metadata_command(client, msg):
@@ -642,7 +466,7 @@ async def setup_gdrive_id(bot, msg: Message):
     user_gdrive_folder_ids[user_id] = gdrive_folder_id
     await msg.reply_text(f"Google Drive folder ID set to: {gdrive_folder_id} for user `{user_id}`\n\nGoogle Drive folder ID set successfully✅!")
     
-"""
+
 
 # Command handler for /mirror
 @Client.on_message(filters.private & filters.command("mirror"))
@@ -711,7 +535,7 @@ async def mirror_to_google_drive(bot, msg: Message):
             [InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]
         ]
         await msg.reply_text(
-            f"File successfully renamed and uploaded to Google Drive!\n\n"
+            f"File successfully Mirror and Uploaded to Google Drive!\n\n"
             f"Google Drive Link: [View File]({file_link})\n\n"
             f"Uploaded File: {new_name}\n"
             f"Size: {humanbytes(filesize)}",
@@ -723,6 +547,7 @@ async def mirror_to_google_drive(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"Error: {e}")
         
+
 #Rename Command
 @Client.on_message(filters.private & filters.command("rename"))
 async def rename_file(bot, msg):
@@ -2223,7 +2048,6 @@ def extract_video_from_file(input_path):
     return output_file
 
 
-
 # Command handler for /list
 @Client.on_message(filters.private & filters.command("list"))
 async def list_files(bot, msg: Message):
@@ -2330,7 +2154,3 @@ async def clean_files_by_name(bot, msg: Message):
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
-
-
-
-
