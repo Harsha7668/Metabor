@@ -1,6 +1,6 @@
 import motor.motor_asyncio
 from pyrogram import Client, filters
-from info import DATABASE_NAME, DATABASE_URI
+from config import DATABASE_NAME, DATABASE_URI
   
 # Initialize MongoDB client
 mongo_client = motor.motor_asyncio.AsyncIOMotorClient('uri')
@@ -34,4 +34,12 @@ class UserSettingsDB:
             return user.get('settings', default)
         return default
 
+
+# Initialize database and user settings
+DATABASE_URI = ''
+DATABASE_NAME = ''
+db_instance = Database(DATABASE_URI, DATABASE_NAME)
+user_settings_db = UserSettingsDB(db_instance.db.user_settings)
+
 db = Database(DATABASE_URI, DATABASE_NAME)
+
