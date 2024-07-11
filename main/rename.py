@@ -2150,8 +2150,9 @@ async def clean_files_by_name(bot, msg: Message):
     except Exception as e:
         await msg.reply_text(f"An unexpected error occurred: {e}")
 
+
 @Client.on_message(filters.private & filters.command("changeindexaudiolink"))
-async def change_index_audio(bot, msg):
+async def change_index_audiolink(bot, msg):
     global CHANGE_INDEX_ENABLED
 
     if not CHANGE_INDEX_ENABLED:
@@ -2167,13 +2168,12 @@ async def change_index_audio(bot, msg):
     index_cmd = None
     output_filename = None
 
-    # Extract index command and output filename from the command
     for i in range(1, len(msg.command)):
         if msg.command[i] == "-n":
-            output_filename = " ".join(msg.command[i + 1:])  # Join all the parts after the flag
+            output_filename = " ".join(msg.command[i + 1:])
             break
 
-    index_cmd = " ".join(msg.command[1:i])  # Get the index command before the flag
+    index_cmd = " ".join(msg.command[1:i])
 
     if not output_filename:
         return await msg.reply_text("Please provide a filename using the `-n` flag.")
@@ -2188,13 +2188,11 @@ async def change_index_audio(bot, msg):
     sts = await msg.reply_text("🚀 Processing... ⚡")
 
     if reply.text and ("seedr" in reply.text or "workers" in reply.text):
-        # Handle link download
         download_link = reply.text
         downloaded = await handle_link_download(download_link, output_filename, sts)
         if not downloaded:
             return await sts.edit("Failed to download the file from the provided link.")
     else:
-        # Handle media file download
         c_time = time.time()
         try:
             downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
@@ -2208,15 +2206,12 @@ async def change_index_audio(bot, msg):
     stream_type = index_params[0]
     indexes = [int(i) - 1 for i in index_params[1:]]
 
-    # Construct the FFmpeg command to modify indexes
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0:v']  # Always map video stream
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0:v']
 
     for idx in indexes:
         ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
 
-    # Copy all subtitle streams if they exist
     ffmpeg_cmd.extend(['-map', '0:s?'])
-
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
     await sts.edit("💠 Changing audio indexing... ⚡")
@@ -2228,9 +2223,8 @@ async def change_index_audio(bot, msg):
         os.remove(downloaded)
         return
 
-    # Thumbnail handling
     thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-
+    file_thumb = None
     if os.path.exists(thumbnail_path):
         file_thumb = thumbnail_path
     else:
@@ -2242,6 +2236,9 @@ async def change_index_audio(bot, msg):
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+    if len(cap) > 1024:
+        cap = cap[:1021] + "..."
 
     await sts.edit("💠 Uploading... ⚡")
     c_time = time.time()
@@ -2276,20 +2273,28 @@ async def change_index_audio(bot, msg):
         os.remove(file_thumb)
     await sts.delete()
 
-async def handle_link_download(link, filename, sts):
+async def handle_link_download(link: str, new_name: str, sts):
+    c_time = time.time()
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(link) as resp:
                 if resp.status == 200:
-                    with open(filename, 'wb') as f:
+                    with open(new_name, 'wb') as f:
                         f.write(await resp.read())
-                    return filename
+                    return new_name
                 else:
                     await sts.edit(f"Failed to download file from link. Status code: {resp.status}")
                     return None
     except Exception as e:
         await sts.edit(f"Error during download: {e}")
         return None
+
+async def edit_message(message, new_text):
+    try:
+        if message.text != new_text:
+            await message.edit(new_text)
+    except MessageNotModified:
+        pass
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
