@@ -224,6 +224,9 @@ async def delete_thumbnail(client, callback_query: CallbackQuery):
             os.remove(thumbnail_path)
         user_settings["thumbnail"] = "Not set"
         await user_settings_db.update_settings(user_id, user_settings)
+        await callback_query.message.reply_text("Thumbnail deleted successfully.")
+    except Exception as e:
+        await callback_query.message.reply_text(f"An error occurred while deleting the thumbnail: {e}")
         
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Command handler to start the interaction (only in admin)
