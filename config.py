@@ -18,5 +18,8 @@ DOWNLOAD_LOCATION = "./DOWNLOADS"
 SUNRISES_PIC= "https://graph.org/file/bd91761f6e938e2e6d23a.jpg"  # Replace with your Telegraph link
 AUTH_USERS = int(os.environ.get("AUTH_USERS", '6469754522'))
 
+DATABASE_NAME = os.environ.get("DATABASE_NAME", "cluster0")
+
+DATABASE_URI = os.environ.get("DATABASE_URI", "mongodb+srv://INFINITYRENAME24BOT:INFINITYRENAME24BOT@cluster0.colorb9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 
 
