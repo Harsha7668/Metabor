@@ -2298,7 +2298,7 @@ async def edit_message(message, new_text):
 """
 
 # Leech Handler Only Auth Users
-@Client.on_message(filters.command("leech1") & filters.chat(AUTH_USERS))
+@Client.on_message(filters.command("leechlink") & filters.chat(AUTH_USERS))
 async def linktofilemetadata(bot, msg: Message):
     global METADATA_ENABLED, user_settings
 
