@@ -2150,7 +2150,7 @@ async def clean_files_by_name(bot, msg: Message):
     except Exception as e:
         await msg.reply_text(f"An unexpected error occurred: {e}")
 
-
+"""
 @Client.on_message(filters.private & filters.command("changeindexaudiolink"))
 async def change_index_audiolink(bot, msg):
     global CHANGE_INDEX_ENABLED
@@ -2295,7 +2295,183 @@ async def edit_message(message, new_text):
             await message.edit(new_text)
     except MessageNotModified:
         pass
-        
+"""
+
+# Leech Handler Only Auth Users
+@Client.on_message(filters.command("leech1") & filters.chat(AUTH_USERS))
+async def linktofilemetadata(bot, msg: Message):
+    global METADATA_ENABLED, user_settings
+
+    reply = msg.reply_to_message
+    if len(msg.command) < 2 or not reply:
+        return await msg.reply_text("Please reply to a file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
+
+    new_name = msg.text.split(" ", 1)[1]
+    if not new_name.endswith(".mkv"):
+        return await msg.reply_text("Please specify a filename ending with .mkv.")
+
+    media = reply.document or reply.audio or reply.video
+    if not media and not reply.text:
+        return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
+
+    if reply.text and ("seedr" in reply.text or "workers" in reply.text):
+        await handle_link_download(bot, msg, reply.text, new_name, media)
+    else:
+        if not media:
+            return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
+
+        sts = await msg.reply_text("🚀 Downloading...")
+        c_time = time.time()
+        try:
+            downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))
+        except RPCError as e:
+            return await sts.edit(f"Download failed: {e}")
+
+        output_file = os.path.join(DOWNLOAD_LOCATION, new_name)
+
+        # Change metadata if enabled and set
+        user_id = msg.from_user.id
+        if METADATA_ENABLED and user_id in user_settings and any(user_settings[user_id].values()):
+            video_title = user_settings[user_id]['video_title']
+            audio_title = user_settings[user_id]['audio_title']
+            subtitle_title = user_settings[user_id]['subtitle_title']
+
+            await edit_message(sts, "💠 Changing metadata...")
+            try:
+                change_video_metadata(downloaded, video_title, audio_title, subtitle_title, output_file)
+            except Exception as e:
+                await edit_message(sts, f"Error changing metadata: {e}")
+                os.remove(downloaded)
+                return
+        else:
+            output_file = downloaded
+
+        filesize = os.path.getsize(output_file)
+        filesize_human = humanbytes(filesize)
+
+        if CAPTION:
+            try:
+                cap = CAPTION.format(file_name=new_name, file_size=filesize_human)
+            except Exception as e:
+                return await sts.edit(text=f"Your caption has an error: unexpected keyword ({e})")
+        else:
+            cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
+
+        # Thumbnail handling
+        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+        file_thumb = None
+        if media and media.thumbs:
+            if not os.path.exists(thumbnail_path):
+                try:
+                    file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+                except Exception as e:
+                    print(f"Error downloading thumbnail: {e}")
+
+        await edit_message(sts, "💠 Uploading...")
+        c_time = time.time()
+
+        if filesize > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(output_file, new_name, sts)
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+            await msg.reply_text(
+                f"**File successfully uploaded to Google Drive!**\n\n"
+                f"**Google Drive Link**: [View File]({file_link})\n\n"
+                f"**Uploaded File**: {new_name}\n"
+                f"**Request User:** {msg.from_user.mention}\n\n"
+                f"**Size**: {filesize_human}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        else:
+            try:
+                await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
+            except ValueError as e:
+                return await sts.edit(f"Upload failed: {e}")
+            except TimeoutError as e:
+                return await sts.edit(f"Upload timed out: {e}")
+
+        try:
+            if file_thumb and os.path.exists(file_thumb):
+                os.remove(file_thumb)
+            if os.path.exists(downloaded):
+                os.remove(downloaded)
+            if os.path.exists(output_file):
+                os.remove(output_file)
+        except Exception as e:
+            print(f"Error deleting files: {e}")
+        await sts.delete()
+
+async def handle_link_download(bot, msg: Message, link: str, new_name: str, media):
+    sts = await msg.reply_text("🚀 Downloading from link...")
+    c_time = time.time()
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(link) as resp:
+                if resp.status == 200:
+                    with open(new_name, 'wb') as f:
+                        f.write(await resp.read())
+                else:
+                    await sts.edit(f"Failed to download file from link. Status code: {resp.status}")
+                    return
+    except Exception as e:
+        await sts.edit(f"Error during download: {e}")
+        return
+
+    if not os.path.exists(new_name):
+        await sts.edit("File not found after download. Please check the link and try again.")
+        return
+
+    filesize = os.path.getsize(new_name)
+    filesize_human = humanbytes(filesize)
+    cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
+
+    # Thumbnail handling
+    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    file_thumb = None
+    if media and media.thumbs:
+        if not os.path.exists(thumbnail_path):
+            try:
+                file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+            except Exception as e:
+                print(f"Error downloading thumbnail: {e}")
+
+    await edit_message(sts, "💠 Uploading...")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(new_name, new_name, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**Leech File successfully uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {new_name}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=new_name, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
+        except ValueError as e:
+            return await sts.edit(f"Upload failed: {e}")
+        except TimeoutError as e:
+            return await sts.edit(f"Upload timed out: {e}")
+
+    try:
+        if file_thumb:
+            os.remove(file_thumb)
+        os.remove(new_name)
+    except Exception as e:
+        print(f"Error deleting file: {e}")
+    await sts.delete()
+
+async def edit_message(message, new_text):
+    try:
+        if message.text != new_text:
+            await message.edit(new_text)
+    except MessageNotModified:
+        pass
+    
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
