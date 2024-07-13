@@ -2436,7 +2436,6 @@ from yt_dlp import YoutubeDL
 user_quality_selection = {}
 
 
-
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
@@ -2449,6 +2448,22 @@ async def ytdlleech_handler(client: Client, msg: Message):
     url = parts[0].strip()
     new_name = parts[1].strip() if len(parts) > 1 else None
 
+    # Initial options for video or audio selection
+    buttons = [
+        [InlineKeyboardButton("Download Video", callback_data=f"video_{url}_{new_name}")],
+        [InlineKeyboardButton("Download Audio", callback_data=f"audio_{url}_{new_name}")]
+    ]
+    await msg.reply_text("Choose download type:", reply_markup=InlineKeyboardMarkup(buttons))
+
+# Callback query handler for initial video/audio selection
+@Client.on_callback_query(filters.regex(r"^(video|audio)_.+$"))
+async def initial_selection_handler(client: Client, query):
+    user_id = query.from_user.id
+    data_parts = query.data.split('_')
+    selection_type = data_parts[0]
+    url = data_parts[1]
+    new_name = data_parts[2] if len(data_parts) > 2 else None
+
     ydl_opts = {
         'quiet': True,
         'skip_download': True,
@@ -2460,41 +2475,42 @@ async def ytdlleech_handler(client: Client, msg: Message):
         with YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=False)
             formats = info_dict.get('formats', [])
-            buttons = [
-                InlineKeyboardButton(f"{f['format_note']} - {f['filesize']/(1024*1024):.2f} MB", callback_data=f"{f['format_id']}")
-                for f in formats if f.get('filesize')
-            ]
-            buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
-            await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
-            user_quality_selection[msg.from_user.id] = (url, info_dict['title'], new_name, info_dict.get('thumbnail'))
+
+            if selection_type == "video":
+                h264_buttons = [
+                    InlineKeyboardButton(f"H.264 {f['format_note']} - {f['filesize']/(1024*1024):.2f} MB", callback_data=f"vid_h264_{f['format_id']}_{url}_{new_name}")
+                    for f in formats if 'h264' in f['vcodec'] and f.get('filesize')
+                ]
+                h265_buttons = [
+                    InlineKeyboardButton(f"H.265 {f['format_note']} - {f['filesize']/(1024*1024):.2f} MB", callback_data=f"vid_h265_{f['format_id']}_{url}_{new_name}")
+                    for f in formats if 'h265' in f['vcodec'] and f.get('filesize')
+                ]
+                buttons = h264_buttons + h265_buttons
+                buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+                await query.message.reply_text("Choose video quality (H.264/H.265):", reply_markup=InlineKeyboardMarkup(buttons))
+            
+            elif selection_type == "audio":
+                audio_buttons = [
+                    InlineKeyboardButton("128 kbps", callback_data=f"aud_{url}_{new_name}_128"),
+                    InlineKeyboardButton("256 kbps", callback_data=f"aud_{url}_{new_name}_256"),
+                    InlineKeyboardButton("320 kbps", callback_data=f"aud_{url}_{new_name}_320")
+                ]
+                await query.message.reply_text("Choose audio quality:", reply_markup=InlineKeyboardMarkup([audio_buttons]))
+
+        user_quality_selection[user_id] = (url, info_dict['title'], new_name, info_dict.get('thumbnail'))
 
     except Exception as e:
-        await msg.reply_text(f"Error: {e}")
+        await query.message.reply_text(f"Error: {e}")
 
-# Callback query handler
-@Client.on_callback_query(filters.regex(r"^\d+$"))
-async def callback_query_handler(client: Client, query):
+# Callback query handler for video quality selection
+@Client.on_callback_query(filters.regex(r"^vid_(h264|h265)_\d+_.+$"))
+async def video_quality_handler(client: Client, query):
     user_id = query.from_user.id
-    format_id = query.data
-
-    if user_id not in user_quality_selection:
-        return await query.answer("No download in progress.")
-
-    url, original_title, new_name, thumbnail_url = user_quality_selection.pop(user_id)
-    new_name = new_name if new_name else original_title
-
-    audio_buttons = [
-        InlineKeyboardButton("128 kbps", callback_data=f"{format_id}_128"),
-        InlineKeyboardButton("256 kbps", callback_data=f"{format_id}_256"),
-        InlineKeyboardButton("320 kbps", callback_data=f"{format_id}_320")
-    ]
-    await query.message.reply_text("Choose audio quality:", reply_markup=InlineKeyboardMarkup([audio_buttons]))
-
-@Client.on_callback_query(filters.regex(r"^\d+_\d+$"))
-async def audio_quality_handler(client: Client, query):
-    user_id = query.from_user.id
-    format_audio_id = query.data.split('_')
-    format_id, audio_kbps = format_audio_id[0], format_audio_id[1]
+    data_parts = query.data.split('_')
+    codec = data_parts[1]
+    format_id = data_parts[2]
+    url = data_parts[3]
+    new_name = data_parts[4] if len(data_parts) > 4 else None
 
     if user_id not in user_quality_selection:
         return await query.answer("No download in progress.")
@@ -2503,7 +2519,7 @@ async def audio_quality_handler(client: Client, query):
     new_name = new_name if new_name else original_title
 
     ydl_opts = {
-        'format': f"{format_id}+bestaudio[abr={audio_kbps}]",
+        'format': format_id,
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
         'quiet': True,
         'noplaylist': True,
@@ -2551,6 +2567,70 @@ async def audio_quality_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         await query.message.delete()
+
+# Callback query handler for audio quality selection
+@Client.on_callback_query(filters.regex(r"^aud_.+_(128|256|320)$"))
+async def audio_quality_handler(client: Client, query):
+    user_id = query.from_user.id
+    data_parts = query.data.split('_')
+    url = data_parts[1]
+    new_name = data_parts[2]
+    audio_kbps = data_parts[3]
+
+    if user_id not in user_quality_selection:
+        return await query.answer("No download in progress.")
+
+    url, original_title, new_name, thumbnail_url = user_quality_selection.pop(user_id)
+    new_name = new_name if new_name else original_title
+
+    ydl_opts = {
+        'format': f"bestaudio[abr={audio_kbps}]",
+        'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
+        'quiet': True,
+        'noplaylist': True,
+    }
+
+    sts = await query.message.reply_text("🚀 Downloading... ⚡")
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
+        file_size = os.path.getsize(download_path)
+
+        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
+        file_thumb = None
+
+        if thumbnail_url:
+            ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
+            with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
+                ydl_thumb.download([thumbnail_url])
+            file_thumb = thumbnail_path
+
+        if file_size >= FILE_SIZE_LIMIT:
+            await sts.edit("💠 Uploading...")
+            file_link = await upload_to_google_drive(download_path, new_name, sts)
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+            await query.message.reply_text(
+                f"**File successfully uploaded to Google Drive!**\n\n"
+                f"**Google Drive Link**: [View File]({file_link})\n\n"
+                f"**Uploaded File**: {new_name}\n"
+                f"**Size**: {humanbytes(file_size)}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        else:
+            await query.message.reply_document(
+                document=download_path,
+                caption=f"**Uploaded File**: {new_name}",
+                thumb=file_thumb
+            )
+
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+    finally:
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
+        await sts.delete()
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
