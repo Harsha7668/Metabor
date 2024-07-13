@@ -2298,141 +2298,8 @@ async def edit_message(message, new_text):
 """
 
 
+
 """
-from yt_dlp import YoutubeDL
-
-# Dictionary to store the user's quality selection
-user_quality_selection = {}
-
-
-
-async def upload_to_google_drive1(bot, msg, file_path, gdrive_folder_id, new_name):
-    sts = await msg.reply_text("💠 Uploading to Google Drive...")
-    filesize = os.path.getsize(file_path)
-    start_time = time.time()
-
-    file_metadata = {'name': new_name, 'parents': [gdrive_folder_id]}
-    media = MediaFileUpload(file_path, resumable=True)
-
-    request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
-    response = None
-    while response is None:
-        status, response = request.next_chunk()
-        if status:
-            current_progress = status.progress() * 100
-            await progress_message(current_progress, 100, "Uploading to Google Drive", sts, start_time)
-
-    file_id = response.get('id')
-    file_link = response.get('webViewLink')
-
-    if CAPTION:
-        caption_text = CAPTION.format(file_name=new_name, file_size=humanbytes(filesize))
-    else:
-        caption_text = f"Uploaded File: {new_name}\nSize: {humanbytes(filesize)}"
-
-    button = [
-        [InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]
-    ]
-    await msg.reply_text(
-        f"File successfully mirrored and uploaded to Google Drive!\n\n"
-        f"Google Drive Link: [View File]({file_link})\n\n"
-        f"Uploaded File: {new_name}\n"
-        f"Size: {humanbytes(filesize)}",
-        reply_markup=InlineKeyboardMarkup(button)
-    )
-    os.remove(file_path)
-    await sts.delete()
-
-@Client.on_message(filters.private & filters.command("ytdlleech"))
-async def ytdlleech(bot, msg: Message):
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide a YouTube link.")
-
-    url = msg.text.split(" ", 1)[1]
-
-    ydl_opts = {
-        'quiet': True,
-        'skip_download': True,
-        'force_generic_extractor': True,
-    }
-    with YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(url, download=False)
-        formats = info_dict.get('formats', [])
-        buttons = [
-            InlineKeyboardButton(f"{f['format_note']} - {f['filesize']/(1024*1024):.2f} MB", callback_data=f"{f['format_id']}")
-            for f in formats if f.get('filesize')
-        ]
-        # Split buttons into rows of two
-        buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
-        await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
-        user_quality_selection[msg.from_user.id] = (url, info_dict['title'], info_dict.get('thumbnail'))
-
-@Client.on_callback_query(filters.regex(r"^\d+$"))
-async def callback_query_handler(bot, query):
-    user_id = query.from_user.id
-    format_id = query.data
-
-    if user_id not in user_quality_selection:
-        return await query.answer("No download in progress.")
-
-    url, new_name, thumbnail_url = user_quality_selection.pop(user_id)
-
-    ydl_opts = {
-        'format': format_id,
-        'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
-        'progress_hooks': [lambda d: download_hook(d, query)]
-    }
-    with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-
-    download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
-    file_size = os.path.getsize(download_path)
-
-    if file_size < FILE_SIZE_LIMIT:
-        await upload_to_telegram1(bot, query.message, download_path, new_name, thumbnail_url)
-    else:
-        gdrive_folder_id = user_gdrive_folder_ids.get(user_id)
-        if not gdrive_folder_id:
-            await query.message.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
-            return
-        await upload_to_google_drive1(bot, query.message, download_path, gdrive_folder_id, new_name)
-
-async def upload_to_telegram1(bot, msg, file_path, new_name, thumbnail_url):
-    sts = await msg.reply_text("💠 Uploading to Telegram...")
-    try:
-        if thumbnail_url:
-            thumbnail_path = os.path.join(DOWNLOAD_LOCATION, "thumbnail.jpg")
-            ydl_opts = {'outtmpl': thumbnail_path}
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([thumbnail_url])
-            thumb = thumbnail_path
-        else:
-            thumb = None
-        
-        await bot.send_video(
-            chat_id=msg.chat.id,
-            video=file_path,
-            caption=new_name,
-            thumb=thumb,
-            supports_streaming=True,
-        )
-        os.remove(file_path)
-        if thumb:
-            os.remove(thumb)
-        await sts.delete()
-    except Exception as e:
-        await sts.edit(f"Error: {e}")
-
-async def download_hook(d, query):
-    if d['status'] == 'downloading':
-        elapsed_time = time.time() - d['elapsed']
-        progress = d['_percent_str']
-        speed = d['_speed_str']
-        remaining = d['_eta_str']
-        text = f"🚀 Downloading... {progress}\nSpeed: {speed}\nETA: {remaining}"
-        query.message.edit_text(text)
-"""
-
 from yt_dlp import YoutubeDL
 
 # Dictionary to store the user's quality selection
@@ -2560,6 +2427,104 @@ async def upload_to_telegram1(bot, msg, file_path, new_name, thumbnail_url):
         await sts.delete()
     except Exception as e:
         await sts.edit(f"Error: {e}")
+"""
+from yt_dlp import YoutubeDL
+
+# Dictionary to store the user's quality selection
+user_quality_selection = {}
+
+
+@Client.on_message(filters.private & filters.command("ytdlleech"))
+async def ytdlleech(bot, msg: Message):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a YouTube link.")
+
+    url = msg.text.split(" ", 1)[1]
+
+    ydl_opts = {
+        'quiet': True,
+        'skip_download': True,
+        'force_generic_extractor': True,
+    }
+    with YoutubeDL(ydl_opts) as ydl:
+        info_dict = ydl.extract_info(url, download=False)
+        formats = info_dict.get('formats', [])
+        buttons = [
+            InlineKeyboardButton(f"{f['format_note']} - {f['filesize']/(1024*1024):.2f} MB", callback_data=f"{f['format_id']}")
+            for f in formats if f.get('filesize')
+        ]
+        # Split buttons into rows of two
+        buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+        await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
+        user_quality_selection[msg.from_user.id] = (url, info_dict['title'], info_dict.get('thumbnail'))
+
+
+
+@Client.on_callback_query(filters.regex(r"^\d+$"))
+async def callback_query_handler(bot, query):
+    user_id = query.from_user.id
+    format_id = query.data
+
+    if user_id not in user_quality_selection:
+        return await query.answer("No download in progress.")
+
+    url, new_name, thumbnail_url = user_quality_selection.pop(user_id)
+
+    ydl_opts = {
+        'format': format_id,
+        'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
+    }
+
+    sts = await query.message.reply_text("🚀 Downloading... ⚡")
+    start_time = time.time()
+
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
+        file_size = os.path.getsize(download_path)
+
+        # Thumbnail handling
+        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
+        file_thumb = None
+
+        if thumbnail_url:
+            ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
+            with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
+                ydl_thumb.download([thumbnail_url])
+            file_thumb = thumbnail_path
+
+        if file_size < FILE_SIZE_LIMIT:
+            await upload_to_telegram1(bot, query.message, download_path, new_name, file_thumb)
+        else:
+            await sts.edit("💠 Uploading...")
+            c_time = time.time()
+
+            gdrive_folder_id = user_gdrive_folder_ids.get(user_id)
+            if not gdrive_folder_id:
+                await query.message.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+                return await sts.delete()
+
+            file_link = await upload_to_google_drive1(bot, query.message, download_path, gdrive_folder_id, new_name)
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+            await query.message.reply_text(
+                f"**From YouTube Link to File successfully uploaded to Google Drive!**\n\n"
+                f"**Google Drive Link**: [View File]({file_link})\n\n"
+                f"**Uploaded File**: {new_name}\n"
+                f"**Size**: {humanbytes(file_size)}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        
+        os.remove(download_path)
+
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+        return
+
+    finally:
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
+        await sts.delete()
 
     
 if __name__ == '__main__':
