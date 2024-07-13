@@ -2297,180 +2297,140 @@ async def edit_message(message, new_text):
         pass
 """
 
-# Leech Handler Only Auth Users
-@Client.on_message(filters.command("leechlink") & filters.chat(AUTH_USERS))
-async def linktofilemetadata(bot, msg: Message):
-    global METADATA_ENABLED, user_settings
 
-    reply = msg.reply_to_message
-    if len(msg.command) < 2 or not reply:
-        return await msg.reply_text("Please reply to a file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
+from yt_dlp import YoutubeDL
 
-    new_name = msg.text.split(" ", 1)[1]
-    if not new_name.endswith(".mkv"):
-        return await msg.reply_text("Please specify a filename ending with .mkv.")
 
-    media = reply.document or reply.audio or reply.video
-    if not media and not reply.text:
-        return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
+# Dictionary to store the user's quality selection
+user_quality_selection = {}
 
-    if reply.text and ("seedr" in reply.text or "workers" in reply.text):
-        await handle_link_download(bot, msg, reply.text, new_name, media)
+
+
+async def upload_to_google_drive1(bot, msg, file_path, gdrive_folder_id, new_name):
+    sts = await msg.reply_text("💠 Uploading to Google Drive...")
+    filesize = os.path.getsize(file_path)
+    start_time = time.time()
+
+    file_metadata = {'name': new_name, 'parents': [gdrive_folder_id]}
+    media = MediaFileUpload(file_path, resumable=True)
+
+    request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+    response = None
+    while response is None:
+        status, response = request.next_chunk()
+        if status:
+            current_progress = status.progress() * 100
+            await progress_message(current_progress, 100, "Uploading to Google Drive", sts, start_time)
+
+    file_id = response.get('id')
+    file_link = response.get('webViewLink')
+
+    if CAPTION:
+        caption_text = CAPTION.format(file_name=new_name, file_size=humanbytes(filesize))
     else:
-        if not media:
-            return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
+        caption_text = f"Uploaded File: {new_name}\nSize: {humanbytes(filesize)}"
 
-        sts = await msg.reply_text("🚀 Downloading...")
-        c_time = time.time()
-        try:
-            downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))
-        except RPCError as e:
-            return await sts.edit(f"Download failed: {e}")
-
-        output_file = os.path.join(DOWNLOAD_LOCATION, new_name)
-
-        # Change metadata if enabled and set
-        user_id = msg.from_user.id
-        if METADATA_ENABLED and user_id in user_settings and any(user_settings[user_id].values()):
-            video_title = user_settings[user_id]['video_title']
-            audio_title = user_settings[user_id]['audio_title']
-            subtitle_title = user_settings[user_id]['subtitle_title']
-
-            await edit_message(sts, "💠 Changing metadata...")
-            try:
-                change_video_metadata(downloaded, video_title, audio_title, subtitle_title, output_file)
-            except Exception as e:
-                await edit_message(sts, f"Error changing metadata: {e}")
-                os.remove(downloaded)
-                return
-        else:
-            output_file = downloaded
-
-        filesize = os.path.getsize(output_file)
-        filesize_human = humanbytes(filesize)
-
-        if CAPTION:
-            try:
-                cap = CAPTION.format(file_name=new_name, file_size=filesize_human)
-            except Exception as e:
-                return await sts.edit(text=f"Your caption has an error: unexpected keyword ({e})")
-        else:
-            cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
-
-        # Thumbnail handling
-        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-        file_thumb = None
-        if media and media.thumbs:
-            if not os.path.exists(thumbnail_path):
-                try:
-                    file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-                except Exception as e:
-                    print(f"Error downloading thumbnail: {e}")
-
-        await edit_message(sts, "💠 Uploading...")
-        c_time = time.time()
-
-        if filesize > FILE_SIZE_LIMIT:
-            file_link = await upload_to_google_drive(output_file, new_name, sts)
-            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-            await msg.reply_text(
-                f"**File successfully uploaded to Google Drive!**\n\n"
-                f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {new_name}\n"
-                f"**Request User:** {msg.from_user.mention}\n\n"
-                f"**Size**: {filesize_human}",
-                reply_markup=InlineKeyboardMarkup(button)
-            )
-        else:
-            try:
-                await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
-            except ValueError as e:
-                return await sts.edit(f"Upload failed: {e}")
-            except TimeoutError as e:
-                return await sts.edit(f"Upload timed out: {e}")
-
-        try:
-            if file_thumb and os.path.exists(file_thumb):
-                os.remove(file_thumb)
-            if os.path.exists(downloaded):
-                os.remove(downloaded)
-            if os.path.exists(output_file):
-                os.remove(output_file)
-        except Exception as e:
-            print(f"Error deleting files: {e}")
-        await sts.delete()
-
-async def handle_link_download(bot, msg: Message, link: str, new_name: str, media):
-    sts = await msg.reply_text("🚀 Downloading from link...")
-    c_time = time.time()
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(link) as resp:
-                if resp.status == 200:
-                    with open(new_name, 'wb') as f:
-                        f.write(await resp.read())
-                else:
-                    await sts.edit(f"Failed to download file from link. Status code: {resp.status}")
-                    return
-    except Exception as e:
-        await sts.edit(f"Error during download: {e}")
-        return
-
-    if not os.path.exists(new_name):
-        await sts.edit("File not found after download. Please check the link and try again.")
-        return
-
-    filesize = os.path.getsize(new_name)
-    filesize_human = humanbytes(filesize)
-    cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
-
-    # Thumbnail handling
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    file_thumb = None
-    if media and media.thumbs:
-        if not os.path.exists(thumbnail_path):
-            try:
-                file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-            except Exception as e:
-                print(f"Error downloading thumbnail: {e}")
-
-    await edit_message(sts, "💠 Uploading...")
-    c_time = time.time()
-
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(new_name, new_name, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"**Leech File successfully uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {new_name}\n"
-            f"**Request User:** {msg.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-    else:
-        try:
-            await bot.send_document(msg.chat.id, document=new_name, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
-        except ValueError as e:
-            return await sts.edit(f"Upload failed: {e}")
-        except TimeoutError as e:
-            return await sts.edit(f"Upload timed out: {e}")
-
-    try:
-        if file_thumb:
-            os.remove(file_thumb)
-        os.remove(new_name)
-    except Exception as e:
-        print(f"Error deleting file: {e}")
+    button = [
+        [InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]
+    ]
+    await msg.reply_text(
+        f"File successfully mirrored and uploaded to Google Drive!\n\n"
+        f"Google Drive Link: [View File]({file_link})\n\n"
+        f"Uploaded File: {new_name}\n"
+        f"Size: {humanbytes(filesize)}",
+        reply_markup=InlineKeyboardMarkup(button)
+    )
+    os.remove(file_path)
     await sts.delete()
 
-async def edit_message(message, new_text):
+@Client.on_message(filters.private & filters.command("ytdlleech"))
+async def ytdlleech(bot, msg: Message):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a YouTube link.")
+
+    url = msg.text.split(" ", 1)[1]
+
+    ydl_opts = {
+        'quiet': True,
+        'skip_download': True,
+        'force_generic_extractor': True,
+    }
+    with YoutubeDL(ydl_opts) as ydl:
+        info_dict = ydl.extract_info(url, download=False)
+        formats = info_dict.get('formats', [])
+        buttons = [
+            [InlineKeyboardButton(f"{f['format_note']} - {f['filesize']/(1024*1024):.2f} MB", callback_data=f"{f['format_id']}")]
+            for f in formats if f.get('filesize')
+        ]
+        await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
+        user_quality_selection[msg.from_user.id] = (url, info_dict['title'])
+
+@Client.on_callback_query(filters.regex(r"^\d+$"))
+async def callback_query_handler(bot, query):
+    user_id = query.from_user.id
+    format_id = query.data
+
+    if user_id not in user_quality_selection:
+        return await query.answer("No download in progress.")
+
+    url, new_name = user_quality_selection.pop(user_id)
+
+    ydl_opts = {
+        'format': format_id,
+        'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
+        'progress_hooks': [lambda d: download_hook(d, query)]
+    }
+    with YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+    download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
+    file_size = os.path.getsize(download_path)
+    thumbnail_url = info_dict.get('thumbnail')
+    
+    if file_size < 2 * 1024 * 1024 * 1024:
+        await upload_to_telegram1(bot, query.message, download_path, new_name, thumbnail_url)
+    else:
+        gdrive_folder_id = user_gdrive_folder_ids.get(user_id)
+        if not gdrive_folder_id:
+            await query.message.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
+            return
+        await upload_to_google_drive1(bot, query.message, download_path, gdrive_folder_id, new_name)
+
+async def upload_to_telegram1(bot, msg, file_path, new_name, thumbnail_url):
+    sts = await msg.reply_text("💠 Uploading to Telegram...")
     try:
-        if message.text != new_text:
-            await message.edit(new_text)
-    except MessageNotModified:
-        pass
+        if thumbnail_url:
+            thumbnail_path = os.path.join(DOWNLOAD_LOCATION, "thumbnail.jpg")
+            ydl_opts = {'outtmpl': thumbnail_path}
+            with YoutubeDL(ydl_opts) as ydl:
+                ydl.download([thumbnail_url])
+            thumb = thumbnail_path
+        else:
+            thumb = None
+        
+        await bot.send_video(
+            chat_id=msg.chat.id,
+            video=file_path,
+            caption=new_name,
+            thumb=thumb,
+            supports_streaming=True,
+        )
+        os.remove(file_path)
+        if thumb:
+            os.remove(thumb)
+        await sts.delete()
+    except Exception as e:
+        await sts.edit(f"Error: {e}")
+
+def download_hook(d, query):
+    if d['status'] == 'downloading':
+        elapsed_time = time.time() - d['elapsed']
+        progress = d['_percent_str']
+        speed = d['_speed_str']
+        remaining = d['_eta_str']
+        text = f"🚀 Downloading... {progress}\nSpeed: {speed}\nETA: {remaining}"
+        query.message.edit_text(text)
+
     
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
