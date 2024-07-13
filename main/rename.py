@@ -2303,6 +2303,15 @@ from yt_dlp import YoutubeDL
 user_quality_selection = {}
 
 
+
+def progress_hook(d):
+    if d['status'] == 'downloading':
+        current_progress = d.get('_percent_str', '0%')
+        current_size = humanbytes(d.get('total_bytes', 0))
+        status_message.edit_text(f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
+    elif d['status'] == 'finished':
+        status_message.edit_text("Download finished. 🚀")
+
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
@@ -2349,14 +2358,15 @@ async def callback_query_handler(client: Client, query):
     url, original_title, new_name, thumbnail_url = user_quality_selection.pop(user_id)
     new_name = new_name if new_name else original_title
 
+    sts = await query.message.reply_text("🚀 Downloading... ⚡")
     ydl_opts = {
         'format': format_id,
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
         'quiet': True,
         'noplaylist': True,
+        'progress_hooks': [progress_hook],
     }
 
-    sts = await query.message.reply_text("🚀 Downloading... ⚡")
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
@@ -2398,6 +2408,8 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         await query.message.delete()
+
+
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
