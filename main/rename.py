@@ -2532,9 +2532,10 @@ from yt_dlp import YoutubeDL
 
 user_quality_selection = {}
 
+
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
-async def ytdlleech_handler(msg: Message):
+async def ytdlleech_handler(client: Client, msg: Message):
     if len(msg.command) < 2:
         return await msg.reply_text("Please provide a YouTube link.")
 
@@ -2564,7 +2565,7 @@ async def ytdlleech_handler(msg: Message):
 
 # Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+$"))
-async def callback_query_handler(query):
+async def callback_query_handler(client: Client, query):
     user_id = query.from_user.id
     format_id = query.data
 
@@ -2621,6 +2622,8 @@ async def callback_query_handler(query):
             os.remove(file_thumb)
         await sts.delete()
         await query.message.delete()
+
+
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
