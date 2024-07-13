@@ -2422,7 +2422,7 @@ async def upload_to_telegram1(bot, msg, file_path, new_name, thumbnail_url):
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
-def download_hook(d, query):
+async def download_hook(d, query):
     if d['status'] == 'downloading':
         current = d['downloaded_bytes']
         total = d['total_bytes']
