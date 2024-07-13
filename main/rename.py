@@ -2298,11 +2298,10 @@ async def edit_message(message, new_text):
 """
 
 
-
+import os
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from yt_dlp import YoutubeDL
-import os
 
 DOWNLOAD_LOCATION = "/path/to/download"  # Update this path to your download location
 FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB limit
@@ -2359,9 +2358,13 @@ async def callback_query_handler(client: Client, query):
     if not selected_format:
         return await query.answer("Invalid format selection.")
 
+    download_path = os.path.join(DOWNLOAD_LOCATION, f"{new_name}.%(ext)s")
+    if os.path.exists(download_path):
+        os.remove(download_path)  # Ensure old files are deleted
+
     ydl_opts = {
         'format': format_id,
-        'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{new_name}.%(ext)s"),
+        'outtmpl': download_path,
         'quiet': True,
         'noplaylist': True,
     }
@@ -2375,6 +2378,8 @@ async def callback_query_handler(client: Client, query):
 
         if thumbnail_url:
             thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
+            if os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)  # Ensure old thumbnails are deleted
             ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
             with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
                 ydl_thumb.download([thumbnail_url])
@@ -2408,8 +2413,6 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         await query.message.delete()
-
-
 
         
 if __name__ == '__main__':
