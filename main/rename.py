@@ -2428,7 +2428,9 @@ async def upload_to_telegram1(bot, msg, file_path, new_name, thumbnail_url):
     except Exception as e:
         await sts.edit(f"Error: {e}")
 """
+
 from yt_dlp import YoutubeDL
+
 
 # Dictionary to store the user's quality selection
 user_quality_selection = {}
@@ -2445,19 +2447,23 @@ async def ytdlleech(bot, msg: Message):
         'quiet': True,
         'skip_download': True,
         'force_generic_extractor': True,
+        'noplaylist': True,  # Avoid downloading playlist information
     }
-    with YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(url, download=False)
-        formats = info_dict.get('formats', [])
-        buttons = [
-            InlineKeyboardButton(f"{f['format_note']} - {f['filesize']/(1024*1024):.2f} MB", callback_data=f"{f['format_id']}")
-            for f in formats if f.get('filesize')
-        ]
-        # Split buttons into rows of two
-        buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
-        await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
-        user_quality_selection[msg.from_user.id] = (url, info_dict['title'], info_dict.get('thumbnail'))
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=False)
+            formats = info_dict.get('formats', [])
+            buttons = [
+                InlineKeyboardButton(f"{f['format_note']} - {f['filesize']/(1024*1024):.2f} MB", callback_data=f"{f['format_id']}")
+                for f in formats if f.get('filesize')
+            ]
+            # Split buttons into rows of two
+            buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+            await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
+            user_quality_selection[msg.from_user.id] = (url, info_dict['title'], info_dict.get('thumbnail'))
 
+    except Exception as e:
+        await msg.reply_text(f"Error: {e}")
 
 
 @Client.on_callback_query(filters.regex(r"^\d+$"))
@@ -2473,11 +2479,11 @@ async def callback_query_handler(bot, query):
     ydl_opts = {
         'format': format_id,
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
+        'quiet': True,
+        'noplaylist': True,  # Avoid downloading playlist information
     }
 
     sts = await query.message.reply_text("🚀 Downloading... ⚡")
-    start_time = time.time()
-
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
@@ -2495,7 +2501,7 @@ async def callback_query_handler(bot, query):
             file_thumb = thumbnail_path
 
         if file_size < FILE_SIZE_LIMIT:
-            await upload_to_telegram1(bot, query.message, download_path, new_name, file_thumb)
+            await upload_to_telegram(bot, query.message, download_path, new_name, file_thumb)
         else:
             await sts.edit("💠 Uploading...")
             c_time = time.time()
@@ -2505,10 +2511,10 @@ async def callback_query_handler(bot, query):
                 await query.message.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
                 return await sts.delete()
 
-            file_link = await upload_to_google_drive1(bot, query.message, download_path, gdrive_folder_id, new_name)
+            file_link = await upload_to_google_drive(bot, query.message, download_path, gdrive_folder_id, new_name)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
-                f"**From YouTube Link to File successfully uploaded to Google Drive!**\n\n"
+                f"**File successfully uploaded to Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
                 f"**Uploaded File**: {new_name}\n"
                 f"**Size**: {humanbytes(file_size)}",
@@ -2519,12 +2525,15 @@ async def callback_query_handler(bot, query):
 
     except Exception as e:
         await sts.edit(f"Error: {e}")
-        return
 
     finally:
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
         await sts.delete()
+        await query.message.delete()  # Delete inline button message after upload
+
+
+
 
     
 if __name__ == '__main__':
