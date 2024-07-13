@@ -2407,9 +2407,8 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         os.remove(download_path)        
-        await query.message.delete()
+        
 """
-
 from yt_dlp import YoutubeDL
 
 # Global variables
@@ -2479,21 +2478,23 @@ async def callback_query_handler(client: Client, query):
     }
 
     try:
-        # Download the video file
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")
+        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
+        file_size = os.path.getsize(download_path)
 
-        # Handle thumbnail download if available
-        thumbnail_path = None
+        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
+        file_thumb = None
+
         if thumbnail_url:
-            thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
             ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
             with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
                 ydl_thumb.download([thumbnail_url])
+            file_thumb = thumbnail_path
 
-        # Check file size for upload decision
-        file_size = os.path.getsize(download_path)
+        # Remove the inline buttons
+        await query.message.edit_reply_markup(reply_markup=None)
+
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
             file_link = await upload_to_google_drive(download_path, f"{video_title}.mp4", sts)
@@ -2506,22 +2507,21 @@ async def callback_query_handler(client: Client, query):
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
-            # Upload to Telegram if file size is smaller
             await query.message.reply_video(
                 video=download_path,
                 caption=f"**Uploaded Video**: {video_title}.mp4",
-                thumb=thumbnail_path
+                thumb=file_thumb
             )
 
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
     finally:
-        # Clean up temporary files and messages
-        if thumbnail_path and os.path.exists(thumbnail_path):
-            os.remove(thumbnail_path)
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
         await sts.delete()
         os.remove(download_path)
+
         
         
 if __name__ == '__main__':
