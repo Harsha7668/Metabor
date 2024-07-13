@@ -2338,7 +2338,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
             ]
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
-            user_quality_selection[msg.from_user.id] = (url, info_dict['title'], new_name, info_dict.get('thumbnail'))
+            user_quality_selection[msg.from_user.id] = (url, info_dict['title'], new_name, info_dict.get('thumbnail'), formats)
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
@@ -2352,8 +2352,12 @@ async def callback_query_handler(client: Client, query):
     if user_id not in user_quality_selection:
         return await query.answer("No download in progress.")
 
-    url, original_title, new_name, thumbnail_url = user_quality_selection.pop(user_id)
+    url, original_title, new_name, thumbnail_url, formats = user_quality_selection.pop(user_id)
     new_name = new_name if new_name else original_title
+
+    selected_format = next((f for f in formats if f['format_id'] == format_id), None)
+    if not selected_format:
+        return await query.answer("Invalid format selection.")
 
     ydl_opts = {
         'format': format_id,
@@ -2404,6 +2408,7 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         await query.message.delete()
+
 
 
         
