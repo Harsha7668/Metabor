@@ -2299,8 +2299,13 @@ async def edit_message(message, new_text):
 
 
 
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from yt_dlp import YoutubeDL
+import os
 
+DOWNLOAD_LOCATION = "/path/to/download"  # Update this path to your download location
+FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB limit
 
 user_quality_selection = {}
 
@@ -2364,14 +2369,14 @@ async def callback_query_handler(client: Client, query):
             download_path = ydl.prepare_filename(info_dict)
             file_size = os.path.getsize(download_path)
 
-        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
-        file_thumb = None
-
         if thumbnail_url:
+            thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
             ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
             with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
                 ydl_thumb.download([thumbnail_url])
             file_thumb = thumbnail_path
+        else:
+            file_thumb = None
 
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
