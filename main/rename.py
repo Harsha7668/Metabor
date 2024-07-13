@@ -2578,7 +2578,6 @@ async def callback_query_handler(client: Client, query):
 
     url, original_title, new_name, thumbnail_url = user_quality_selection.pop(user_id)
     new_name = new_name if new_name else original_title
-    new_name = f"{new_name}.{format_id}"
 
     ydl_opts = {
         'format': format_id,
