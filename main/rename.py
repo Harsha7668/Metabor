@@ -2532,15 +2532,16 @@ from yt_dlp import YoutubeDL
 
 user_quality_selection = {}
 
+# Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
-async def ytdlleech(bot, msg: Message):
+async def ytdlleech_handler(msg: Message):
     if len(msg.command) < 2:
         return await msg.reply_text("Please provide a YouTube link.")
 
     url = msg.text.split(" ", 1)[1]
 
     ydl_opts = {
-        'quiet': True,  # Adjust as needed
+        'quiet': True,
         'skip_download': True,
         'force_generic_extractor': True,
         'noplaylist': True,
@@ -2561,8 +2562,9 @@ async def ytdlleech(bot, msg: Message):
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
 
+# Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+$"))
-async def callback_query_handler(bot, query):
+async def callback_query_handler(query):
     user_id = query.from_user.id
     format_id = query.data
 
@@ -2574,7 +2576,7 @@ async def callback_query_handler(bot, query):
     ydl_opts = {
         'format': format_id,
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
-        'quiet': True,  # Adjust as needed
+        'quiet': True,
         'noplaylist': True,
     }
 
@@ -2594,10 +2596,10 @@ async def callback_query_handler(bot, query):
                 ydl_thumb.download([thumbnail_url])
             file_thumb = thumbnail_path
 
-        if file_size < FILE_SIZE_LIMIT:
-            await upload_to_telegram(bot, query.message, download_path, new_name, file_thumb)
-        else:
+        if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
+            # Upload to Google Drive or any other cloud storage and get the link
+            # Replace the following function with your actual cloud storage upload function
             file_link = await upload_to_google_drive(download_path, new_name, sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
@@ -2607,8 +2609,9 @@ async def callback_query_handler(bot, query):
                 f"**Size**: {humanbytes(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
-        
-        os.remove(download_path)
+        else:
+            # Directly send the file if it's under 2GB
+            await query.message.reply_document(document=download_path, caption=f"**Uploaded File**: {new_name}")
 
     except Exception as e:
         await sts.edit(f"Error: {e}")
