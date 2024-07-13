@@ -2539,7 +2539,11 @@ async def ytdlleech_handler(client: Client, msg: Message):
     if len(msg.command) < 2:
         return await msg.reply_text("Please provide a YouTube link.")
 
-    url = msg.text.split(" ", 1)[1]
+    command_text = msg.text.split(" ", 1)[1]
+    parts = command_text.split(" -n ")
+
+    url = parts[0].strip()
+    new_name = parts[1].strip() if len(parts) > 1 else None
 
     ydl_opts = {
         'quiet': True,
@@ -2558,7 +2562,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
             ]
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
-            user_quality_selection[msg.from_user.id] = (url, info_dict['title'], info_dict.get('thumbnail'))
+            user_quality_selection[msg.from_user.id] = (url, info_dict['title'], new_name, info_dict.get('thumbnail'))
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
@@ -2572,7 +2576,9 @@ async def callback_query_handler(client: Client, query):
     if user_id not in user_quality_selection:
         return await query.answer("No download in progress.")
 
-    url, new_name, thumbnail_url = user_quality_selection.pop(user_id)
+    url, original_title, new_name, thumbnail_url = user_quality_selection.pop(user_id)
+    new_name = new_name if new_name else original_title
+    new_name = f"{new_name}.{format_id}"
 
     ydl_opts = {
         'format': format_id,
@@ -2599,8 +2605,6 @@ async def callback_query_handler(client: Client, query):
 
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
-            # Upload to Google Drive or any other cloud storage and get the link
-            # Replace the following function with your actual cloud storage upload function
             file_link = await upload_to_google_drive(download_path, new_name, sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
@@ -2611,8 +2615,11 @@ async def callback_query_handler(client: Client, query):
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
-            # Directly send the file if it's under 2GB
-            await query.message.reply_document(document=download_path, caption=f"**Uploaded File**: {new_name}")
+            await query.message.reply_document(
+                document=download_path,
+                caption=f"**Uploaded File**: {new_name}",
+                thumb=file_thumb
+            )
 
     except Exception as e:
         await sts.edit(f"Error: {e}")
@@ -2622,8 +2629,6 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         await query.message.delete()
-
-
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
