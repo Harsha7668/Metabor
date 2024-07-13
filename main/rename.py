@@ -2296,21 +2296,23 @@ async def edit_message(message, new_text):
     except MessageNotModified:
         pass
 """
-
-
 from yt_dlp import YoutubeDL
+import os
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 user_quality_selection = {}
 
 
-
-def progress_hook(d):
-    if d['status'] == 'downloading':
-        current_progress = d.get('_percent_str', '0%')
-        current_size = humanbytes(d.get('total_bytes', 0))
-        status_message.edit_text(f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
-    elif d['status'] == 'finished':
-        status_message.edit_text("Download finished. 🚀")
+def progress_hook(status_message):
+    def hook(d):
+        if d['status'] == 'downloading':
+            current_progress = d.get('_percent_str', '0%')
+            current_size = humanbytes(d.get('total_bytes', 0))
+            status_message.edit_text(f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
+        elif d['status'] == 'finished':
+            status_message.edit_text("Download finished. 🚀")
+    return hook
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2364,7 +2366,7 @@ async def callback_query_handler(client: Client, query):
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
         'quiet': True,
         'noplaylist': True,
-        'progress_hooks': [progress_hook],
+        'progress_hooks': [progress_hook(sts)],
     }
 
     try:
