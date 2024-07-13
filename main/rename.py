@@ -2492,9 +2492,6 @@ async def callback_query_handler(client: Client, query):
                 ydl_thumb.download([thumbnail_url])
             file_thumb = thumbnail_path
 
-        # Remove the inline buttons
-        await query.message.edit_reply_markup(reply_markup=None)
-
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
             file_link = await upload_to_google_drive(download_path, f"{video_title}.mp4", sts)
@@ -2513,6 +2510,8 @@ async def callback_query_handler(client: Client, query):
                 thumb=file_thumb
             )
 
+        await query.message.delete()  # Delete the message with inline buttons
+
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
@@ -2521,7 +2520,6 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         os.remove(download_path)
-
         
         
 if __name__ == '__main__':
