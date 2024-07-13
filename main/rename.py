@@ -2297,21 +2297,15 @@ async def edit_message(message, new_text):
         pass
 """
 from yt_dlp import YoutubeDL
-import os
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
-
-user_quality_selection = {}
-
 
 def progress_hook(status_message):
-    def hook(d):
+    async def hook(d):
         if d['status'] == 'downloading':
             current_progress = d.get('_percent_str', '0%')
             current_size = humanbytes(d.get('total_bytes', 0))
-            status_message.edit_text(f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
+            await status_message.edit_text(f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
         elif d['status'] == 'finished':
-            status_message.edit_text("Download finished. 🚀")
+            await status_message.edit_text("Download finished. 🚀")
     return hook
 
 # Function to handle "/ytdlleech" command
@@ -2338,7 +2332,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
             info_dict = ydl.extract_info(url, download=False)
             formats = info_dict.get('formats', [])
             buttons = [
-                InlineKeyboardButton(f"{f['format_note']} - {f['filesize']/(1024*1024):.2f} MB", callback_data=f"{f['format_id']}")
+                InlineKeyboardButton(f"{f['format_note']} - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}")
                 for f in formats if f.get('filesize')
             ]
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
