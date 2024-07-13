@@ -2298,27 +2298,18 @@ async def edit_message(message, new_text):
 """
 
 
-import os
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from yt_dlp import YoutubeDL
-
-DOWNLOAD_LOCATION = "/path/to/download"  # Update this path to your download location
-FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB limit
 
 user_quality_selection = {}
 
+
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
-async def ytdlleech_handler(client: Client, msg: Message):
+async def ytdlleech_handler(msg: Message):
     if len(msg.command) < 2:
         return await msg.reply_text("Please provide a YouTube link.")
 
-    command_text = msg.text.split(" ", 1)[1]
-    parts = command_text.split(" -n ")
-
-    url = parts[0].strip()
-    new_name = parts[1].strip() if len(parts) > 1 else None
+    url = msg.text.split(" ", 1)[1]
 
     ydl_opts = {
         'quiet': True,
@@ -2337,34 +2328,25 @@ async def ytdlleech_handler(client: Client, msg: Message):
             ]
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
-            user_quality_selection[msg.from_user.id] = (url, info_dict['title'], new_name, info_dict.get('thumbnail'), formats)
+            user_quality_selection[msg.from_user.id] = (url, info_dict['title'], info_dict.get('thumbnail'))
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
 
 # Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+$"))
-async def callback_query_handler(client: Client, query):
+async def callback_query_handler(query):
     user_id = query.from_user.id
     format_id = query.data
 
     if user_id not in user_quality_selection:
         return await query.answer("No download in progress.")
 
-    url, original_title, new_name, thumbnail_url, formats = user_quality_selection.pop(user_id)
-    new_name = new_name if new_name else original_title
-
-    selected_format = next((f for f in formats if f['format_id'] == format_id), None)
-    if not selected_format:
-        return await query.answer("Invalid format selection.")
-
-    download_path = os.path.join(DOWNLOAD_LOCATION, f"{new_name}.%(ext)s")
-    if os.path.exists(download_path):
-        os.remove(download_path)  # Ensure old files are deleted
+    url, new_name, thumbnail_url = user_quality_selection.pop(user_id)
 
     ydl_opts = {
         'format': format_id,
-        'outtmpl': download_path,
+        'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
         'quiet': True,
         'noplaylist': True,
     }
@@ -2372,38 +2354,32 @@ async def callback_query_handler(client: Client, query):
     sts = await query.message.reply_text("🚀 Downloading... ⚡")
     try:
         with YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=True)
-            download_path = ydl.prepare_filename(info_dict)
-            file_size = os.path.getsize(download_path)
+            ydl.download([url])
+        download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
+        file_size = os.path.getsize(download_path)
+
+        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
+        file_thumb = None
 
         if thumbnail_url:
-            thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
-            if os.path.exists(thumbnail_path):
-                os.remove(thumbnail_path)  # Ensure old thumbnails are deleted
             ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
             with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
                 ydl_thumb.download([thumbnail_url])
             file_thumb = thumbnail_path
-        else:
-            file_thumb = None
 
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
             file_link = await upload_to_google_drive(download_path, new_name, sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
-                f"**From YouTube Link To File Successfully uploaded to Google Drive!**\n\n"
+                f"**File successfully uploaded to Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
                 f"**Uploaded File**: {new_name}\n"
                 f"**Size**: {humanbytes(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
-        else:
-            await query.message.reply_document(
-                document=download_path,
-                caption=f"**Uploaded File**: {new_name}",
-                thumb=file_thumb
-            )
+        
+        os.remove(download_path)
 
     except Exception as e:
         await sts.edit(f"Error: {e}")
@@ -2413,6 +2389,7 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         await query.message.delete()
+
 
         
 if __name__ == '__main__':
