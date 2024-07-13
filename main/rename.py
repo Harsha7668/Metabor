@@ -2296,7 +2296,12 @@ async def edit_message(message, new_text):
     except MessageNotModified:
         pass
 """
+
 from yt_dlp import YoutubeDL
+
+# Global variables
+user_quality_selection = {}
+
 
 def progress_hook(status_message):
     async def hook(d):
@@ -2315,10 +2320,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
         return await msg.reply_text("Please provide a YouTube link.")
 
     command_text = msg.text.split(" ", 1)[1]
-    parts = command_text.split(" -n ")
-
-    url = parts[0].strip()
-    new_name = parts[1].strip() if len(parts) > 1 else None
+    url = command_text.strip()
 
     ydl_opts = {
         'quiet': True,
@@ -2331,13 +2333,14 @@ async def ytdlleech_handler(client: Client, msg: Message):
         with YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=False)
             formats = info_dict.get('formats', [])
+
             buttons = [
                 InlineKeyboardButton(f"{f['format_note']} - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}")
                 for f in formats if f.get('filesize')
             ]
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
-            user_quality_selection[msg.from_user.id] = (url, info_dict['title'], new_name, info_dict.get('thumbnail'))
+            user_quality_selection[msg.from_user.id] = (url, info_dict['title'], info_dict.get('thumbnail'))
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
@@ -2351,13 +2354,12 @@ async def callback_query_handler(client: Client, query):
     if user_id not in user_quality_selection:
         return await query.answer("No download in progress.")
 
-    url, original_title, new_name, thumbnail_url = user_quality_selection.pop(user_id)
-    new_name = new_name if new_name else original_title
+    url, video_title, thumbnail_url = user_quality_selection.pop(user_id)
 
     sts = await query.message.reply_text("🚀 Downloading... ⚡")
     ydl_opts = {
         'format': format_id,
-        'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
+        'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
         'progress_hooks': [progress_hook(sts)],
@@ -2366,7 +2368,7 @@ async def callback_query_handler(client: Client, query):
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
+        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
         file_size = os.path.getsize(download_path)
 
         thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
@@ -2380,19 +2382,19 @@ async def callback_query_handler(client: Client, query):
 
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
-            file_link = await upload_to_google_drive(download_path, new_name, sts)
+            file_link = await upload_to_google_drive(download_path, f"{video_title}.mp4", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
                 f"**File successfully uploaded to Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {new_name}\n"
+                f"**Uploaded File**: {video_title}.mp4\n"
                 f"**Size**: {humanbytes(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
-            await query.message.reply_document(
-                document=download_path,
-                caption=f"**Uploaded File**: {new_name}",
+            await query.message.reply_video(
+                video=download_path,
+                caption=f"**Uploaded Video**: {video_title}.mp4",
                 thumb=file_thumb
             )
 
@@ -2403,7 +2405,7 @@ async def callback_query_handler(client: Client, query):
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
         await sts.delete()
-        await query.message.delete()
+        os.remove(download_path)
 
 
         
