@@ -2409,13 +2409,21 @@ async def callback_query_handler(client: Client, query):
         os.remove(download_path)        
         
 """
+
 from yt_dlp import YoutubeDL
+import os
 
 # Global variables
 user_quality_selection = {}
+DOWNLOAD_LOCATION = "./DOWNLOADS"  # Define your download location
+FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # Example file size limit (2GB)
 
+def humanbytes(size):
+    # Function to convert bytes to a human-readable format
+    # Add your implementation here
+    pass
 
-def progress_hook(status_message):
+async def progress_hook(status_message):
     async def hook(d):
         if d['status'] == 'downloading':
             current_progress = d.get('_percent_str', '0%')
@@ -2474,24 +2482,23 @@ async def callback_query_handler(client: Client, query):
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
-        'progress_hooks': [progress_hook(sts)],
+        'progress_hooks': [await progress_hook(sts)],  # Await the progress hook
         'merge_output_format': 'mp4'  # Ensure the output is in mp4 format
     }
+
+    download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
+    file_thumb = None
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
         file_size = os.path.getsize(download_path)
 
-        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
-        file_thumb = None
-
         if thumbnail_url:
-            ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
+            ydl_opts_thumbnail = {'outtmpl': f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"}
             with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
                 ydl_thumb.download([thumbnail_url])
-            file_thumb = thumbnail_path
+            file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
 
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
@@ -2520,11 +2527,10 @@ async def callback_query_handler(client: Client, query):
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
         await sts.delete()
-        os.remove(download_path)
+        if os.path.exists(download_path):
+            os.remove(download_path)
 
 
-        
-        
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
