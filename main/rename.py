@@ -2298,6 +2298,7 @@ async def edit_message(message, new_text):
 """
 
 
+
 from yt_dlp import YoutubeDL
 
 # Dictionary to store the user's quality selection
@@ -2358,7 +2359,7 @@ async def ytdlleech(bot, msg: Message):
         info_dict = ydl.extract_info(url, download=False)
         formats = info_dict.get('formats', [])
         buttons = [
-            [InlineKeyboardButton(f"{f['format_note']} - {f['filesize']/(1024*1024):.2f} MB", callback_data=f"{f['format_id']}")]
+            InlineKeyboardButton(f"{f['format_note']} - {f['filesize']/(1024*1024):.2f} MB", callback_data=f"{f['format_id']}")
             for f in formats if f.get('filesize')
         ]
         # Split buttons into rows of two
@@ -2387,7 +2388,7 @@ async def callback_query_handler(bot, query):
     download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
     file_size = os.path.getsize(download_path)
 
-    if file_size < 2 * 1024 * 1024 * 1024:
+    if file_size < FILE_SIZE_LIMIT:
         await upload_to_telegram1(bot, query.message, download_path, new_name, thumbnail_url)
     else:
         gdrive_folder_id = user_gdrive_folder_ids.get(user_id)
@@ -2407,7 +2408,7 @@ async def upload_to_telegram1(bot, msg, file_path, new_name, thumbnail_url):
             thumb = thumbnail_path
         else:
             thumb = None
-
+        
         await bot.send_video(
             chat_id=msg.chat.id,
             video=file_path,
@@ -2424,11 +2425,12 @@ async def upload_to_telegram1(bot, msg, file_path, new_name, thumbnail_url):
 
 async def download_hook(d, query):
     if d['status'] == 'downloading':
-        current = d['downloaded_bytes']
-        total = d['total_bytes']
-        ud_type = "Downloading"
-        start = d['elapsed']
-        await progress_message(current, total, ud_type, query.message, start)
+        elapsed_time = time.time() - d['elapsed']
+        progress = d['_percent_str']
+        speed = d['_speed_str']
+        remaining = d['_eta_str']
+        text = f"🚀 Downloading... {progress}\nSpeed: {speed}\nETA: {remaining}"
+        query.message.edit_text(text)
 
     
 if __name__ == '__main__':
