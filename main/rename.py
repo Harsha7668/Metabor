@@ -2429,8 +2429,31 @@ async def upload_to_telegram1(bot, msg, file_path, new_name, thumbnail_url):
         await sts.edit(f"Error: {e}")
 """
 
+import os
+import time
 from yt_dlp import YoutubeDL
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 
+# Constants
+DOWNLOAD_LOCATION = "./DOWNLOADS"
+FILE_SIZE_LIMIT = 50 * 1024 * 1024  # 50 MB
+
+# Google Drive API credentials
+SERVICE_ACCOUNT_FILE = 'path_to_your_service_account_json_file.json'  # Replace with your service account JSON file
+SCOPES = ['https://www.googleapis.com/auth/drive']
+
+# Initialize Google Drive API
+creds = None
+try:
+    creds = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    drive_service = build('drive', 'v3', credentials=creds)
+except Exception as e:
+    print(f"Error initializing Google Drive API: {e}")
 
 # Dictionary to store the user's quality selection
 user_quality_selection = {}
@@ -2506,12 +2529,7 @@ async def callback_query_handler(bot, query):
             await sts.edit("💠 Uploading...")
             c_time = time.time()
 
-            gdrive_folder_id = user_gdrive_folder_ids.get(user_id)
-            if not gdrive_folder_id:
-                await query.message.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
-                return await sts.delete()
-
-            file_link = await upload_to_google_drive(bot, query.message, download_path, gdrive_folder_id, new_name)
+            file_link = await upload_to_google_drive(download_path, new_name, sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
                 f"**File successfully uploaded to Google Drive!**\n\n"
@@ -2532,10 +2550,6 @@ async def callback_query_handler(bot, query):
         await sts.delete()
         await query.message.delete()  # Delete inline button message after upload
 
-
-
-
-    
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
