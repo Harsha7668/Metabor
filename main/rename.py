@@ -2299,12 +2299,10 @@ async def edit_message(message, new_text):
 
 
 
-
-
 from yt_dlp import YoutubeDL
 
-user_quality_selection = {}
 
+user_quality_selection = {}
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2354,7 +2352,7 @@ async def callback_query_handler(client: Client, query):
 
     ydl_opts = {
         'format': format_id,
-        'outtmpl': os.path.join(DOWNLOAD_LOCATION, new_name),
+        'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{new_name}.%(ext)s"),
         'quiet': True,
         'noplaylist': True,
     }
@@ -2362,9 +2360,9 @@ async def callback_query_handler(client: Client, query):
     sts = await query.message.reply_text("🚀 Downloading... ⚡")
     try:
         with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
-        file_size = os.path.getsize(download_path)
+            info_dict = ydl.extract_info(url, download=True)
+            download_path = ydl.prepare_filename(info_dict)
+            file_size = os.path.getsize(download_path)
 
         thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
         file_thumb = None
