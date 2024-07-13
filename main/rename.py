@@ -2470,11 +2470,12 @@ async def callback_query_handler(client: Client, query):
 
     sts = await query.message.reply_text("🚀 Downloading... ⚡")
     ydl_opts = {
-        'format': format_id,
+        'format': f'{format_id}+bestaudio/best',  # Ensure video and audio are merged
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
         'progress_hooks': [progress_hook(sts)],
+        'merge_output_format': 'mp4'  # Ensure the output is in mp4 format
     }
 
     try:
@@ -2520,6 +2521,8 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         os.remove(download_path)
+
+
         
         
 if __name__ == '__main__':
