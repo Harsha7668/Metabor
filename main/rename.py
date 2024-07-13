@@ -2411,17 +2411,10 @@ async def callback_query_handler(client: Client, query):
 """
 
 from yt_dlp import YoutubeDL
-import os
 
 # Global variables
 user_quality_selection = {}
-DOWNLOAD_LOCATION = "./DOWNLOADS"  # Define your download location
-FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # Example file size limit (2GB)
 
-def humanbytes(size):
-    # Function to convert bytes to a human-readable format
-    # Add your implementation here
-    pass
 
 async def progress_hook(status_message):
     async def hook(d):
@@ -2455,8 +2448,11 @@ async def ytdlleech_handler(client: Client, msg: Message):
             formats = info_dict.get('formats', [])
 
             buttons = [
-                InlineKeyboardButton(f"{f['format_note']} - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}")
-                for f in formats if f.get('filesize')
+                InlineKeyboardButton(
+                    f"{f.get('format_note', 'Unknown')} - {humanbytes(f.get('filesize'))}", 
+                    callback_data=f"{f['format_id']}"
+                )
+                for f in formats if f.get('filesize') is not None
             ]
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
@@ -2529,7 +2525,6 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         if os.path.exists(download_path):
             os.remove(download_path)
-
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
