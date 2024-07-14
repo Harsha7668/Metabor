@@ -2483,6 +2483,15 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
 """
 
+from yt_dlp import YoutubeDL
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+import os
+
+# Global variables
+user_quality_selection = {}
+
+# Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
     if len(msg.command) < 2:
@@ -2503,18 +2512,18 @@ async def ytdlleech_handler(client: Client, msg: Message):
             info_dict = ydl.extract_info(url, download=False)
             formats = info_dict.get('formats', [])
 
-            webm_formats = [f for f in formats if f.get('ext') == 'webm']
-            mp4_formats = [f for f in formats if f.get('ext') == 'mp4']
+            webm_buttons = []
+            mp4_buttons = []
 
-            webm_buttons = [
-                InlineKeyboardButton(f"Webm - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}_webm")
-                for f in webm_formats if f.get('filesize')
-            ]
-
-            mp4_buttons = [
-                InlineKeyboardButton(f"MP4 - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}_mp4")
-                for f in mp4_formats if f.get('filesize')
-            ]
+            for f in formats:
+                if f.get('ext') == 'webm' and f.get('filesize'):
+                    quality = f.get('format_note', 'Unknown')
+                    webm_buttons.append(InlineKeyboardButton(f"WEBM - {quality} - {humanbytes(f['filesize'])}",
+                                                             callback_data=f"{f['format_id']}_webm"))
+                elif f.get('ext') == 'mp4' and f.get('filesize'):
+                    quality = f.get('format_note', 'Unknown')
+                    mp4_buttons.append(InlineKeyboardButton(f"MP4 - {quality} - {humanbytes(f['filesize'])}",
+                                                            callback_data=f"{f['format_id']}_mp4"))
 
             buttons = []
             if webm_buttons:
@@ -2523,12 +2532,12 @@ async def ytdlleech_handler(client: Client, msg: Message):
                 buttons.extend(mp4_buttons)
 
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
-            await msg.reply_text("Choose video quality:", reply_markup=InlineKeyboardMarkup(buttons))
+            await msg.reply_text("Choose video quality and format:", reply_markup=InlineKeyboardMarkup(buttons))
             user_quality_selection[msg.from_user.id] = (url, info_dict['title'], info_dict.get('thumbnail'))
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
-        
+
 # Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+_(webm|mp4)$"))
 async def callback_query_handler(client: Client, query):
@@ -2614,9 +2623,6 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         os.remove(download_path)
         await query.message.delete()
-
-
-        
 
 
 if __name__ == '__main__':
