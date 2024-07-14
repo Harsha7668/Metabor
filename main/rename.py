@@ -2444,17 +2444,13 @@ async def callback_query_handler(client: Client, query):
         await query.message.delete()
 """
 
+
 from yt_dlp import YoutubeDL
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-import os
-import time
+
 
 # Global variables
 user_quality_selection = {}
 user_prefixes = {}
-DOWNLOAD_LOCATION = "./downloads"
-FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB in bytes
 
 # Function to handle "/setprefix" command
 @Client.on_message(filters.private & filters.command("setprefix"))
@@ -2508,11 +2504,9 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose video quality and format:", reply_markup=InlineKeyboardMarkup(buttons))
-            
+
             # Clean the title by removing unwanted prefixes
             clean_title = info_dict['title']
-            if clean_title.lower().startswith("_downloads"):
-                clean_title = clean_title[len("_downloads"):].strip()
 
             # Apply user-specific prefix if available
             prefix = user_prefixes.get(msg.from_user.id, "")
@@ -2613,6 +2607,7 @@ async def callback_query_handler(client: Client, query):
     finally:
         await sts.delete()
         await query.message.delete()
+        
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
