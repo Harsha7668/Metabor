@@ -2702,9 +2702,9 @@ async def callback_query_handler(client: Client, query):
             )
         else:
             await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
-            caption = f"**Uploaded Document 📄**: {video_title}.mkv\n\n🌟 Size: {humanbytes(file_size)}"
-            await query.message.reply_document(
-                document=open(download_path, 'rb'),
+            caption = f"**Uploaded Video**: {video_title}.mkv\n\n🌟 Size: {humanbytes(file_size)}"
+            await query.message.reply_video(
+                video=open(download_path, 'rb'),
                 caption=caption,
                 thumb=file_thumb,
                 progress=progress_message,
@@ -2722,6 +2722,7 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         await query.message.delete()  # Delete the original message after processing
 
+                
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
