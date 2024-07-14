@@ -2736,29 +2736,46 @@ DOWNLOAD_LOCATION = "./DOWNLOADS"  # Define your download location
 FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # Example file size limit (2GB)
 
 # Command handler for downloading YouTube videos
-@Client.on_message(filters.command(["ytdlleech"]))
-async def ytdlleech_command(client, message):
-    if len(message.command) < 2:
-        await message.reply_text("Please provide a YouTube video URL to download.")
-        return
+# Function to handle "/ytdlleech" command
+@Client.on_message(filters.private & filters.command("ytdlleech"))
+async def ytdlleech_handler(client: Client, msg: Message):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a YouTube link.")
 
-    url = message.command[1]
-    user_id = message.from_user.id
+    command_text = msg.text.split(" ", 1)[1]
+    url = command_text.strip()
 
-    # Add to user quality selection
-    user_quality_selection[user_id] = (url, "Custom Name", None)  # Replace "Custom Name" with the actual video title
+    ydl_opts = {
+        'quiet': True,
+        'skip_download': True,
+        'force_generic_extractor': True,
+        'noplaylist': True,
+    }
 
-    # Generate keyboard for format selection
-    keyboard = [
-        [
-            InlineKeyboardButton("MP4", callback_data=f"best_mp4"),
-            InlineKeyboardButton("WebM", callback_data=f"best_webm"),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=False)
+            formats = info_dict.get('formats', [])
 
-    await message.reply_text("Choose download format:", reply_markup=reply_markup)
+            buttons = [
+                InlineKeyboardButton(
+                    f"{f.get('format_note', 'Unknown')} - {humanbytes(f.get('filesize'))}", 
+                    callback_data=f"{f['format_id']}"
+                )
+                for f in formats if f.get('filesize') is not None
+            ]
+            buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+            await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
+            user_quality_selection[msg.from_user.id] = {
+                'url': url,
+                'title': info_dict['title'],
+                'thumbnail': info_dict.get('thumbnail'),
+                'formats': formats
+            }
 
+    except Exception as e:
+        await msg.reply_text(f"Error: {e}")
+        
 # Callback query handler for format selection
 @Client.on_callback_query(filters.regex(r"^(best)_(mp4|webm)$"))
 async def callback_query_handler(client: Client, query):
