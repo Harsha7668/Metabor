@@ -2446,7 +2446,6 @@ async def callback_query_handler(client: Client, query):
 
 from yt_dlp import YoutubeDL
 
-
 # Global variables
 user_quality_selection = {}
 
@@ -2460,9 +2459,9 @@ async def ytdlleech_handler(client: Client, msg: Message):
     url = command_text.strip()
 
     ydl_opts = {
+        'format': 'bestvideo+bestaudio/best',  # Specify the best video and audio format available
+        'outtmpl': os.path.join(DOWNLOAD_LOCATION, "%(title)s.%(ext)s"),  # Adjust the output file name as needed
         'quiet': True,
-        'skip_download': True,
-        'force_generic_extractor': True,
         'noplaylist': True,
     }
 
@@ -2564,7 +2563,7 @@ async def callback_query_handler(client: Client, query):
             file_link = await upload_to_google_drive(download_path, f"{video_title}.{format_type}", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
-                f"**File successfully uploaded to Google Drive!**\n\n"
+                f"**From YouTube Link To File Successfully Uploaded To Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
                 f"**Uploaded File**: {video_title}.{format_type}\n"
                 f"**Size**: {humanbytes(file_size)}",
