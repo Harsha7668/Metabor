@@ -2470,9 +2470,9 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             buttons = []
             if webm_buttons:
-                buttons.append(webm_buttons)
+                buttons.extend(webm_buttons)
             if mp4_buttons:
-                buttons.append(mp4_buttons)
+                buttons.extend(mp4_buttons)
 
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
@@ -2516,7 +2516,7 @@ async def callback_query_handler(client: Client, query):
 
             ydl.download([url])
 
-        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
+        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.{chosen_format['ext']}")  # Adjust the output file name and extension as needed
         file_size = os.path.getsize(download_path)
 
         thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
@@ -2530,12 +2530,12 @@ async def callback_query_handler(client: Client, query):
 
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
-            file_link = await upload_to_google_drive(download_path, f"{video_title}.mp4", sts)
+            file_link = await upload_to_google_drive(download_path, f"{video_title}.{chosen_format['ext']}", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
                 f"**File successfully uploaded to Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {video_title}.mp4\n"
+                f"**Uploaded File**: {video_title}.{chosen_format['ext']}\n"
                 f"**Size**: {humanbytes(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
@@ -2543,7 +2543,7 @@ async def callback_query_handler(client: Client, query):
             # Send video as document
             await query.message.reply_document(
                 document=open(download_path, 'rb'),
-                caption=f"**Uploaded Video**: {video_title}.mp4",
+                caption=f"**Uploaded Video**: {video_title}.{chosen_format['ext']}",
                 thumb=file_thumb
             )
 
@@ -2553,7 +2553,7 @@ async def callback_query_handler(client: Client, query):
             # Send video as document
             await query.message.reply_document(
                 document=open(download_path, 'rb'),
-                caption=f"**Uploaded Video**: {video_title}.mp4",
+                caption=f"**Uploaded Video**: {video_title}.{chosen_format['ext']}",
                 thumb=file_thumb
             )
 
@@ -2566,7 +2566,6 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         os.remove(download_path)
         await query.message.delete()
-
 
 
 
