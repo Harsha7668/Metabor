@@ -2596,13 +2596,9 @@ async def callback_query_handler(client: Client, query):
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
-            result = ydl.download([url])
-            while not result['status'] == 'finished':
-                current = result.get('downloaded_bytes', 0)
-                total = result.get('total_bytes', 0)
-                await progress_message(current, total, "Downloading...", sts, start_time)
-
-        file_size = os.path.getsize(download_path)
+            ydl.download([url])
+            file_size = os.path.getsize(download_path)
+            await progress_message(file_size, file_size, "Download finished.", sts, start_time)
 
         if thumbnail_url:
             ydl_opts_thumbnail = {'outtmpl': f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"}
@@ -2622,10 +2618,13 @@ async def callback_query_handler(client: Client, query):
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
-            await query.message.reply_video(
-                video=download_path,
+            await client.send_document(
+                query.message.chat.id,
+                document=download_path,
                 caption=f"**Uploaded Video**: {video_title}.mp4",
-                thumb=file_thumb
+                thumb=file_thumb,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, start_time)
             )
 
         await query.message.delete()  # Delete the message with inline buttons
@@ -2639,8 +2638,7 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         if os.path.exists(download_path):
             os.remove(download_path)
-
-
+            
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
