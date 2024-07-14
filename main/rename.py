@@ -2459,23 +2459,23 @@ async def ytdlleech_handler(client: Client, msg: Message):
             mp4_formats = [f for f in formats if f.get('ext') == 'mp4']
 
             webm_buttons = [
-                InlineKeyboardButton(f"Webm - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}_webm")
+                InlineKeyboardButton(f"Webm - {f['format_note']} - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}_webm")
                 for f in webm_formats if f.get('filesize')
             ]
 
             mp4_buttons = [
-                InlineKeyboardButton(f"MP4 - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}_mp4")
+                InlineKeyboardButton(f"MP4 - {f['format_note']} - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}_mp4")
                 for f in mp4_formats if f.get('filesize')
             ]
 
-            mp4_line = InlineKeyboardMarkup([mp4_buttons]) if mp4_buttons else None
-            webm_line = InlineKeyboardMarkup([webm_buttons]) if webm_buttons else None
+            buttons = []
+            if mp4_buttons:
+                buttons.extend(mp4_buttons)
+            if webm_buttons:
+                buttons.append(webm_buttons)
 
-            await msg.reply_text(
-                "Choose video quality:\n\n"
-                "MP4 Quality (MB or GB):\n", reply_markup=mp4_line
-            )
-
+            buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+            await msg.reply_text("Choose video quality:", reply_markup=InlineKeyboardMarkup(buttons))
             user_quality_selection[msg.from_user.id] = (url, info_dict['title'], info_dict.get('thumbnail'))
 
     except Exception as e:
@@ -2566,6 +2566,8 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         os.remove(download_path)
         await query.message.delete()
+
+
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
