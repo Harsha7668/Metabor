@@ -2470,9 +2470,9 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             buttons = []
             if webm_buttons:
-                buttons.append(webm_buttons)
+                buttons.extend(webm_buttons)
             if mp4_buttons:
-                buttons.append(mp4_buttons)
+                buttons.extend(mp4_buttons)
 
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
