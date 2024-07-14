@@ -2623,7 +2623,7 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         os.remove(download_path)
         await query.message.delete()
-
+        
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
