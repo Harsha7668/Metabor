@@ -2529,7 +2529,6 @@ async def callback_query_handler(client: Client, query):
 
 """
 
-
 from yt_dlp import YoutubeDL
 
 import traceback
@@ -2548,10 +2547,12 @@ async def progress_hook(status_message):
             await status_message.edit_text("Download finished. 🚀")
     return hook
 
+
 async def upload_progress_hook(current, total, status_message):
     progress = (current / total) * 100
     await status_message.edit_text(f"Uploading... {progress:.2f}%")
-    
+
+
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
@@ -2575,7 +2576,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             buttons = [
                 InlineKeyboardButton(
-                    f"{f.get('format_note', 'Unknown')} - {humanbytes(f.get('filesize'))}", 
+                    f"{f.get('format_note', 'Unknown')} - {humanbytes(f.get('filesize'))}",
                     callback_data=f"{f['format_id']}"
                 )
                 for f in formats if f.get('filesize') is not None
@@ -2586,6 +2587,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
     except Exception as e:
         await msg.reply_text(f"Error: {traceback.format_exc()}")
+
 
 @Client.on_callback_query(filters.regex(r"^\d+$"))
 async def callback_query_handler(client: Client, query):
@@ -2607,31 +2609,20 @@ async def callback_query_handler(client: Client, query):
         'merge_output_format': 'mp4'  # Ensure the output is in mp4 format
     }
 
-    download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
+    download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")
     file_thumb = None
 
     try:
+        # Download the video
         with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        file_size = os.path.getsize(download_path)
+            await asyncio.get_event_loop().run_in_executor(None, lambda: ydl.download([url]))
 
-        if thumbnail_url:
-            ydl_opts_thumbnail = {'outtmpl': f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"}
-            with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
-                ydl_thumb.download([thumbnail_url])
-            file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
+        file_size = os.path.getsize(download_path)
 
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
-            file_link = await upload_to_google_drive(download_path, f"{video_title}.mp4", sts)
-            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-            await query.message.reply_text(
-                f"**File successfully uploaded to Google Drive!**\n\n"
-                f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {video_title}.mp4\n"
-                f"**Size**: {humanbytes(file_size)}",
-                reply_markup=InlineKeyboardMarkup(button)
-            )
+            # Replace with your upload function to Telegram PM
+            await send_video_to_telegram_pm(query, download_path, video_title, sts)
         else:
             await query.message.reply_video(
                 video=download_path,
@@ -2640,7 +2631,7 @@ async def callback_query_handler(client: Client, query):
                 progress=lambda current, total: upload_progress_hook(current, total, sts)
             )
 
-        await query.message.delete()  # Delete the message with inline buttons
+        await query.message.delete()
 
     except Exception as e:
         await sts.edit(f"Error: {traceback.format_exc()}")
@@ -2651,6 +2642,25 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         if os.path.exists(download_path):
             os.remove(download_path)
+
+
+async def send_video_to_telegram_pm(query, video_path, video_title, sts):
+    user_id = query.from_user.id
+    await sts.edit("💠 Uploading video to your PM... ⚡")
+    try:
+        await query.message.reply_video(
+            video=video_path,
+            caption=f"**Uploaded Video**: {video_title}.mp4",
+            progress=lambda current, total: upload_progress_hook(current, total, sts)
+        )
+        # Send notification about the file upload
+        await query.message.reply_text(f"File Video has been uploaded to your PM. Check your PM of the bot.")
+
+    except Exception as e:
+        await sts.edit(f"Error uploading video: {e}")
+
+    await sts.delete()
+
             
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
