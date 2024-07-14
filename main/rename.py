@@ -2542,7 +2542,7 @@ async def callback_query_handler(client: Client, query):
 
             # Send video as document
             await query.message.reply_document(
-                document=download_path,
+                document=open(download_path, 'rb'),
                 caption=f"**Uploaded Video**: {video_title}.mp4",
                 thumb=file_thumb
             )
@@ -2552,7 +2552,7 @@ async def callback_query_handler(client: Client, query):
 
             # Send video as document
             await query.message.reply_document(
-                document=download_path,
+                document=open(download_path, 'rb'),
                 caption=f"**Uploaded Video**: {video_title}.mp4",
                 thumb=file_thumb
             )
@@ -2566,6 +2566,7 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         os.remove(download_path)
         await query.message.delete()
+
 
 
 
