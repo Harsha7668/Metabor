@@ -2528,10 +2528,12 @@ async def callback_query_handler(client: Client, query):
             os.remove(download_path)
 """
 from yt_dlp import YoutubeDL
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+import os
 
 # Global variables
 user_quality_selection = {}
-
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2583,11 +2585,6 @@ async def callback_query_handler(client: Client, query):
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
-        'progress_hooks': [lambda d: client.edit_message_text(
-            chat_id=query.message.chat.id,
-            message_id=sts.message_id,
-            text=f"🚀 Downloading... ⚡\nProgress: {d['_percent_str']} - ETA: {d['_eta_str']}\nQuality: {d.get('format_note')} - Size: {humanbytes(d.get('filesize'))}"
-        )],
     }
 
     try:
@@ -2597,10 +2594,15 @@ async def callback_query_handler(client: Client, query):
             video_size = humanbytes(chosen_format['filesize']) if chosen_format else "Unknown"
             await sts.edit_text(f"🚀 Downloading... ⚡\nQuality: {chosen_format['format_note']} - Size: {video_size}")
 
+            ydl_opts['progress_hooks'] = [lambda d: client.edit_message_text(
+                chat_id=query.message.chat.id,
+                message_id=sts.message_id,
+                text=f"🚀 Downloading... ⚡\nProgress: {d['_percent_str']} - ETA: {d['_eta_str']}\nQuality: {chosen_format['format_note']} - Size: {humanbytes(chosen_format['filesize'])}"
+            )]
+
             ydl.download([url])
 
-            download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Set download_path after successful download
-
+        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
         file_size = os.path.getsize(download_path)
 
         thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
@@ -2630,15 +2632,19 @@ async def callback_query_handler(client: Client, query):
                 thumb=file_thumb
             )
 
+        # Add a close button
+        close_button = InlineKeyboardButton("Close", callback_data="close")
+        inline_keyboard = InlineKeyboardMarkup([[close_button]])
+        await query.message.reply_text("Download completed!", reply_markup=inline_keyboard)
+
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
     finally:
-        if 'file_thumb' in locals() and file_thumb and os.path.exists(file_thumb):
+        if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
-        if 'download_path' in locals() and download_path and os.path.exists(download_path):
-            os.remove(download_path)
         await sts.delete()
+        os.remove(download_path)
 
 
 if __name__ == '__main__':
