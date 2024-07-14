@@ -2813,7 +2813,6 @@ async def callback_query_handler(client: Client, query):
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.{format_type}"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
-        'progress_hooks': [await progress_hook(sts)],  # Await the progress hook
         'merge_output_format': '{format_type}'  # Ensure the output is in mp4 format
     }
     
