@@ -2530,6 +2530,7 @@ async def callback_query_handler(client: Client, query):
 """
 
 
+
 from yt_dlp import YoutubeDL
 
 # Global variables
@@ -2581,6 +2582,9 @@ async def callback_query_handler(client: Client, query):
         return await query.answer("No download in progress.")
 
     url, video_title, thumbnail_url = user_quality_selection.pop(user_id)
+
+    # Ensure the download location exists
+    os.makedirs(DOWNLOAD_LOCATION, exist_ok=True)
 
     sts = await query.message.reply_text("🚀 Downloading... ⚡")
     ydl_opts = {
