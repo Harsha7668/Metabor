@@ -2800,9 +2800,9 @@ async def callback_query_handler(client: Client, query):
         return await query.answer("Invalid format selection.")
 
     quality = selected_format.get('format_note', 'Unknown')
-    file_size = humanbytes(selected_format.get('filesize', 0))
+    file_size = selected_format.get('filesize', 0)
 
-    sts = await query.message.reply_text(f"🚀 Downloading {quality} - {file_size}... ⚡")
+    sts = await query.message.reply_text(f"🚀 Downloading {quality} - {humanbytes(file_size)}... ⚡")
 
     ydl_opts = {
         'format': f'{format_id}+bestaudio/best',  # Ensure video and audio are merged
@@ -2812,14 +2812,12 @@ async def callback_query_handler(client: Client, query):
         'progress_hooks': [await progress_hook(sts)],  # Await the progress hook
         'merge_output_format': 'mp4'  # Ensure the output is in mp4 format
     }
-    download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
+    download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")
     file_thumb = None
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-
-        file_size = os.path.getsize(download_path)
 
         if thumbnail_url:
             thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
@@ -2829,9 +2827,9 @@ async def callback_query_handler(client: Client, query):
             file_thumb = thumbnail_path
 
         if file_size >= FILE_SIZE_LIMIT:
-            await sts.edit("💠 Uploading to Google Drive...")
+            await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
             file_link = await upload_to_google_drive(download_path, f"{video_title}.mp4", sts)
-            button = [[InlineKeyboardButton("☁️ Google Drive Link ☁️", url=f"{file_link}")]]
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
                 f"**File successfully uploaded to Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
@@ -2840,23 +2838,26 @@ async def callback_query_handler(client: Client, query):
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
-            await sts.edit("💠 Uploading to Telegram...")
+            await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
+            caption = f"**Uploaded Video**: {video_title}.mp4\n\n🌟 Size: {humanbytes(file_size)}"
             await query.message.reply_video(
-                video=download_path,
-                caption=f"**Uploaded Video**: {video_title}.mp4",
-                thumb=file_thumb
+                video=open(download_path, 'rb'),
+                caption=caption,
+                thumb=file_thumb,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, time.time())
             )
 
     except Exception as e:
-        await sts.edit(f"Error: {e}")
+        await safe_edit_message(sts, f"Error: {e}")
 
     finally:
+        if os.path.exists(download_path):
+            os.remove(download_path)
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
         await sts.delete()
-        if os.path.exists(download_path):
-            os.remove(download_path)
-            
+        await query.message.delete()  # Delete the original message after processing            
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
