@@ -2506,7 +2506,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
             await msg.reply_text("Choose video quality and format:", reply_markup=InlineKeyboardMarkup(buttons))
 
             # Clean the title by removing unwanted prefixes
-            clean_title = info_dict['title']
+            clean_title = info_dict['title'].strip()
 
             # Apply user-specific prefix if available
             prefix = user_prefixes.get(msg.from_user.id, "")
@@ -2607,7 +2607,6 @@ async def callback_query_handler(client: Client, query):
     finally:
         await sts.delete()
         await query.message.delete()
-        
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
