@@ -2449,6 +2449,17 @@ from yt_dlp import YoutubeDL
 
 # Global variables
 user_quality_selection = {}
+user_prefixes = {}
+
+# Function to handle "/setprefix" command
+@Client.on_message(filters.private & filters.command("setprefix"))
+async def setprefix_handler(client: Client, msg: Message):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a prefix. Usage: /setprefix [prefix]")
+
+    prefix = msg.text.split(" ", 1)[1].strip()
+    user_prefixes[msg.from_user.id] = prefix
+    await msg.reply_text(f"Prefix set to: {prefix}")
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2498,7 +2509,12 @@ async def ytdlleech_handler(client: Client, msg: Message):
             for prefix in ["_DOWNLOADS", "downloads", "DOWNLOADS"]:
                 if clean_title.startswith(prefix):
                     clean_title = clean_title[len(prefix):].strip()
-            user_quality_selection[msg.from_user.id] = (url, clean_title, info_dict.get('thumbnail'))
+
+            # Apply user-specific prefix if available
+            prefix = user_prefixes.get(msg.from_user.id, "")
+            prefixed_title = f"{prefix}{clean_title}"
+
+            user_quality_selection[msg.from_user.id] = (url, prefixed_title, info_dict.get('thumbnail'))
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
@@ -2566,7 +2582,7 @@ async def callback_query_handler(client: Client, query):
             file_link = await upload_to_google_drive(download_path, f"{video_title}.{format_type}", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
-                f"**File successfully uploaded to Google Drive!**\n\n"
+                f"**From YouTube Link To File Successfully Uploaded To Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
                 f"**Uploaded File**: {video_title}.{format_type}\n"
                 f"**Size**: {humanbytes(file_size)}",
@@ -2593,9 +2609,6 @@ async def callback_query_handler(client: Client, query):
     finally:
         await sts.delete()
         await query.message.delete()
-
-
-
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
