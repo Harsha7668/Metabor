@@ -2532,8 +2532,25 @@ async def callback_query_handler(client: Client, query):
 
 from yt_dlp import YoutubeDL
 
+import traceback
+
 # Global variables
 user_quality_selection = {}
+
+
+async def progress_hook(status_message):
+    async def hook(d):
+        if d['status'] == 'downloading':
+            current_progress = d.get('_percent_str', '0%')
+            current_size = humanbytes(d.get('total_bytes', 0))
+            await status_message.edit_text(f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
+        elif d['status'] == 'finished':
+            await status_message.edit_text("Download finished. 🚀")
+    return hook
+
+async def upload_progress_hook(current, total, status_message):
+    progress = (current / total) * 100
+    await status_message.edit_text(f"Uploading... {progress:.2f}%")
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2568,7 +2585,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
             user_quality_selection[msg.from_user.id] = (url, info_dict['title'], info_dict.get('thumbnail'))
 
     except Exception as e:
-        await msg.reply_text(f"Error: {e}")
+        await msg.reply_text(f"Error: {traceback.format_exc()}")
 
 # Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+$"))
@@ -2581,29 +2598,23 @@ async def callback_query_handler(client: Client, query):
 
     url, video_title, thumbnail_url = user_quality_selection.pop(user_id)
 
-    # Ensure the download location exists
-    os.makedirs(DOWNLOAD_LOCATION, exist_ok=True)
-
     sts = await query.message.reply_text("🚀 Downloading... ⚡")
     ydl_opts = {
         'format': f'{format_id}+bestaudio/best',  # Ensure video and audio are merged
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
+        'progress_hooks': [await progress_hook(sts)],  # Await the progress hook
+        'merge_output_format': 'mp4'  # Ensure the output is in mp4 format
     }
 
     download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
     file_thumb = None
-    start_time = time.time()
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-            if not os.path.exists(download_path):
-                raise FileNotFoundError(f"File not found: {download_path}")
-
-            file_size = os.path.getsize(download_path)
-            await progress_message(file_size, file_size, "Download finished.", sts, start_time)
+        file_size = os.path.getsize(download_path)
 
         if thumbnail_url:
             ydl_opts_thumbnail = {'outtmpl': f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"}
@@ -2623,22 +2634,17 @@ async def callback_query_handler(client: Client, query):
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
-            await client.send_document(
-                query.message.chat.id,
-                document=download_path,
+            await query.message.reply_video(
+                video=download_path,
                 caption=f"**Uploaded Video**: {video_title}.mp4",
                 thumb=file_thumb,
-                progress=progress_message,
-                progress_args=("💠 Upload Started... ⚡", sts, start_time)
+                progress=upload_progress_hook(sts)
             )
 
         await query.message.delete()  # Delete the message with inline buttons
 
-    except FileNotFoundError as e:
-        await sts.edit(f"Error: {e}")
-
     except Exception as e:
-        await sts.edit(f"Error: {e}")
+        await sts.edit(f"Error: {traceback.format_exc()}")
 
     finally:
         if file_thumb and os.path.exists(file_thumb):
@@ -2646,7 +2652,6 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         if os.path.exists(download_path):
             os.remove(download_path)
-
 
             
 if __name__ == '__main__':
