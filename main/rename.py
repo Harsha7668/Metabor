@@ -2839,9 +2839,9 @@ async def callback_query_handler(client: Client, query):
             )
         else:
             await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
-            caption = f"**Uploaded Video**: {video_title}.mp4\n\n🌟 Size: {humanbytes(file_size)}"
-            await query.message.reply_video(
-                video=open(download_path, 'rb'),
+            caption = f"**Uploaded Document📄**: {video_title}.mp4\n\n🌟 Size: {humanbytes(file_size)}"
+            await query.message.reply_document(
+                document=open(download_path, 'rb'),
                 caption=caption,
                 thumb=file_thumb,
                 progress=progress_message,
