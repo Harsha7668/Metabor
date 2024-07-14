@@ -2536,16 +2536,6 @@ from yt_dlp import YoutubeDL
 user_quality_selection = {}
 
 
-async def progress_hook(client, status_message):
-    async def hook(d):
-        if d['status'] == 'downloading':
-            current_progress = d.get('_percent_str', '0%')
-            current_size = humanbytes(d.get('total_bytes', 0))
-            await status_message.edit_text(f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
-        elif d['status'] == 'finished':
-            await status_message.edit_text("Download finished. 🚀")
-    return hook
-
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
@@ -2598,16 +2588,20 @@ async def callback_query_handler(client: Client, query):
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
-        'progress_message': [await progress_message(client, sts)],  # Await the progress hook
-        'merge_output_format': 'mp4'  # Ensure the output is in mp4 format
     }
 
     download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
     file_thumb = None
+    start_time = time.time()
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+            result = ydl.download([url])
+            while not result['status'] == 'finished':
+                current = result.get('downloaded_bytes', 0)
+                total = result.get('total_bytes', 0)
+                await progress_message(current, total, "Downloading...", sts, start_time)
+
         file_size = os.path.getsize(download_path)
 
         if thumbnail_url:
@@ -2645,7 +2639,6 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         if os.path.exists(download_path):
             os.remove(download_path)
-
 
 
 if __name__ == '__main__':
