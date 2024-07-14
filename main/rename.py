@@ -2724,16 +2724,11 @@ async def callback_query_handler(client: Client, query):
             os.remove(download_path)
 """
 
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from yt_dlp import YoutubeDL
-import os
-import time
-
 # Global variables
 user_quality_selection = {}
 DOWNLOAD_LOCATION = "./DOWNLOADS"  # Define your download location
 FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # Example file size limit (2GB)
+user_prefix = {}  # Dictionary to store user-defined prefixes
 
 # Command handler for downloading YouTube videos
 # Function to handle "/ytdlleech" command
@@ -2759,7 +2754,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             buttons = [
                 InlineKeyboardButton(
-                    f"{f.get('format_note', 'Unknown')} - {humanbytes(f.get('filesize'))}", 
+                    f"{f.get('format_note', 'Unknown')} - {humanbytes(f.get('filesize'))}",
                     callback_data=f"{f['format_id']}"
                 )
                 for f in formats if f.get('filesize') is not None
@@ -2775,12 +2770,22 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
-        
+
+# Command handler for setting custom prefix
+@Client.on_message(filters.private & filters.command("setprefix"))
+async def setprefix_handler(client: Client, msg: Message):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a prefix.")
+
+    prefix = msg.text.split(" ", 1)[1].strip()
+    user_prefix[msg.from_user.id] = prefix
+    await msg.reply_text(f"Prefix set successfully to: `{prefix}`")
+
 # Callback query handler for format selection
-@Client.on_callback_query(filters.regex(r"^(best)_(mp4|webm)$"))
+@Client.on_callback_query(filters.regex(r"^\d+$"))
 async def callback_query_handler(client: Client, query):
     user_id = query.from_user.id
-    format_id, format_type = query.data.split('_')  # Split format_id and type (mp4 or webm)
+    format_id = query.data  # Assuming query.data directly provides the format_id
 
     if user_id not in user_quality_selection:
         try:
@@ -2790,12 +2795,11 @@ async def callback_query_handler(client: Client, query):
         return
 
     url, video_title, thumbnail_url = user_quality_selection.pop(user_id)
-
     sts = await query.message.reply_text("🚀 Downloading... ⚡")
 
     ydl_opts = {
         'format': format_id + '+bestaudio/best',  # Merge audio and video for the selected format
-        'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.{format_type}"),  # Adjust the output file name as needed
+        'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{get_prefix(user_id)}{video_title}.%(ext)s"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
     }
@@ -2814,7 +2818,7 @@ async def callback_query_handler(client: Client, query):
 
             ydl.download([url])
 
-        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.{format_type}")  # Adjust the output file name as needed
+        download_path = os.path.join(DOWNLOAD_LOCATION, f"{get_prefix(user_id)}{video_title}.{chosen_format['ext']}")  # Adjust the output file name as needed
         file_size = os.path.getsize(download_path)
 
         thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
@@ -2828,18 +2832,18 @@ async def callback_query_handler(client: Client, query):
 
         if file_size >= FILE_SIZE_LIMIT:  # Check if file size exceeds limit (2GB in bytes)
             await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
-            file_link = await upload_to_google_drive(download_path, f"{video_title}.{format_type}", sts)
+            file_link = await upload_to_google_drive(download_path, f"{get_prefix(user_id)}{video_title}.{chosen_format['ext']}", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
                 f"**File successfully uploaded to Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {video_title}.{format_type}\n"
+                f"**Uploaded File**: {get_prefix(user_id)}{video_title}.{chosen_format['ext']}\n"
                 f"**Size**: {humanbytes(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
             await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
-            caption = f"**Uploaded Video**: {video_title}.{format_type}\n\n🌟 Size: {humanbytes(file_size)}"
+            caption = f"**Uploaded Video**: {get_prefix(user_id)}{video_title}.{chosen_format['ext']}\n\n🌟 Size: {humanbytes(file_size)}"
             await query.message.reply_document(
                 document=open(download_path, 'rb'),
                 thumb=file_thumb,
@@ -2858,6 +2862,10 @@ async def callback_query_handler(client: Client, query):
     finally:
         await sts.delete()
         await query.message.delete()
+
+# Function to get user-defined prefix or default to empty string
+def get_prefix(user_id):
+    return user_prefix.get(user_id, "")
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
