@@ -2590,18 +2590,24 @@ async def callback_query_handler(client: Client, query):
     }
 
     try:
+        def progress_hook(d):
+            if d['status'] == 'downloading':
+                percent = d['_percent_str']
+                eta = d['_eta_str']
+                message_text = (
+                    f"🚀 Downloading... ⚡\n"
+                    f"Progress: {percent} - ETA: {eta}\n"
+                    f"Quality: {d['format_note']} - Size: {humanbytes(d['total_bytes'])}"
+                )
+                client.edit_message_text(
+                    chat_id=query.message.chat.id,
+                    message_id=sts.message_id,
+                    text=message_text
+                )
+
+        ydl_opts['progress_hooks'] = [progress_hook]
+
         with YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=False)
-            chosen_format = next((f for f in info_dict['formats'] if f['format_id'] == format_id), None)
-            video_size = humanbytes(chosen_format['filesize']) if chosen_format else "Unknown"
-            await sts.edit_text(f"🚀 Downloading... ⚡\nQuality: {chosen_format['format_note']} - Size: {video_size}")
-
-            ydl_opts['progress_hooks'] = [lambda d: client.edit_message_text(
-                chat_id=query.message.chat.id,
-                message_id=sts.message_id,
-                text=f"🚀 Downloading... ⚡\nProgress: {d['_percent_str']} - ETA: {d['_eta_str']}\nQuality: {chosen_format['format_note']} - Size: {humanbytes(chosen_format['filesize'])}"
-            )]
-
             ydl.download([url])
 
         download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
@@ -2642,6 +2648,7 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         os.remove(download_path)
+        await query.message.delete()  # Delete the message after the process completes successfully
 
             
 if __name__ == '__main__':
