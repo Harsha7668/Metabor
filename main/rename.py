@@ -2449,17 +2449,6 @@ from yt_dlp import YoutubeDL
 
 # Global variables
 user_quality_selection = {}
-user_prefixes = {}
-
-# Function to handle "/setprefix" command
-@Client.on_message(filters.private & filters.command("setprefix"))
-async def setprefix_handler(client: Client, msg: Message):
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide a prefix. Usage: /setprefix [prefix]")
-
-    prefix = msg.text.split(" ", 1)[1].strip()
-    user_prefixes[msg.from_user.id] = prefix
-    await msg.reply_text(f"Prefix set to: {prefix}")
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2505,11 +2494,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
             await msg.reply_text("Choose video quality and format:", reply_markup=InlineKeyboardMarkup(buttons))
 
             # Clean the title by removing unwanted prefixes or suffixes
-            clean_title = info_dict['title'].replace("_DOWNLOADS", "").strip()
-
-            # Apply user-specific prefix if available
-            prefix = user_prefixes.get(msg.from_user.id, "")
-            clean_title = f"{prefix}{clean_title}".strip()
+            clean_title = info_dict['title'].strip()
 
             user_quality_selection[msg.from_user.id] = (url, clean_title, info_dict.get('thumbnail'))
 
