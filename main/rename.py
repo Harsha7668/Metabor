@@ -2495,7 +2495,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
             
             # Clean the title by removing unwanted prefixes
             clean_title = info_dict['title']
-            for prefix in ["_DOWNLOAD", "download", "DOWNLOAD"]:
+            for prefix in ["_DOWNLOADS", "downloads", "DOWNLOADS"]:
                 if clean_title.startswith(prefix):
                     clean_title = clean_title[len(prefix):].strip()
             user_quality_selection[msg.from_user.id] = (url, clean_title, info_dict.get('thumbnail'))
