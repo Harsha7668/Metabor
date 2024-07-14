@@ -2445,15 +2445,10 @@ async def callback_query_handler(client: Client, query):
 """
 
 from yt_dlp import YoutubeDL
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-import os
-import time
+
 
 # Global variables
 user_quality_selection = {}
-DOWNLOAD_LOCATION = "./downloads"
-FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB in bytes
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2498,8 +2493,11 @@ async def ytdlleech_handler(client: Client, msg: Message):
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose video quality and format:", reply_markup=InlineKeyboardMarkup(buttons))
             
-            # Clean the title
-            clean_title = info_dict['title'].replace("_DOWNLOAD", "").replace("download", "").replace("DOWNLOAD", "").strip()
+            # Clean the title by removing unwanted prefixes
+            clean_title = info_dict['title']
+            for prefix in ["_DOWNLOAD", "download", "DOWNLOAD"]:
+                if clean_title.startswith(prefix):
+                    clean_title = clean_title[len(prefix):].strip()
             user_quality_selection[msg.from_user.id] = (url, clean_title, info_dict.get('thumbnail'))
 
     except Exception as e:
@@ -2595,6 +2593,8 @@ async def callback_query_handler(client: Client, query):
     finally:
         await sts.delete()
         await query.message.delete()
+
+
 
 
 if __name__ == '__main__':
