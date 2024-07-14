@@ -2446,7 +2446,10 @@ async def callback_query_handler(client: Client, query):
 
 
 from yt_dlp import YoutubeDL
-
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+import os
+import time
 
 # Global variables
 user_quality_selection = {}
@@ -2469,7 +2472,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
         return await msg.reply_text("Please provide a YouTube link.")
 
     command_text = msg.text.split(" ", 1)[1]
-    url = command_text.strip()
+    url, new_title = command_text.split(" -n ") if " -n " in command_text else (command_text.strip(), None)
 
     ydl_opts = {
         'quiet': True,
@@ -2504,9 +2507,8 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose video quality and format:", reply_markup=InlineKeyboardMarkup(buttons))
-
-            # Clean the title by removing unwanted prefixes
-            clean_title = info_dict['title'].strip()
+            
+            clean_title = new_title if new_title else info_dict['title']
 
             # Apply user-specific prefix if available
             prefix = user_prefixes.get(msg.from_user.id, "")
@@ -2607,7 +2609,7 @@ async def callback_query_handler(client: Client, query):
     finally:
         await sts.delete()
         await query.message.delete()
-
+        
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
