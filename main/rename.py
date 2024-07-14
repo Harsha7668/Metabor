@@ -2459,20 +2459,20 @@ async def ytdlleech_handler(client: Client, msg: Message):
             mp4_formats = [f for f in formats if f.get('ext') == 'mp4']
 
             webm_buttons = [
-                InlineKeyboardButton(f"{f['format_note']} - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}")
+                InlineKeyboardButton(f"{f['format_note']} - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}_webm")
                 for f in webm_formats if f.get('filesize')
             ]
 
             mp4_buttons = [
-                InlineKeyboardButton(f"{f['format_note']} - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}")
+                InlineKeyboardButton(f"{f['format_note']} - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}_mp4")
                 for f in mp4_formats if f.get('filesize')
             ]
 
             buttons = []
             if webm_buttons:
-                buttons.extend(webm_buttons)
+                buttons.append(webm_buttons)
             if mp4_buttons:
-                buttons.extend(mp4_buttons)
+                buttons.append(mp4_buttons)
 
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
@@ -2482,10 +2482,10 @@ async def ytdlleech_handler(client: Client, msg: Message):
         await msg.reply_text(f"Error: {e}")
 
 # Callback query handler
-@Client.on_callback_query(filters.regex(r"^\d+$"))
+@Client.on_callback_query(filters.regex(r"^\d+_(webm|mp4)$"))
 async def callback_query_handler(client: Client, query):
     user_id = query.from_user.id
-    format_id = query.data
+    format_id, format_type = query.data.split('_')  # Split format_id and type (webm or mp4)
 
     if user_id not in user_quality_selection:
         return await query.answer("No download in progress.")
@@ -2496,7 +2496,7 @@ async def callback_query_handler(client: Client, query):
 
     ydl_opts = {
         'format': format_id,
-        'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),  # Adjust the output file name as needed
+        'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.{format_type}"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
     }
@@ -2516,7 +2516,7 @@ async def callback_query_handler(client: Client, query):
 
             ydl.download([url])
 
-        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.{chosen_format['ext']}")  # Adjust the output file name and extension as needed
+        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.{format_type}")  # Adjust the output file name as needed
         file_size = os.path.getsize(download_path)
 
         thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
@@ -2530,12 +2530,12 @@ async def callback_query_handler(client: Client, query):
 
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
-            file_link = await upload_to_google_drive(download_path, f"{video_title}.{chosen_format['ext']}", sts)
+            file_link = await upload_to_google_drive(download_path, f"{video_title}.{format_type}", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
                 f"**File successfully uploaded to Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {video_title}.{chosen_format['ext']}\n"
+                f"**Uploaded File**: {video_title}.{format_type}\n"
                 f"**Size**: {humanbytes(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
@@ -2543,7 +2543,7 @@ async def callback_query_handler(client: Client, query):
             # Send video as document
             await query.message.reply_document(
                 document=open(download_path, 'rb'),
-                caption=f"**Uploaded Video**: {video_title}.{chosen_format['ext']}",
+                caption=f"**Uploaded Video**: {video_title}.{format_type}",
                 thumb=file_thumb
             )
 
@@ -2553,7 +2553,7 @@ async def callback_query_handler(client: Client, query):
             # Send video as document
             await query.message.reply_document(
                 document=open(download_path, 'rb'),
-                caption=f"**Uploaded Video**: {video_title}.{chosen_format['ext']}",
+                caption=f"**Uploaded Video**: {video_title}.{format_type}",
                 thumb=file_thumb
             )
 
@@ -2566,7 +2566,6 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         os.remove(download_path)
         await query.message.delete()
-
 
 
 if __name__ == '__main__':
