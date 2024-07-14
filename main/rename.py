@@ -2497,7 +2497,8 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose video quality and format:", reply_markup=InlineKeyboardMarkup(buttons))
-            user_quality_selection[msg.from_user.id] = (url, info_dict['title'].replace("_DOWNLOADS", ""), info_dict.get('thumbnail'))
+            clean_title = info_dict['title'].replace("_DOWNLOAD", "").replace("download", "").replace("DOWNLOAD", "")
+            user_quality_selection[msg.from_user.id] = (url, clean_title, info_dict.get('thumbnail'))
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
@@ -2560,7 +2561,7 @@ async def callback_query_handler(client: Client, query):
                 ydl_thumb.download([thumbnail_url])
             file_thumb = thumbnail_path
 
-        if file_size >= 2 * 1024 * 1024 * 1024:  # 2GB in bytes
+        if file_size >= FILE_SIZE_LIMIT:  # 2GB in bytes
             await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
             file_link = await upload_to_google_drive(download_path, f"{video_title}.{format_type}", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
