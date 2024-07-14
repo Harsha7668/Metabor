@@ -2530,7 +2530,7 @@ async def callback_query_handler(client: Client, query):
 """
 
 from yt_dlp import YoutubeDL
-
+import os
 import traceback
 
 # Global variables
@@ -2563,7 +2563,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
     url = command_text.strip()
 
     ydl_opts = {
-        'quiet': True,
+        'quiet': True,  # Suppress yt-dlp logs
         'skip_download': True,
         'force_generic_extractor': True,
         'noplaylist': True,
@@ -2586,7 +2586,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
             user_quality_selection[msg.from_user.id] = (url, info_dict['title'], info_dict.get('thumbnail'))
 
     except Exception as e:
-        await msg.reply_text(f"Error: {traceback.format_exc()}")
+        await msg.reply_text(f"Error: Failed to fetch video information.")
 
 
 @Client.on_callback_query(filters.regex(r"^\d+$"))
@@ -2613,16 +2613,21 @@ async def callback_query_handler(client: Client, query):
     file_thumb = None
 
     try:
-        # Download the video
-        with YoutubeDL(ydl_opts) as ydl:
-            await asyncio.get_event_loop().run_in_executor(None, lambda: ydl.download([url]))
+        # Download the video asynchronously without logging
+        await asyncio.get_event_loop().run_in_executor(None, lambda: download_video(url, ydl_opts))
 
         file_size = os.path.getsize(download_path)
+
+        if thumbnail_url:
+            # Download the thumbnail image
+            thumbnail_path = os.path.join(DOWNLOAD_LOCATION, f"thumbnail_{user_id}.jpg")
+            await asyncio.get_event_loop().run_in_executor(None, lambda: download_thumbnail(thumbnail_url, thumbnail_path))
+            file_thumb = thumbnail_path
 
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
             # Replace with your upload function to Telegram PM
-            await send_video_to_telegram_pm(query, download_path, video_title, sts)
+            await send_video_to_telegram_pm(query, download_path, video_title, sts, file_thumb)
         else:
             await query.message.reply_video(
                 video=download_path,
@@ -2634,7 +2639,7 @@ async def callback_query_handler(client: Client, query):
         await query.message.delete()
 
     except Exception as e:
-        await sts.edit(f"Error: {traceback.format_exc()}")
+        await sts.edit(f"Error: Failed to download or upload video.")
 
     finally:
         if file_thumb and os.path.exists(file_thumb):
@@ -2644,13 +2649,24 @@ async def callback_query_handler(client: Client, query):
             os.remove(download_path)
 
 
-async def send_video_to_telegram_pm(query, video_path, video_title, sts):
+def download_video(url, ydl_opts):
+    with YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+
+def download_thumbnail(thumbnail_url, thumbnail_path):
+    with YoutubeDL({'outtmpl': thumbnail_path}) as ydl:
+        ydl.download([thumbnail_url])
+
+
+async def send_video_to_telegram_pm(query, video_path, video_title, sts, file_thumb):
     user_id = query.from_user.id
     await sts.edit("💠 Uploading video to your PM... ⚡")
     try:
         await query.message.reply_video(
             video=video_path,
             caption=f"**Uploaded Video**: {video_title}.mp4",
+            thumb=file_thumb,
             progress=lambda current, total: upload_progress_hook(current, total, sts)
         )
         # Send notification about the file upload
