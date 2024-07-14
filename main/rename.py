@@ -2453,6 +2453,8 @@ import time
 # Global variables
 user_quality_selection = {}
 user_prefixes = {}
+DOWNLOAD_LOCATION = "./downloads"
+FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB in bytes
 
 # Function to handle "/setprefix" command
 @Client.on_message(filters.private & filters.command("setprefix"))
@@ -2509,9 +2511,8 @@ async def ytdlleech_handler(client: Client, msg: Message):
             
             # Clean the title by removing unwanted prefixes
             clean_title = info_dict['title']
-            for prefix in ["_DOWNLOADS", "downloads", "DOWNLOADS"]:
-                if clean_title.lower().startswith(prefix.lower()):
-                    clean_title = clean_title[len(prefix):].strip()
+            if clean_title.lower().startswith("_downloads"):
+                clean_title = clean_title[len("_downloads"):].strip()
 
             # Apply user-specific prefix if available
             prefix = user_prefixes.get(msg.from_user.id, "")
@@ -2612,7 +2613,6 @@ async def callback_query_handler(client: Client, query):
     finally:
         await sts.delete()
         await query.message.delete()
-
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
