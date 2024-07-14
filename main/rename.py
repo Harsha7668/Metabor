@@ -2445,9 +2445,15 @@ async def callback_query_handler(client: Client, query):
 """
 
 from yt_dlp import YoutubeDL
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+import os
+import time
 
 # Global variables
 user_quality_selection = {}
+DOWNLOAD_LOCATION = "./downloads"
+FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB in bytes
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2459,7 +2465,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
     url = command_text.strip()
 
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',  # Specify the best video and audio format available
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # Download the best MP4 format available
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, "%(title)s.%(ext)s"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
@@ -2470,27 +2476,16 @@ async def ytdlleech_handler(client: Client, msg: Message):
             info_dict = ydl.extract_info(url, download=False)
             formats = info_dict.get('formats', [])
 
-            webm_buttons = []
             mp4_buttons = []
 
             for f in formats:
-                if f.get('ext') == 'webm' and f.get('filesize'):
-                    quality = f.get('format_note', 'Unknown')
-                    webm_buttons.append(InlineKeyboardButton(f"WEBM - {quality} - {humanbytes(f['filesize'])}",
-                                                             callback_data=f"{f['format_id']}_webm"))
-                elif f.get('ext') == 'mp4' and f.get('filesize'):
+                if f.get('ext') == 'mp4' and f.get('filesize'):
                     quality = f.get('format_note', 'Unknown')
                     mp4_buttons.append(InlineKeyboardButton(f"MP4 - {quality} - {humanbytes(f['filesize'])}",
                                                             callback_data=f"{f['format_id']}_mp4"))
 
-            buttons = []
-            if webm_buttons:
-                buttons.extend(webm_buttons)
-            if mp4_buttons:
-                buttons.extend(mp4_buttons)
-
-            buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
-            await msg.reply_text("Choose video quality and format:", reply_markup=InlineKeyboardMarkup(buttons))
+            buttons = [mp4_buttons[i:i + 2] for i in range(0, len(mp4_buttons), 2)]
+            await msg.reply_text("Choose MP4 video quality:", reply_markup=InlineKeyboardMarkup(buttons))
 
             # Clean the title by removing unwanted prefixes or suffixes
             clean_title = info_dict['title'].strip()
@@ -2509,10 +2504,10 @@ async def safe_edit_message(message, new_text):
         print(f"Error editing message: {e}")
 
 # Callback query handler
-@Client.on_callback_query(filters.regex(r"^\d+_(webm|mp4)$"))
+@Client.on_callback_query(filters.regex(r"^\d+_mp4$"))
 async def callback_query_handler(client: Client, query):
     user_id = query.from_user.id
-    format_id, format_type = query.data.split('_')  # Split format_id and type (webm or mp4)
+    format_id, format_type = query.data.split('_')  # Split format_id and type (mp4)
 
     if user_id not in user_quality_selection:
         try:
@@ -2527,7 +2522,7 @@ async def callback_query_handler(client: Client, query):
 
     ydl_opts = {
         'format': format_id,
-        'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.{format_type}"),  # Adjust the output file name as needed
+        'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
     }
@@ -2546,7 +2541,7 @@ async def callback_query_handler(client: Client, query):
 
             ydl.download([url])
 
-        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.{format_type}")  # Adjust the output file name as needed
+        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
         file_size = os.path.getsize(download_path)
 
         thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
@@ -2560,18 +2555,18 @@ async def callback_query_handler(client: Client, query):
 
         if file_size >= FILE_SIZE_LIMIT:  # 2GB in bytes
             await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
-            file_link = await upload_to_google_drive(download_path, f"{video_title}.{format_type}", sts)
+            file_link = await upload_to_google_drive(download_path, f"{video_title}.mp4", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
-                f"**From YouTube Link To File Successfully Uploaded To Google Drive!**\n\n"
+                f"**File successfully uploaded to Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {video_title}.{format_type}\n"
+                f"**Uploaded File**: {video_title}.mp4\n"
                 f"**Size**: {humanbytes(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
             await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
-            caption = f"**Uploaded Video**: {video_title}.{format_type}\n\n🌟 Size: {humanbytes(file_size)}"
+            caption = f"**Uploaded Video**: {video_title}.mp4\n\n🌟 Size: {humanbytes(file_size)}"
             await query.message.reply_document(
                 document=open(download_path, 'rb'),
                 thumb=file_thumb,
@@ -2590,7 +2585,7 @@ async def callback_query_handler(client: Client, query):
     finally:
         await sts.delete()
         await query.message.delete()
-
+        
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
