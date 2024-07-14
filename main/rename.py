@@ -2522,13 +2522,13 @@ async def callback_query_handler(client: Client, query):
     sts = await query.message.reply_text(f"🚀 Downloading {quality} - {humanbytes(file_size)}... ⚡")
 
     ydl_opts = {
-        'format': f'{format_id}+bestaudio/best',  # Ensure video and audio are merged
-        'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),  # Adjust the output file name as needed
-        'quiet': True,
-        'noplaylist': True,
-        'progress_hooks': [await progress_hook(sts)],  # Await the progress hook
-        'merge_output_format': 'mp4'  # Ensure the output is in mp4 format
-    }
+    'format': f'{format_id}+bestaudio/best',  
+    'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),  
+    'quiet': True,
+    'noplaylist': True,
+    'progress_hooks': [await progress_hook(sts)],  # Ensure you await the coroutine here
+    'merge_output_format': 'mp4'  
+}
     download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")
     file_thumb = None
 
