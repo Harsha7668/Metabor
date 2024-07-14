@@ -2724,6 +2724,8 @@ async def callback_query_handler(client: Client, query):
             os.remove(download_path)
 """
 
+from yt_dlp import YoutubeDL
+
 # Global variables
 user_quality_selection = {}
 DOWNLOAD_LOCATION = "./DOWNLOADS"  # Define your download location
