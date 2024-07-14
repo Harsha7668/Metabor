@@ -2551,7 +2551,7 @@ async def progress_hook(status_message):
 async def upload_progress_hook(current, total, status_message):
     progress = (current / total) * 100
     await status_message.edit_text(f"Uploading... {progress:.2f}%")
-
+    
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
@@ -2587,7 +2587,6 @@ async def ytdlleech_handler(client: Client, msg: Message):
     except Exception as e:
         await msg.reply_text(f"Error: {traceback.format_exc()}")
 
-# Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+$"))
 async def callback_query_handler(client: Client, query):
     user_id = query.from_user.id
@@ -2638,7 +2637,7 @@ async def callback_query_handler(client: Client, query):
                 video=download_path,
                 caption=f"**Uploaded Video**: {video_title}.mp4",
                 thumb=file_thumb,
-                progress=upload_progress_hook(sts)
+                progress=lambda current, total: upload_progress_hook(current, total, sts)
             )
 
         await query.message.delete()  # Delete the message with inline buttons
@@ -2652,7 +2651,6 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         if os.path.exists(download_path):
             os.remove(download_path)
-
             
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
