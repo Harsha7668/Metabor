@@ -2497,7 +2497,9 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose video quality and format:", reply_markup=InlineKeyboardMarkup(buttons))
-            clean_title = info_dict['title'].replace("_DOWNLOAD", "").replace("download", "").replace("DOWNLOAD", "")
+            
+            # Clean the title
+            clean_title = info_dict['title'].replace("_DOWNLOAD", "").replace("download", "").replace("DOWNLOAD", "").strip()
             user_quality_selection[msg.from_user.id] = (url, clean_title, info_dict.get('thumbnail'))
 
     except Exception as e:
