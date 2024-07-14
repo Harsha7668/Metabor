@@ -1,7 +1,7 @@
 #TG : @Sunrises_24
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 import subprocess
-import os
+import os, re
 import time, datetime
 import shutil
 import zipfile
@@ -2446,24 +2446,19 @@ async def callback_query_handler(client: Client, query):
 
 
 from yt_dlp import YoutubeDL
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-import os
-import time
+
 
 # Global variables
 user_quality_selection = {}
 user_prefixes = {}
 
-# Function to handle "/setprefix" command
-@Client.on_message(filters.private & filters.command("setprefix"))
-async def setprefix_handler(client: Client, msg: Message):
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide a prefix. Usage: /setprefix [prefix]")
 
-    prefix = msg.text.split(" ", 1)[1].strip()
-    user_prefixes[msg.from_user.id] = prefix
-    await msg.reply_text(f"Prefix set to: {prefix}")
+# Clean the title by removing unwanted prefixes and suffixes
+def clean_video_title(title):
+    # Example: Remove common YouTube suffixes like channel names or additional info
+    clean_title = re.sub(r"^\[.*?\]", "", title)  # Remove text inside brackets at the start
+    clean_title = clean_title.strip()
+    return clean_title
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2472,7 +2467,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
         return await msg.reply_text("Please provide a YouTube link.")
 
     command_text = msg.text.split(" ", 1)[1]
-    url, new_title = command_text.split(" -n ") if " -n " in command_text else (command_text.strip(), None)
+    url = command_text.strip()
 
     ydl_opts = {
         'quiet': True,
@@ -2507,25 +2502,15 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose video quality and format:", reply_markup=InlineKeyboardMarkup(buttons))
-            
-            clean_title = new_title if new_title else info_dict['title']
 
             # Apply user-specific prefix if available
             prefix = user_prefixes.get(msg.from_user.id, "")
-            clean_title = f"{prefix}{clean_title}".strip()
+            clean_title = f"{prefix} - {clean_video_title(info_dict['title'])}".strip()
 
             user_quality_selection[msg.from_user.id] = (url, clean_title, info_dict.get('thumbnail'))
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
-
-# Function to safely edit messages
-async def safe_edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit_text(new_text)
-    except Exception as e:
-        print(f"Error editing message: {e}")
 
 # Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+_(webm|mp4)$"))
