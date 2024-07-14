@@ -2440,10 +2440,12 @@ async def callback_query_handler(client: Client, query):
         os.remove(download_path)
         await query.message.delete()
         """
+
 from yt_dlp import YoutubeDL
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 import os
+import time
 
 # Global variables
 user_quality_selection = {}
@@ -2542,8 +2544,8 @@ async def callback_query_handler(client: Client, query):
                 ydl_thumb.download([thumbnail_url])
             file_thumb = thumbnail_path
 
-        if file_size >= FILE_SIZE_LIMIT:
-            await sts.edit("💠 Uploading...")
+        if file_size >= 2 * 1024 * 1024 * 1024:  # 2GB in bytes
+            await sts.edit("💠 Uploading to Google Drive... ⚡")
             file_link = await upload_to_google_drive(download_path, f"{video_title}.{format_type}", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
@@ -2553,32 +2555,26 @@ async def callback_query_handler(client: Client, query):
                 f"**Size**: {humanbytes(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
-
-            # Send video as document
-            await query.message.reply_document(
-                document=open(download_path, 'rb'),
-                caption=f"**Uploaded Video**: {video_title}.{format_type}",
-                thumb=file_thumb
-            )
-
         else:
-            await sts.edit("💠 Uploading...")
-
-            # Send video as document
+            await sts.edit("💠 Uploading to Telegram... ⚡")
+            caption = f"**Uploaded Video**: {video_title}.{format_type}\n\n🌟 Size: {humanbytes(file_size)}"
             await query.message.reply_document(
                 document=open(download_path, 'rb'),
-                caption=f"**Uploaded Video**: {video_title}.{format_type}",
-                thumb=file_thumb
+                thumb=file_thumb,
+                caption=caption,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, time.time())
             )
+
+        os.remove(download_path)
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
 
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
     finally:
-        if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
         await sts.delete()
-        os.remove(download_path)
         await query.message.delete()
 
 
