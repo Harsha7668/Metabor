@@ -2535,6 +2535,8 @@ import os
 
 # Global variables
 user_quality_selection = {}
+DOWNLOAD_LOCATION = '/path/to/your/download/location'  # Replace with your actual download location
+FILE_SIZE_LIMIT = 50 * 1024 * 1024  # Example file size limit, adjust as needed
 
 
 # Function to handle "/ytdlleech" command
@@ -2587,6 +2589,11 @@ async def callback_query_handler(client: Client, query):
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
+        'progress_hooks': [lambda d: client.edit_message_text(
+            chat_id=query.message.chat.id,
+            message_id=sts.message_id,
+            text=f"🚀 Downloading... ⚡\nProgress: {d['_percent_str']} - ETA: {d['_eta_str']}\nQuality: {d.get('format_note')} - Size: {humanbytes(d.get('filesize'))}"
+        )],
     }
 
     try:
@@ -2595,18 +2602,6 @@ async def callback_query_handler(client: Client, query):
             chosen_format = next((f for f in info_dict['formats'] if f['format_id'] == format_id), None)
             video_size = humanbytes(chosen_format['filesize']) if chosen_format else "Unknown"
             await sts.edit_text(f"🚀 Downloading... ⚡\nQuality: {chosen_format['format_note']} - Size: {video_size}")
-
-            ydl_opts = {
-    'format': format_id,
-    'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),
-    'quiet': True,
-    'noplaylist': True,
-    'progress_hooks': [lambda d: client.edit_message_text(
-        chat_id=query.message.chat.id,
-        message_id=sts.message_id,
-        text=f"🚀 Downloading... ⚡\nProgress: {d['_percent_str']} - ETA: {d['_eta_str']}\nQuality: {chosen_format['format_note']} - Size: {humanbytes(chosen_format['filesize'])}"
-    )],
-}
 
             ydl.download([url])
 
@@ -2648,6 +2643,8 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         os.remove(download_path)
+
+
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
