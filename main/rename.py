@@ -2744,9 +2744,9 @@ async def ytdlleech_handler(client: Client, msg: Message):
     url = command_text.strip()
 
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',  # Specify the best video and audio format available
-        'outtmpl': os.path.join(DOWNLOAD_LOCATION, "%(title)s.%(ext)s"),  # Adjust the output file name as needed
         'quiet': True,
+        'skip_download': True,
+        'force_generic_extractor': True,
         'noplaylist': True,
     }
 
@@ -2809,12 +2809,14 @@ async def callback_query_handler(client: Client, query):
     sts = await query.message.reply_text("🚀 Downloading... ⚡")
 
     ydl_opts = {
-        'format': format_id,
+        'format': f'{format_id}+bestaudio/best',  # Ensure video and audio are merged
         'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.{format_type}"),  # Adjust the output file name as needed
         'quiet': True,
         'noplaylist': True,
+        'progress_hooks': [await progress_hook(sts)],  # Await the progress hook
+        'merge_output_format': '{format_type}'  # Ensure the output is in mp4 format
     }
-
+    
     try:
         with YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=False)
