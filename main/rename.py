@@ -2530,12 +2530,10 @@ async def callback_query_handler(client: Client, query):
 """
 
 
-
 from yt_dlp import YoutubeDL
 
 # Global variables
 user_quality_selection = {}
-
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2601,6 +2599,9 @@ async def callback_query_handler(client: Client, query):
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
+            if not os.path.exists(download_path):
+                raise FileNotFoundError(f"File not found: {download_path}")
+
             file_size = os.path.getsize(download_path)
             await progress_message(file_size, file_size, "Download finished.", sts, start_time)
 
@@ -2633,6 +2634,9 @@ async def callback_query_handler(client: Client, query):
 
         await query.message.delete()  # Delete the message with inline buttons
 
+    except FileNotFoundError as e:
+        await sts.edit(f"Error: {e}")
+
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
@@ -2642,6 +2646,8 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         if os.path.exists(download_path):
             os.remove(download_path)
+
+
             
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
