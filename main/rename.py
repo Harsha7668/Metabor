@@ -2442,10 +2442,7 @@ async def callback_query_handler(client: Client, query):
         """
 
 from yt_dlp import YoutubeDL
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-import os
-import time
+
 
 # Global variables
 user_quality_selection = {}
@@ -2497,6 +2494,14 @@ async def ytdlleech_handler(client: Client, msg: Message):
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
 
+# Function to safely edit messages
+async def safe_edit_message(message, new_text):
+    try:
+        if message.text != new_text:
+            await message.edit_text(new_text)
+    except Exception as e:
+        print(f"Error editing message: {e}")
+
 # Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+_(webm|mp4)$"))
 async def callback_query_handler(client: Client, query):
@@ -2504,7 +2509,11 @@ async def callback_query_handler(client: Client, query):
     format_id, format_type = query.data.split('_')  # Split format_id and type (webm or mp4)
 
     if user_id not in user_quality_selection:
-        return await query.answer("No download in progress.")
+        try:
+            return await query.answer("No download in progress.")
+        except Exception as e:
+            print(f"Error answering callback query: {e}")
+        return
 
     url, video_title, thumbnail_url = user_quality_selection.pop(user_id)
 
@@ -2522,12 +2531,11 @@ async def callback_query_handler(client: Client, query):
             info_dict = ydl.extract_info(url, download=False)
             chosen_format = next((f for f in info_dict['formats'] if f['format_id'] == format_id), None)
             video_size = humanbytes(chosen_format['filesize']) if chosen_format else "Unknown"
-            await sts.edit_text(f"🚀 Downloading... ⚡\nQuality: {chosen_format['format_note']} - Size: {video_size}")
+            await safe_edit_message(sts, f"🚀 Downloading... ⚡\nQuality: {chosen_format['format_note']} - Size: {video_size}")
 
-            ydl_opts['progress_hooks'] = [lambda d: client.edit_message_text(
-                chat_id=query.message.chat.id,
-                message_id=sts.message_id,
-                text=f"🚀 Downloading... ⚡\nProgress: {d['_percent_str']} - ETA: {d['_eta_str']}\nQuality: {chosen_format['format_note']} - Size: {humanbytes(chosen_format['filesize'])}"
+            ydl_opts['progress_hooks'] = [lambda d: safe_edit_message(
+                sts,
+                f"🚀 Downloading... ⚡\nProgress: {d['_percent_str']} - ETA: {d['_eta_str']}\nQuality: {chosen_format['format_note']} - Size: {humanbytes(chosen_format['filesize'])}"
             )]
 
             ydl.download([url])
@@ -2545,18 +2553,18 @@ async def callback_query_handler(client: Client, query):
             file_thumb = thumbnail_path
 
         if file_size >= 2 * 1024 * 1024 * 1024:  # 2GB in bytes
-            await sts.edit("💠 Uploading to Google Drive... ⚡")
+            await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
             file_link = await upload_to_google_drive(download_path, f"{video_title}.{format_type}", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
-                f"**File successfully uploaded to Google Drive!**\n\n"
+                f"**From YouTube Link To File Successfully Uploaded To Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
                 f"**Uploaded File**: {video_title}.{format_type}\n"
                 f"**Size**: {humanbytes(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
-            await sts.edit("💠 Uploading to Telegram... ⚡")
+            await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
             caption = f"**Uploaded Video**: {video_title}.{format_type}\n\n🌟 Size: {humanbytes(file_size)}"
             await query.message.reply_document(
                 document=open(download_path, 'rb'),
@@ -2571,11 +2579,12 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
 
     except Exception as e:
-        await sts.edit(f"Error: {e}")
+        await safe_edit_message(sts, f"Error: {e}")
 
     finally:
         await sts.delete()
         await query.message.delete()
+
 
 
 if __name__ == '__main__':
