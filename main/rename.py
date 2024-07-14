@@ -2535,8 +2535,6 @@ import os
 
 # Global variables
 user_quality_selection = {}
-DOWNLOAD_LOCATION = '/path/to/your/download/location'  # Replace with your actual download location
-FILE_SIZE_LIMIT = 50 * 1024 * 1024  # Example file size limit, adjust as needed
 
 
 # Function to handle "/ytdlleech" command
@@ -2561,7 +2559,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
             formats = info_dict.get('formats', [])
 
             buttons = [
-                InlineKeyboardButton(f"{f['format_note']} - {humanbytes(f['filesize'])}", callback_data=f"{f['format_id']}")
+                InlineKeyboardButton(f"{f['format_note']} - {humanbytes1(f['filesize'])}", callback_data=f"{f['format_id']}")
                 for f in formats if f.get('filesize')
             ]
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
@@ -2600,7 +2598,7 @@ async def callback_query_handler(client: Client, query):
         with YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=False)
             chosen_format = next((f for f in info_dict['formats'] if f['format_id'] == format_id), None)
-            video_size = humanbytes(chosen_format['filesize']) if chosen_format else "Unknown"
+            video_size = humanbytes1(chosen_format['filesize']) if chosen_format else "Unknown"
             await sts.edit_text(f"🚀 Downloading... ⚡\nQuality: {chosen_format['format_note']} - Size: {video_size}")
 
             ydl.download([url])
@@ -2625,7 +2623,7 @@ async def callback_query_handler(client: Client, query):
                 f"**File successfully uploaded to Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
                 f"**Uploaded File**: {video_title}.mp4\n"
-                f"**Size**: {humanbytes(file_size)}",
+                f"**Size**: {humanbytes1(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
@@ -2639,12 +2637,29 @@ async def callback_query_handler(client: Client, query):
         await sts.edit(f"Error: {e}")
 
     finally:
-        if file_thumb and os.path.exists(file_thumb):
+        if 'file_thumb' in locals() and file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
         await sts.delete()
         os.remove(download_path)
 
+def humanbytes1(B):
+    'Return the given bytes as a human friendly KB, MB, GB, or TB string'
+    B = float(B)
+    KB = float(1024)
+    MB = float(KB ** 2)  # 1,048,576
+    GB = float(KB ** 3)  # 1,073,741,824
+    TB = float(KB ** 4)  # 1,099,511,627,776
 
+    if B < KB:
+        return '{0} {1}'.format(B, 'Bytes' if 0 == B > 1 else 'Byte')
+    elif KB <= B < MB:
+        return '{0:.2f} KB'.format(B/KB)
+    elif MB <= B < GB:
+        return '{0:.2f} MB'.format(B/MB)
+    elif GB <= B < TB:
+        return '{0:.2f} GB'.format(B/GB)
+    elif TB <= B:
+        return '{0:.2f} TB'.format(B/TB)
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
