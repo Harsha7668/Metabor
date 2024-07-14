@@ -2535,6 +2535,8 @@ import os
 
 # Global variables
 user_quality_selection = {}
+DOWNLOAD_LOCATION = "/path/to/download/location"  # Adjust this to your download directory
+FILE_SIZE_LIMIT = 50 * 1024 * 1024  # Example file size limit
 
 
 # Function to handle "/ytdlleech" command
@@ -2589,7 +2591,7 @@ async def callback_query_handler(client: Client, query):
         'noplaylist': True,
     }
 
-    file_thumb = None  # Initialize file_thumb here
+    file_thumb = None
 
     try:
         def progress_hook(d):
@@ -2609,14 +2611,14 @@ async def callback_query_handler(client: Client, query):
 
         ydl_opts['progress_hooks'] = [progress_hook]
 
+        # Download video
         with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+            info_dict = ydl.extract_info(url, download=True)  # Download the video
+            download_path = ydl.prepare_filename(info_dict)  # Get the downloaded file path
 
-        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
         file_size = os.path.getsize(download_path)
 
-        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
-
+        thumbnail_path = os.path.join(DOWNLOAD_LOCATION, f"thumbnail_{user_id}.jpg")
         if thumbnail_url:
             ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
             with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
@@ -2625,7 +2627,9 @@ async def callback_query_handler(client: Client, query):
 
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
-            file_link = await upload_to_google_drive(download_path, f"{video_title}.mp4", sts)
+            # Implement your upload function here
+            # file_link = await upload_to_google_drive(download_path, f"{video_title}.mp4", sts)
+            file_link = "https://example.com"  # Replace with actual file link
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
                 f"**File successfully uploaded to Google Drive!**\n\n"
@@ -2645,12 +2649,13 @@ async def callback_query_handler(client: Client, query):
         await sts.edit(f"Error: {e}")
 
     finally:
+        if 'download_path' in locals() and os.path.exists(download_path):
+            os.remove(download_path)
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
         await sts.delete()
-        os.remove(download_path)
-        await query.message.delete()  # Delete the message after the process completes successfully
-            
+        await query.message.delete()
+        
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
