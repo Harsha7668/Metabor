@@ -2625,17 +2625,23 @@ async def callback_query_handler(client: Client, query):
                 f"**Size**: {humanbytes(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
-        else:
-            await query.message.reply_video(
-                video=download_path,
+
+            # Send video as document
+            await query.message.reply_document(
+                document=download_path,
                 caption=f"**Uploaded Video**: {video_title}.mp4",
                 thumb=file_thumb
             )
 
-        # Add a close button
-        close_button = InlineKeyboardButton("Close", callback_data="close")
-        inline_keyboard = InlineKeyboardMarkup([[close_button]])
-        await query.message.reply_text("Download completed!", reply_markup=inline_keyboard)
+        else:
+            await sts.edit("💠 Uploading...")
+
+            # Send video as document
+            await query.message.reply_document(
+                document=download_path,
+                caption=f"**Uploaded Video**: {video_title}.mp4",
+                thumb=file_thumb
+            )
 
     except Exception as e:
         await sts.edit(f"Error: {e}")
@@ -2645,6 +2651,7 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         os.remove(download_path)
+        await query.message.delete()
 
 
 if __name__ == '__main__':
