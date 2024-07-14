@@ -2535,8 +2535,6 @@ import os
 
 # Global variables
 user_quality_selection = {}
-DOWNLOAD_LOCATION = "/path/to/download/location"  # Adjust this to your download directory
-FILE_SIZE_LIMIT = 50 * 1024 * 1024  # Example file size limit
 
 
 # Function to handle "/ytdlleech" command
@@ -2591,34 +2589,33 @@ async def callback_query_handler(client: Client, query):
         'noplaylist': True,
     }
 
-    file_thumb = None
-
     try:
-        def progress_hook(d):
-            if d['status'] == 'downloading':
-                percent = d['_percent_str']
-                eta = d['_eta_str']
-                message_text = (
-                    f"🚀 Downloading... ⚡\n"
-                    f"Progress: {percent} - ETA: {eta}\n"
-                    f"Quality: {d['format_note']} - Size: {humanbytes(d['total_bytes'])}"
-                )
-                client.edit_message_text(
-                    chat_id=query.message.chat.id,
-                    message_id=sts.message_id,
-                    text=message_text
-                )
-
-        ydl_opts['progress_hooks'] = [progress_hook]
-
-        # Download video
         with YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=True)  # Download the video
-            download_path = ydl.prepare_filename(info_dict)  # Get the downloaded file path
+            info_dict = ydl.extract_info(url, download=False)
+            chosen_format = next((f for f in info_dict['formats'] if f['format_id'] == format_id), None)
+            video_size = humanbytes(chosen_format['filesize']) if chosen_format else "Unknown"
+            await sts.edit_text(f"🚀 Downloading... ⚡\nQuality: {chosen_format['format_note']} - Size: {video_size}")
 
+            ydl_opts = {
+    'format': format_id,
+    'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4"),
+    'quiet': True,
+    'noplaylist': True,
+    'progress_hooks': [lambda d: client.edit_message_text(
+        chat_id=query.message.chat.id,
+        message_id=sts.message_id,
+        text=f"🚀 Downloading... ⚡\nProgress: {d['_percent_str']} - ETA: {d['_eta_str']}\nQuality: {chosen_format['format_note']} - Size: {humanbytes(chosen_format['filesize'])}"
+    )],
+}
+
+            ydl.download([url])
+
+        download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mp4")  # Adjust the output file name as needed
         file_size = os.path.getsize(download_path)
 
-        thumbnail_path = os.path.join(DOWNLOAD_LOCATION, f"thumbnail_{user_id}.jpg")
+        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
+        file_thumb = None
+
         if thumbnail_url:
             ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
             with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
@@ -2627,9 +2624,7 @@ async def callback_query_handler(client: Client, query):
 
         if file_size >= FILE_SIZE_LIMIT:
             await sts.edit("💠 Uploading...")
-            # Implement your upload function here
-            # file_link = await upload_to_google_drive(download_path, f"{video_title}.mp4", sts)
-            file_link = "https://example.com"  # Replace with actual file link
+            file_link = await upload_to_google_drive(download_path, f"{video_title}.mp4", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
                 f"**File successfully uploaded to Google Drive!**\n\n"
@@ -2649,12 +2644,10 @@ async def callback_query_handler(client: Client, query):
         await sts.edit(f"Error: {e}")
 
     finally:
-        if 'download_path' in locals() and os.path.exists(download_path):
-            os.remove(download_path)
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
         await sts.delete()
-        await query.message.delete()
+        os.remove(download_path)
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
