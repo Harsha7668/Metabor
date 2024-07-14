@@ -2589,6 +2589,8 @@ async def callback_query_handler(client: Client, query):
         'noplaylist': True,
     }
 
+    file_thumb = None  # Initialize file_thumb here
+
     try:
         def progress_hook(d):
             if d['status'] == 'downloading':
@@ -2614,7 +2616,6 @@ async def callback_query_handler(client: Client, query):
         file_size = os.path.getsize(download_path)
 
         thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{query.from_user.id}.jpg"
-        file_thumb = None
 
         if thumbnail_url:
             ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
@@ -2649,7 +2650,6 @@ async def callback_query_handler(client: Client, query):
         await sts.delete()
         os.remove(download_path)
         await query.message.delete()  # Delete the message after the process completes successfully
-
             
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
