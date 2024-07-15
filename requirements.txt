@@ -16,3 +16,6 @@ asyncio==3.4.3
 yt_dlp
 pymediainfo
 telegraph
+
+libmediainfo0v5
+libmediainfo-dev
