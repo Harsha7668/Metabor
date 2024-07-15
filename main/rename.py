@@ -2545,6 +2545,7 @@ async def mediainfo_handler(client, message):
 
     doc = message.reply_to_message.document
     file_path = await message.reply_to_message.download(file_name=os.path.join(DOWNLOAD_LOCATION, doc.file_name))
+    info_file_path = None  # Initialize info_file_path
 
     try:
         media_info_text = get_mediainfo(file_path)
@@ -2561,8 +2562,10 @@ async def mediainfo_handler(client, message):
         await message.reply_text(f"Error: {e}")
     finally:
         # Clean up downloaded files
-        os.remove(file_path)
-        os.remove(info_file_path)
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+        if info_file_path and os.path.exists(info_file_path):
+            os.remove(info_file_path)
 
 
         
