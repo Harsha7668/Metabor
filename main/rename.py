@@ -2445,6 +2445,126 @@ async def callback_query_handler(client: Client, query):
         await query.message.delete()  # Delete the original message after processing
 
 
+
+
+
+from pymediainfo import MediaInfo
+
+
+# Ensure the download location exists
+if not os.path.exists(DOWNLOAD_LOCATION):
+    os.makedirs(DOWNLOAD_LOCATION)
+
+# Function to extract media information
+def get_mediainfo(file_path):
+    media_info = MediaInfo.parse(file_path)
+    info = ""
+    for track in media_info.tracks:
+        if track.track_type == 'General':
+            info += "General\n"
+            info += f"Unique ID: {track.unique_id}\n"
+            info += f"Complete name: {track.complete_name}\n"
+            info += f"Title: {track.title}\n"
+            info += f"Format: {track.format}\n"
+            info += f"Format version: {track.format_version}\n"
+            info += f"File size: {track.file_size}\n"
+            info += f"Duration: {track.other_duration}\n"
+            info += f"Overall bit rate: {track.overall_bit_rate}\n"
+            info += f"Frame rate: {track.frame_rate}\n"
+            info += f"Writing application: {track.writing_application}\n"
+            info += f"Writing library: {track.writing_library}\n"
+            info += f"ErrorDetectionType: {track.error_detection_type}\n"
+            info += f"FileExtension_Invalid: {track.file_extension_invalid}\n"
+            info += "\n"
+
+        if track.track_type == 'Video':
+            info += "Video\n"
+            info += f"ID: {track.track_id}\n"
+            info += f"Format: {track.format}\n"
+            info += f"Format/Info: {track.format_info}\n"
+            info += f"Format profile: {track.format_profile}\n"
+            info += f"Format settings: {track.format_settings}\n"
+            info += f"Format settings, CABAC: {track.format_settings_cabac}\n"
+            info += f"Format settings, Reference frames: {track.format_settings_reframes}\n"
+            info += f"Codec ID: {track.codec_id}\n"
+            info += f"Duration: {track.other_duration}\n"
+            info += f"Width: {track.width}\n"
+            info += f"Height: {track.height}\n"
+            info += f"Display aspect ratio: {track.display_aspect_ratio}\n"
+            info += f"Frame rate mode: {track.frame_rate_mode}\n"
+            info += f"Frame rate: {track.frame_rate}\n"
+            info += f"Color space: {track.color_space}\n"
+            info += f"Chroma subsampling: {track.chroma_subsampling}\n"
+            info += f"Bit depth: {track.bit_depth}\n"
+            info += f"Scan type: {track.scan_type}\n"
+            info += f"Title: {track.title}\n"
+            info += f"Writing library: {track.writing_library}\n"
+            info += f"Default: {track.default}\n"
+            info += f"Forced: {track.forced}\n"
+            info += f"Color range: {track.color_range}\n"
+            info += f"Color primaries: {track.color_primaries}\n"
+            info += f"Transfer characteristics: {track.transfer_characteristics}\n"
+            info += f"Matrix coefficients: {track.matrix_coefficients}\n"
+            info += f"VENDOR_ID: {track.vendor_id}\n"
+            info += "\n"
+
+        if track.track_type == 'Audio':
+            info += "Audio\n"
+            info += f"ID: {track.track_id}\n"
+            info += f"Format: {track.format}\n"
+            info += f"Codec ID: {track.codec_id}\n"
+            info += f"Duration: {track.other_duration}\n"
+            info += f"Channel(s): {track.channel_s}\n"
+            info += f"Channel layout: {track.channel_layout}\n"
+            info += f"Sampling rate: {track.sampling_rate}\n"
+            info += f"Bit depth: {track.bit_depth}\n"
+            info += f"Compression mode: {track.compression_mode}\n"
+            info += f"Language: {track.language}\n"
+            info += f"Default: {track.default}\n"
+            info += f"Forced: {track.forced}\n"
+            info += "\n"
+
+        if track.track_type == 'Text':
+            info += "Text (Subtitle)\n"
+            info += f"ID: {track.track_id}\n"
+            info += f"Format: {track.format}\n"
+            info += f"Codec ID: {track.codec_id}\n"
+            info += f"Duration: {track.other_duration}\n"
+            info += f"Language: {track.language}\n"
+            info += f"Default: {track.default}\n"
+            info += f"Forced: {track.forced}\n"
+            info += "\n"
+    return info
+
+# Command handler for /mediainfo
+@Client.on_message(filters.command("mediainfo") & filters.private)
+async def mediainfo_handler(client, message):
+    if not message.reply_to_message or not message.reply_to_message.document:
+        await message.reply_text("Please reply to a document to get media info.")
+        return
+
+    doc = message.reply_to_message.document
+    file_path = await message.reply_to_message.download(file_name=os.path.join(DOWNLOAD_LOCATION, doc.file_name))
+
+    try:
+        media_info_text = get_mediainfo(file_path)
+        # Save the media info to a file
+        info_file_path = os.path.join(DOWNLOAD_LOCATION, f"{os.path.splitext(doc.file_name)[0]}_info.txt")
+        with open(info_file_path, "w") as info_file:
+            info_file.write(media_info_text)
+
+        # Upload the media info file and send the link
+        info_message = await message.reply_document(info_file_path)
+        link = f"https://mediainfo.xcr.moe/{info_message.document.file_id}"
+        await message.reply_text(f"Media info stored. [View Info]({link})", disable_web_page_preview=True)
+    except Exception as e:
+        await message.reply_text(f"Error: {e}")
+    finally:
+        # Clean up downloaded files
+        os.remove(file_path)
+        os.remove(info_file_path)
+
+
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
