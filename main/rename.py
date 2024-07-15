@@ -2709,15 +2709,6 @@ from pyrogram.types import Message
 from pymediainfo import MediaInfo
 from telegraph import Telegraph
 
-# Constants
-API_ID = 'your_api_id'
-API_HASH = 'your_api_hash'
-BOT_TOKEN = 'your_bot_token'
-DOWNLOAD_LOCATION = './downloads/'
-
-# Create the bot client
-app = Client("media_info_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-
 # Ensure the download location exists
 if not os.path.exists(DOWNLOAD_LOCATION):
     os.makedirs(DOWNLOAD_LOCATION)
