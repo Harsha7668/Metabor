@@ -2583,6 +2583,7 @@ from yt_dlp import YoutubeDL
 
 # Global variables
 user_quality_selection = {}
+DOWNLOAD_LOCATION2 = ""
 
 async def progress_hook(status_message):
     async def hook(d):
@@ -2669,13 +2670,13 @@ async def callback_query_handler(client: Client, query):
 
     ydl_opts = {
         'format': f'{format_id}+bestaudio/best',  # Ensure video and audio are merged
-        'outtmpl': os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mkv"),  # Adjust the output file name to use MKV
+        'outtmpl': os.path.join(DOWNLOAD_LOCATION2, f"{video_title}.mkv"),  # Adjust the output file name to use MKV
         'quiet': True,
         'noplaylist': True,
         'progress_hooks': [await progress_hook(status_message=sts)],  # Await the progress hook correctly
         'merge_output_format': 'mkv'  # Ensure the output is in MKV format
     }
-    download_path = os.path.join(DOWNLOAD_LOCATION, f"{video_title}.mkv")
+    download_path = os.path.join(DOWNLOAD_LOCATION2, f"{video_title}.mkv")
     file_thumb = None
 
     try:
