@@ -2827,10 +2827,13 @@ async def mediainfo_handler(client, message):
     # Send an acknowledgment message immediately
     processing_message = await message.reply_text("Getting MediaInfo...")
 
-    file_path = await media.download(file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name))
-    info_file_path = None  # Initialize info_file_path
-
     try:
+        # Download the media file to a local location
+        if media:
+            file_path = await client.download_media(media, file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name))
+        else:
+            raise ValueError("No valid media found in the replied message.")
+
         media_info_text = get_mediainfo(file_path)
 
         # Get the current date
@@ -2874,9 +2877,9 @@ async def mediainfo_handler(client, message):
         await processing_message.delete()
 
         # Clean up downloaded files
-        if file_path and os.path.exists(file_path):
+        if 'file_path' in locals() and os.path.exists(file_path):
             os.remove(file_path)
-        if info_file_path and os.path.exists(info_file_path):
+        if 'info_file_path' in locals() and os.path.exists(info_file_path):
             os.remove(info_file_path)
         
 if __name__ == '__main__':
