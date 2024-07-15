@@ -2568,7 +2568,7 @@ async def mediainfo_handler(client, message):
             os.remove(info_file_path)
 """
 
-
+"""
 from pymediainfo import MediaInfo
 from telegraph import Telegraph
 
@@ -2699,6 +2699,173 @@ async def mediainfo_handler(client, message):
         if info_file_path and os.path.exists(info_file_path):
             os.remove(info_file_path)
 
+"""
+
+import os
+import datetime
+import asyncio
+from pyrogram import Client, filters
+from pyrogram.types import Message
+from pymediainfo import MediaInfo
+from telegraph import Telegraph
+
+# Constants
+API_ID = 'your_api_id'
+API_HASH = 'your_api_hash'
+BOT_TOKEN = 'your_bot_token'
+DOWNLOAD_LOCATION = './downloads/'
+
+# Create the bot client
+app = Client("media_info_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
+# Ensure the download location exists
+if not os.path.exists(DOWNLOAD_LOCATION):
+    os.makedirs(DOWNLOAD_LOCATION)
+
+# Initialize Telegraph
+telegraph = Telegraph()
+telegraph.create_account(short_name='MediaInfoBot')
+
+# Function to extract media information
+def get_mediainfo(file_path):
+    media_info = MediaInfo.parse(file_path)
+    info = ""
+    for track in media_info.tracks:
+        if track.track_type == 'General':
+            info += "📌 General\n"
+            info += f"Unique ID: {track.unique_id}\n"
+            info += f"Complete name: {track.complete_name}\n"
+            info += f"Format: {track.format}\n"
+            info += f"Format version: {track.format_version}\n"
+            info += f"File size: {track.file_size}\n"
+            info += f"Duration: {track.other_duration}\n"
+            info += f"Overall bit rate: {track.overall_bit_rate}\n"
+            info += f"Movie name: {track.movie_name}\n"
+            info += f"Encoded date: {track.encoded_date}\n"
+            info += f"Writing application: {track.writing_application}\n"
+            info += f"Writing library: {track.writing_library}\n"
+            info += f"FileExtension_Invalid: {track.file_extension_invalid}\n"
+            info += "\n"
+
+        if track.track_type == 'Video':
+            info += "🎞 Video\n"
+            info += f"Title: {track.title}\n"
+            info += f"ID: {track.track_id}\n"
+            info += f"Format: {track.format}\n"
+            info += f"Format/Info: {track.format_info}\n"
+            info += f"Format profile: {track.format_profile}\n"
+            info += f"Codec ID: {track.codec_id}\n"
+            info += f"Duration: {track.other_duration}\n"
+            info += f"Width: {track.width}\n"
+            info += f"Height: {track.height}\n"
+            info += f"Display aspect ratio: {track.display_aspect_ratio}\n"
+            info += f"Frame rate mode: {track.frame_rate_mode}\n"
+            info += f"Frame rate: {track.frame_rate}\n"
+            info += f"Color space: {track.color_space}\n"
+            info += f"Chroma subsampling: {track.chroma_subsampling}\n"
+            info += f"Bit depth: {track.bit_depth}\n"
+            info += f"Writing library: {track.writing_library}\n"
+            info += f"Default: {track.default}\n"
+            info += f"Forced: {track.forced}\n"
+            info += f"Color range: {track.color_range}\n"
+            info += f"Color primaries: {track.color_primaries}\n"
+            info += f"Matrix coefficients: {track.matrix_coefficients}\n"
+            info += "\n"
+
+        if track.track_type == 'Audio':
+            info += "🔊 Audio\n"
+            info += f"Title: {track.title}\n"
+            info += f"ID: {track.track_id}\n"
+            info += f"Format: {track.format}\n"
+            info += f"Codec ID: {track.codec_id}\n"
+            info += f"Duration: {track.other_duration}\n"
+            info += f"Channel(s): {track.channel_s}\n"
+            info += f"Channel layout: {track.channel_layout}\n"
+            info += f"Sampling rate: {track.sampling_rate}\n"
+            info += f"Bit depth: {track.bit_depth}\n"
+            info += f"Compression mode: {track.compression_mode}\n"
+            info += f"Language: {track.language}\n"
+            info += f"Default: {track.default}\n"
+            info += f"Forced: {track.forced}\n"
+            info += "\n"
+
+        if track.track_type == 'Text':
+            info += "🔠 Subtitle\n"
+            info += f"Title: {track.title}\n"
+            info += f"ID: {track.track_id}\n"
+            info += f"Format: {track.format}\n"
+            info += f"Codec ID: {track.codec_id}\n"
+            info += f"Duration: {track.other_duration}\n"
+            info += f"Language: {track.language}\n"
+            info += f"Default: {track.default}\n"
+            info += f"Forced: {track.forced}\n"
+            info += "\n"
+
+    return info
+
+# Command handler for /mediainfo
+@Client.on_message(filters.command("mediainfo") & filters.private)
+async def mediainfo_handler(client, message):
+    if not message.reply_to_message or not message.reply_to_message.document:
+        await message.reply_text("Please reply to a document to get media info.")
+        return
+
+    doc = message.reply_to_message.document
+
+    # Send an acknowledgment message immediately
+    processing_message = await message.reply_text("Getting MediaInfo...")
+
+    file_path = await message.reply_to_message.download(file_name=os.path.join(DOWNLOAD_LOCATION, doc.file_name))
+    info_file_path = None  # Initialize info_file_path
+
+    try:
+        media_info_text = get_mediainfo(file_path)
+
+        # Get the current date
+        current_date = datetime.datetime.now().strftime("%B %d, %Y")
+
+        # Prepare the media info with additional details
+        media_info_text = (
+            f"SUNRISES 24 BOT UPDATES\n"
+            f"MediaInfo X\n"
+            f"{current_date} by [SUNRISES 24 BOT UPDATES](https://t.me/Sunrises24BotUpdates)\n\n"
+            f"{media_info_text}\n"
+            f"Rights designed by Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ\n"
+        )
+
+        # Save the media info to a file
+        info_file_path = os.path.join(DOWNLOAD_LOCATION, f"{os.path.splitext(doc.file_name)[0]}_info.txt")
+        with open(info_file_path, "w") as info_file:
+            info_file.write(media_info_text)
+
+        # Upload the media info to Telegraph
+        response = telegraph.create_page(
+            title="MediaInfo",
+            html_content=media_info_text.replace("\n", "<br>")
+        )
+        link = f"https://graph.org/{response['path']}"
+
+        # Prepare the final message with the text file link and the Telegraph link
+        message_text = (
+            f"SUNRISES 24 BOT UPDATES\n"
+            f"MediaInfo X\n"
+            f"{current_date} by [SUNRISES 24 BOT UPDATES](https://t.me/Sunrises24BotUpdates)\n\n"
+            f"[View Info on Telegraph]({link})\n"
+            f"Rights Designed By Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ"
+        )
+
+        await message.reply_document(info_file_path, caption=message_text, disable_web_page_preview=True)
+    except Exception as e:
+        await message.reply_text(f"Error: {e}")
+    finally:
+        # Clean up the acknowledgment message
+        await processing_message.delete()
+
+        # Clean up downloaded files
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+        if info_file_path and os.path.exists(info_file_path):
+            os.remove(info_file_path)
 
         
 if __name__ == '__main__':
