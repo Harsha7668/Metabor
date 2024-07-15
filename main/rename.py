@@ -2726,7 +2726,14 @@ async def callback_query_handler(client: Client, query):
 import os
 import time
 from yt_dlp import YoutubeDL
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+# Global variables
+user_quality_selection = {}
+user_credentials = {}
+DOWNLOAD_LOCATION2 = "/path/to/download/directory"
+FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2 GB
 
 async def progress_hook(status_message):
     async def hook(d):
@@ -2756,12 +2763,45 @@ async def zee5leech_handler(client: Client, msg: Message):
     if "zee5.com" not in url:
         return await msg.reply_text("Please provide a valid Zee5 link.")
 
+    user_id = msg.from_user.id
+    user_credentials[user_id] = {}
+
+    # Request username and password
+    await msg.reply_text("Please enter your Zee5 username:")
+    user_credentials[user_id]['step'] = 'username'
+    user_credentials[user_id]['url'] = url
+
+@Client.on_message(filters.private & filters.text)
+async def credentials_handler(client: Client, msg: Message):
+    user_id = msg.from_user.id
+
+    if user_id not in user_credentials:
+        return
+
+    step = user_credentials[user_id].get('step')
+
+    if step == 'username':
+        user_credentials[user_id]['username'] = msg.text
+        await msg.reply_text("Please enter your Zee5 password:")
+        user_credentials[user_id]['step'] = 'password'
+    elif step == 'password':
+        user_credentials[user_id]['password'] = msg.text
+        await process_zee5_download(client, msg, user_credentials[user_id])
+        del user_credentials[user_id]
+
+async def process_zee5_download(client: Client, msg: Message, credentials: dict):
+    url = credentials['url']
+    username = credentials['username']
+    password = credentials['password']
+
     ydl_opts = {
         'quiet': True,
         'skip_download': True,
         'force_generic_extractor': True,
         'noplaylist': True,
-        'merge_output_format': 'mkv'
+        'merge_output_format': 'mkv',
+        'username': username,
+        'password': password
     }
 
     try:
@@ -2865,6 +2905,7 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         await query.message.delete()
+
 
 
                 
