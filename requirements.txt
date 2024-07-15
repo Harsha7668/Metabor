@@ -17,5 +17,3 @@ yt_dlp
 pymediainfo
 telegraph
 
-libmediainfo0v5
-libmediainfo-dev
