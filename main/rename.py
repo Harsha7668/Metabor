@@ -2815,25 +2815,19 @@ def get_mediainfo(file_path):
 
     return info
 
-# Command handler for /mediainfo
 @Client.on_message(filters.command("mediainfo") & filters.private)
 async def mediainfo_handler(client, message):
-    if not message.reply_to_message or not (message.reply_to_message.document or message.reply_to_message.video):
+    if not message.reply_to_message or (not message.reply_to_message.document and not message.reply_to_message.video):
         await message.reply_text("Please reply to a document or video to get media info.")
         return
 
-    media_type = None
-    if message.reply_to_message.document:
-        media_type = "document"
-        file = message.reply_to_message.document
-    elif message.reply_to_message.video:
-        media_type = "video"
-        file = message.reply_to_message.video
+    reply = message.reply_to_message
+    media = reply.document or reply.video
 
     # Send an acknowledgment message immediately
     processing_message = await message.reply_text("Getting MediaInfo...")
 
-    file_path = await file.download(file_name=os.path.join(DOWNLOAD_LOCATION, file.file_name))
+    file_path = await media.download(file_name=os.path.join(DOWNLOAD_LOCATION, media.file_name))
     info_file_path = None  # Initialize info_file_path
 
     try:
@@ -2852,7 +2846,7 @@ async def mediainfo_handler(client, message):
         )
 
         # Save the media info to a file
-        info_file_path = os.path.join(DOWNLOAD_LOCATION, f"{os.path.splitext(file.file_name)[0]}_info.txt")
+        info_file_path = os.path.join(DOWNLOAD_LOCATION, f"{os.path.splitext(media.file_name)[0]}_info.txt")
         with open(info_file_path, "w") as info_file:
             info_file.write(media_info_text)
 
@@ -2869,7 +2863,7 @@ async def mediainfo_handler(client, message):
             f"MediaInfo X\n"
             f"{current_date} by [SUNRISES 24 BOT UPDATES](https://t.me/Sunrises24BotUpdates)\n\n"
             f"[View Info on Telegraph]({link})\n"
-            f"Rights Designed By Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ"
+            f"Rights designed by Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ"
         )
 
         await message.reply_document(info_file_path, caption=message_text)
@@ -2884,7 +2878,6 @@ async def mediainfo_handler(client, message):
             os.remove(file_path)
         if info_file_path and os.path.exists(info_file_path):
             os.remove(info_file_path)
-
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
