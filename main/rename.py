@@ -2738,9 +2738,8 @@ def get_mediainfo(file_path):
             info += f"FileExtension_Invalid: {track.file_extension_invalid}\n"
             info += "\n"
 
-        if track.track_type == 'Video':
-            info += "🎞 Video\n"
-            info += f"Title: {track.title}\n"
+        elif track.track_type == 'Video':
+            info += "🎞 Video\n"        
             info += f"ID: {track.track_id}\n"
             info += f"Format: {track.format}\n"
             info += f"Format/Info: {track.format_info}\n"
@@ -2750,6 +2749,7 @@ def get_mediainfo(file_path):
             info += f"Width: {track.width}\n"
             info += f"Height: {track.height}\n"
             info += f"Display aspect ratio: {track.display_aspect_ratio}\n"
+            info += f"Title: {track.title}\n"
             info += f"Frame rate mode: {track.frame_rate_mode}\n"
             info += f"Frame rate: {track.frame_rate}\n"
             info += f"Color space: {track.color_space}\n"
@@ -2763,9 +2763,28 @@ def get_mediainfo(file_path):
             info += f"Matrix coefficients: {track.matrix_coefficients}\n"
             info += "\n"
 
-        if track.track_type == 'Audio':
-            info += "🔊 Audio\n"
+        elif track.track_type == 'Video #2':  # Adjust according to the actual track type name
+            info += "🎞 Video #2\n"
+            info += f"ID: {track.track_id}\n"
+            info += f"Format: {track.format}\n"
+            info += f"Codec ID: {track.codec_id}\n"
+            info += f"Width: {track.width}\n"
+            info += f"Height: {track.height}\n"
+            info += f"Display aspect ratio: {track.display_aspect_ratio}\n"
+            info += f"Frame rate mode: {track.frame_rate_mode}\n"
+            info += f"Frame rate: {track.frame_rate}\n"
+            info += f"Color space: {track.color_space}\n"
             info += f"Title: {track.title}\n"
+            info += f"Default: {track.default}\n"
+            info += f"Forced: {track.forced}\n"
+            info += f"Color range: {track.color_range}\n"
+            info += f"Matrix coefficients: {track.matrix_coefficients}\n"
+            info += f"FILENAME: {track.file_name}\n"
+            info += f"MIMETYPE: {track.mime_type}\n"
+            info += "\n"
+
+        elif track.track_type == 'Audio':
+            info += "🔊 Audio\n"            
             info += f"ID: {track.track_id}\n"
             info += f"Format: {track.format}\n"
             info += f"Codec ID: {track.codec_id}\n"
@@ -2775,18 +2794,20 @@ def get_mediainfo(file_path):
             info += f"Sampling rate: {track.sampling_rate}\n"
             info += f"Bit depth: {track.bit_depth}\n"
             info += f"Compression mode: {track.compression_mode}\n"
+            info += f"Title: {track.title}\n"
             info += f"Language: {track.language}\n"
             info += f"Default: {track.default}\n"
             info += f"Forced: {track.forced}\n"
             info += "\n"
 
-        if track.track_type == 'Text':
+        elif track.track_type == 'Text':
             info += "🔠 Subtitle\n"
             info += f"Title: {track.title}\n"
             info += f"ID: {track.track_id}\n"
             info += f"Format: {track.format}\n"
             info += f"Codec ID: {track.codec_id}\n"
             info += f"Duration: {track.other_duration}\n"
+            info += f"Title: {track.title}\n"
             info += f"Language: {track.language}\n"
             info += f"Default: {track.default}\n"
             info += f"Forced: {track.forced}\n"
@@ -2821,7 +2842,7 @@ async def mediainfo_handler(client, message):
             f"MediaInfo X\n"
             f"{current_date} by [SUNRISES 24 BOT UPDATES](https://t.me/Sunrises24BotUpdates)\n\n"
             f"{media_info_text}\n"
-            f"Rights designed by Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ\n"
+            f"Rights Designed By Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ\n"
         )
 
         # Save the media info to a file
