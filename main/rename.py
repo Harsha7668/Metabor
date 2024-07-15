@@ -2700,14 +2700,14 @@ async def mediainfo_handler(client, message):
             os.remove(info_file_path)
 
 """
-
 import os
 import datetime
-import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from pymediainfo import MediaInfo
 from telegraph import Telegraph
+
+
 
 # Ensure the download location exists
 if not os.path.exists(DOWNLOAD_LOCATION):
@@ -2842,10 +2842,10 @@ async def mediainfo_handler(client, message):
             f"MediaInfo X\n"
             f"{current_date} by [SUNRISES 24 BOT UPDATES](https://t.me/Sunrises24BotUpdates)\n\n"
             f"[View Info on Telegraph]({link})\n"
-            f"Rights Designed By Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ"
+            f"Rights designed by Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ"
         )
 
-        await message.reply_document(info_file_path, caption=message_text, disable_web_page_preview=True)
+        await message.reply_document(info_file_path, caption=message_text)
     except Exception as e:
         await message.reply_text(f"Error: {e}")
     finally:
@@ -2857,6 +2857,7 @@ async def mediainfo_handler(client, message):
             os.remove(file_path)
         if info_file_path and os.path.exists(info_file_path):
             os.remove(info_file_path)
+
 
         
 if __name__ == '__main__':
