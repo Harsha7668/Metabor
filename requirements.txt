@@ -17,4 +17,5 @@ yt_dlp
 pymediainfo
 telegraph
 mediainfo 
+html_telegraph_poster
 
