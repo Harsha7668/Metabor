@@ -14,8 +14,6 @@ google-api-python-client==2.97.0
 oauth2client==4.1.3
 asyncio==3.4.3
 yt_dlp
-pymediainfo
-telegraph
-mediainfo 
+MediaInfo
 html_telegraph_poster
 
