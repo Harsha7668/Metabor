@@ -15,5 +15,6 @@ oauth2client==4.1.3
 asyncio==3.4.3
 yt_dlp
 MediaInfo
+pymediainfo
 html_telegraph_poster
 
