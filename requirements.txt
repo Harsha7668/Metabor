@@ -16,4 +16,5 @@ asyncio==3.4.3
 yt_dlp
 pymediainfo
 telegraph
+mediainfo 
 
