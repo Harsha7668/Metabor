@@ -2446,10 +2446,6 @@ async def callback_query_handler(client: Client, query):
 
 
 
-
-
-import MediaInfo
-
 import datetime
 from html_telegraph_poster import TelegraphPoster  # Import TelegraphPoster
 
