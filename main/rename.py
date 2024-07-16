@@ -2890,7 +2890,7 @@ import subprocess
 import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from telegraph import Telegraph
+from html_telegraph_poster import TelegraphPoster  # Import TelegraphPoster
 
 DOWNLOAD_LOCATION = "./downloads"  # Define your download location
 
@@ -2899,8 +2899,8 @@ if not os.path.exists(DOWNLOAD_LOCATION):
     os.makedirs(DOWNLOAD_LOCATION)
 
 # Initialize Telegraph
-telegraph = Telegraph()
-telegraph.create_account(short_name='MediaInfoBot')
+telegraph = TelegraphPoster(use_api=True)
+telegraph.create_api_token("MediaInfoBot")
 
 # Function to extract media information using mediainfo command
 def get_mediainfo(file_path):
@@ -2939,10 +2939,10 @@ async def mediainfo_handler(client, message):
         # Get the current date
         current_date = datetime.datetime.now().strftime("%B %d, %Y")
 
-        # Prepare the media info with additional details
+        # Prepare the media info with additional details using allowed tags
         media_info_html = (
-            f"<h1>SUNRISES 24 BOT UPDATES</h1>"
-            f"<h2>MediaInfo X</h2>"
+            f"<strong>SUNRISES 24 BOT UPDATES</strong><br>"
+            f"<strong>MediaInfo X</strong><br>"
             f"<p>{current_date} by <a href='https://t.me/Sunrises24BotUpdates'>SUNRISES 24 BOT UPDATES</a></p>"
             f"{media_info_html}"
             f"<p>Rights Designed By Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ</p>"
@@ -2954,9 +2954,11 @@ async def mediainfo_handler(client, message):
             info_file.write(media_info_html)
 
         # Upload the media info to Telegraph
-        response = telegraph.create_page(
+        response = telegraph.post(
             title="MediaInfo",
-            html_content=media_info_html
+            author="SUNRISES 24 BOT UPDATES",
+            author_url="https://t.me/Sunrises24BotUpdates",
+            text=media_info_html
         )
         link = f"https://graph.org/{response['path']}"
 
@@ -2981,7 +2983,6 @@ async def mediainfo_handler(client, message):
             os.remove(file_path)
         if 'info_file_path' in locals() and os.path.exists(info_file_path):
             os.remove(info_file_path)
-
 
         
 if __name__ == '__main__':
