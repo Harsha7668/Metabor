@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #TG : @Sunrises_24
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 import subprocess
@@ -2588,8 +2589,6 @@ import aiohttp
 import os
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
-import subprocess
-
 
 
 DOWNLOAD_DIR = "./downloads/"
