@@ -2586,7 +2586,7 @@ async def get_mod_apk(bot, msg: Message):
 
 # Global variables
 SEEDR_API_URL = "https://www.seedr.cc/rest"
-SEEDR_EMAIL = "sunriseseditsoffical249"
+SEEDR_EMAIL = "sunriseseditsoffical249@gmail.com"
 SEEDR_PASSWORD = "venki8888"
 
 
