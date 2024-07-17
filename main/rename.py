@@ -2582,142 +2582,127 @@ async def get_mod_apk(bot, msg: Message):
 
 
 
-from pyrogram import Client, filters
-from pyrogram.types import Message
-import asyncio
-import aiohttp
+import requests
 import os
-from pydrive.auth import GoogleAuth
-from pydrive.drive import GoogleDrive
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 
-DOWNLOAD_DIR = "./downloads/"
+# Global variables
+SEEDR_API_URL = "https://www.seedr.cc/rest"
+SEEDR_EMAIL = "sunriseseditsoffical249@gmail.com"
+SEEDR_PASSWORD = "venki8888"
+DOWNLOAD_LOCATION = "./downloads/"
 
-# Command handler for "/download" command
-@Client.on_message(filters.private & filters.command("download"))
-async def download_file(bot, message):
-    if len(message.command) < 2:
-        await message.reply_text("Please provide a valid link to download.")
-        return
-    
-    download_url = message.command[1]
+# Command handler for /mirror
+@Client.on_message(filters.private & filters.command("drive"))
+async def mirror_to_google_drive(bot, msg: Message):
     try:
-        await message.reply_text(f"📥 Downloading from: {download_url} ...")
+        # Extract magnet link from the message
+        magnet_link = msg.text.split(" ", 1)[1]
 
-        if is_google_drive_link(download_url):
-            # Handle Google Drive links
-            await download_google_drive_file(bot, message, download_url)
-        elif is_torrent_link(download_url):
-            # Handle Torrent links
-            await download_torrent(bot, message, download_url)
-        elif download_url.startswith('magnet:'):
-            # Handle Magnet links
-            await download_magnet_link(bot, message, download_url)
-        else:
-            # Handle direct download links
-            await download_direct_link(bot, message, download_url)
+        # Step 1: Send magnet link to Seedr
+        response = send_to_seedr(magnet_link)
+        if response.status_code != 200:
+            return await msg.reply_text("Error sending magnet link to Seedr")
+
+        # Extract download ID or Seedr link from Seedr's response
+        download_id = response.json().get("transfer_id")  # Adjust based on Seedr's API response
+
+        # Step 2: Monitor download status on Seedr (optional, depends on Seedr's API)
+        download_status = monitor_seedr_download(download_id)
+        if download_status != "completed":
+            return await msg.reply_text("Download not completed on Seedr")
+
+        # Step 3: Get download link from Seedr
+        download_link = get_seedr_download_link(download_id)
+
+        # Step 4: Download file from Seedr
+        downloaded_file_path = download_from_seedr(download_link)
+
+        # Step 5: Upload file to Google Drive
+        await upload_to_google_drive(msg, downloaded_file_path)
 
     except Exception as e:
-        await message.reply_text(f"❌ Error occurred: {str(e)}")
+        await msg.reply_text(f"Error: {e}")
 
-# Command handler for "/upload" command
-@Client.on_message(filters.private & filters.command("upload"))
-async def upload_file(bot, message):
+# Function to send magnet link to Seedr
+def send_to_seedr(magnet_link):
+    url = f"{SEEDR_API_URL}/transfer/magnet"
+    data = {
+        "magnet": magnet_link
+    }
+    auth = (SEEDR_EMAIL, SEEDR_PASSWORD)
+    response = requests.post(url, data=data, auth=auth)
+    return response
+
+# Function to monitor download status on Seedr
+def monitor_seedr_download(download_id):
+    url = f"{SEEDR_API_URL}/transfer/{download_id}/status"
+    auth = (SEEDR_EMAIL, SEEDR_PASSWORD)
+    response = requests.get(url, auth=auth)
+    return response.json().get("status")
+
+# Function to get download link from Seedr
+def get_seedr_download_link(download_id):
+    url = f"{SEEDR_API_URL}/transfer/{download_id}/link"
+    auth = (SEEDR_EMAIL, SEEDR_PASSWORD)
+    response = requests.get(url, auth=auth)
+    return response.json().get("link")
+
+# Function to download file from Seedr
+def download_from_seedr(download_link):
+    # Example implementation using requests
+    response = requests.get(download_link)
+    file_path = os.path.join(DOWNLOAD_LOCATION, "downloaded_file.ext")
+    with open(file_path, 'wb') as f:
+        f.write(response.content)
+    return file_path
+
+# Function to upload file to Google Drive
+async def upload_to_google_drive(msg, file_path):
     try:
-        # List files in DOWNLOAD_DIR
-        files = os.listdir(DOWNLOAD_DIR)
+        # Show progress message for starting upload
+        sts = await msg.reply_text("📤 Uploading to Google Drive...")
 
-        if not files:
-            await message.reply_text("No files available for upload.")
-            return
+        # Upload file to Google Drive
+        file_metadata = {'name': new_name, 'parents': [gdrive_folder_id]}
+        media = MediaFileUpload(file_path, resumable=True)
 
-        await message.reply_text("📤 Uploading files...")
+        # Upload with progress monitoring
+        request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                current_progress = status.progress() * 100
+                await sts.edit(f"📤 Uploading to Google Drive... {current_progress:.2f}%")
 
-        # Upload each file to the chat
-        for file_name in files:
-            file_path = os.path.join(DOWNLOAD_DIR, file_name)
-            await bot.send_document(message.chat.id, document=file_path, caption=f"Uploaded: {file_name}")
+        file_id = response.get('id')
+        file_link = response.get('webViewLink')
 
-        await message.reply_text("✅ Upload complete!")
+        # Prepare caption for the uploaded file
+        caption_text = f"Uploaded File: {os.path.basename(file_path)}\nSize: {humanbytes(os.path.getsize(file_path))}"
+
+        # Send the Google Drive link to the user
+        button = [
+            [InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]
+        ]
+        await msg.reply_text(
+            f"File successfully uploaded to Google Drive!\n\n"
+            f"Google Drive Link: [View File]({file_link})\n\n"
+            f"Uploaded File: {os.path.basename(file_path)}\n"
+            f"Size: {humanbytes(os.path.getsize(file_path))}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+        os.remove(file_path)
+        await sts.delete()
 
     except Exception as e:
-        await message.reply_text(f"❌ Error occurred during upload: {str(e)}")
-
-# Function to check if a link is a Google Drive link
-def is_google_drive_link(url):
-    return "drive.google.com" in url
-
-# Function to check if a link is a Torrent link
-def is_torrent_link(url):
-    return url.endswith('.torrent')
-
-# Function to download a file from a Google Drive link
-async def download_google_drive_file(bot, message, gdrive_url):
-    gauth = GoogleAuth()
-    gauth.LocalWebserverAuth()
-    drive = GoogleDrive(gauth)
-
-    try:
-        file_id = extract_file_id(gdrive_url)
-        file = drive.CreateFile({'id': file_id})
-        file.GetContentFile(os.path.join(DOWNLOAD_DIR, file['title']))
-        await bot.send_document(message.chat.id, document=os.path.join(DOWNLOAD_DIR, file['title']))
-        await message.reply_text("✅ Download complete!")
-    except Exception as e:
-        await message.reply_text(f"❌ Failed to download from Google Drive: {str(e)}")
-
-# Function to extract file ID from Google Drive link
-def extract_file_id(url):
-    return url.split('/')[-2]
-
-# Function to download a torrent file using aria2c
-async def download_torrent(bot, message, torrent_url):
-    try:
-        command = f"aria2c -d {DOWNLOAD_DIR} {torrent_url}"
-        process = await asyncio.create_subprocess_shell(command)
-        await process.communicate()
-        await bot.send_document(message.chat.id, document=os.path.join(DOWNLOAD_DIR, os.path.basename(torrent_url)))
-        await message.reply_text("✅ Torrent download complete!")
-    except Exception as e:
-        await message.reply_text(f"❌ Failed to download torrent: {str(e)}")
-
-# Function to download a magnet link using aria2c
-async def download_magnet_link(bot, message, magnet_link):
-    try:
-        command = f"aria2c -d {DOWNLOAD_DIR} {magnet_link}"
-        process = await asyncio.create_subprocess_shell(command)
-        await process.communicate()
-        await message.reply_text("✅ Magnet link download complete!")
-    except Exception as e:
-        await message.reply_text(f"❌ Failed to download magnet link: {str(e)}")
-
-# Function to handle direct download links
-async def download_direct_link(bot, message, download_url):
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(download_url) as response:
-                if response.status == 200:
-                    file_name = os.path.basename(download_url)
-                    file_path = os.path.join(DOWNLOAD_DIR, file_name)
-
-                    # Save the downloaded file
-                    with open(file_path, 'wb') as f:
-                        while True:
-                            chunk = await response.content.read(1024)
-                            if not chunk:
-                                break
-                            f.write(chunk)
-                    
-                    await bot.send_document(message.chat.id, document=file_path, caption=f"Downloaded: {file_name}")
-                    await message.reply_text("✅ Download complete!")
-                    
-                    # Clean up: delete the downloaded file
-                    os.remove(file_path)
-                else:
-                    await message.reply_text(f"❌ Failed to download from: {download_url}")
-
-    except Exception as e:
-        await message.reply_text(f"❌ Error occurred: {str(e)}")
+        await sts.edit(f"Error: {e}")
 
 
 
