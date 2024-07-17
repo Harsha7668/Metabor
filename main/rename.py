@@ -2581,6 +2581,108 @@ async def get_mod_apk(bot, msg):
 
     await sts.delete()
 
+#!/usr/bin/env python3
+from pyrogram import Client, filters
+from pyrogram.types import Message
+import asyncio
+import aiohttp
+import os
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+
+
+
+DOWNLOAD_DIR = "./downloads/"
+
+# Command handler for "/download" command
+@Client.on_message(filters.private & filters.command("download"))
+async def download_file(bot, message):
+    if len(message.command) < 2:
+        await message.reply_text("Please provide a valid link to download.")
+        return
+    
+    download_url = message.command[1]
+    try:
+        await message.reply_text(f"📥 Downloading from: {download_url} ...")
+
+        if is_google_drive_link(download_url):
+            # Handle Google Drive links
+            await download_google_drive_file(bot, message, download_url)
+        elif is_torrent_link(download_url):
+            # Handle Torrent links
+            await download_torrent(bot, message, download_url)
+        else:
+            # Handle direct download links
+            await download_direct_link(bot, message, download_url)
+
+    except Exception as e:
+        await message.reply_text(f"❌ Error occurred: {str(e)}")
+
+# Function to check if a link is a Google Drive link
+def is_google_drive_link(url):
+    return "drive.google.com" in url
+
+# Function to check if a link is a Torrent link
+def is_torrent_link(url):
+    return url.endswith('.torrent')
+
+# Function to download a file from a Google Drive link
+async def download_google_drive_file(bot, message, gdrive_url):
+    gauth = GoogleAuth()
+    gauth.LocalWebserverAuth()
+    drive = GoogleDrive(gauth)
+
+    try:
+        file_id = extract_file_id(gdrive_url)
+        file = drive.CreateFile({'id': file_id})
+        file.GetContentFile(os.path.join(DOWNLOAD_DIR, file['title']))
+        await bot.send_document(message.chat.id, document=os.path.join(DOWNLOAD_DIR, file['title']))
+        await message.reply_text("✅ Download complete!")
+    except Exception as e:
+        await message.reply_text(f"❌ Failed to download from Google Drive: {str(e)}")
+
+# Function to extract file ID from Google Drive link
+def extract_file_id(url):
+    return url.split('/')[-2]
+
+# Function to download a torrent file using aria2c
+async def download_torrent(bot, message, torrent_url):
+    try:
+        command = f"aria2c -d {DOWNLOAD_DIR} {torrent_url}"
+        process = await asyncio.create_subprocess_shell(command)
+        await process.communicate()
+        await bot.send_document(message.chat.id, document=os.path.join(DOWNLOAD_DIR, os.path.basename(torrent_url)))
+        await message.reply_text("✅ Torrent download complete!")
+    except Exception as e:
+        await message.reply_text(f"❌ Failed to download torrent: {str(e)}")
+
+# Function to handle direct download links
+async def download_direct_link(bot, message, download_url):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(download_url) as response:
+                if response.status == 200:
+                    file_name = os.path.basename(download_url)
+                    file_path = os.path.join(DOWNLOAD_DIR, file_name)
+
+                    # Save the downloaded file
+                    with open(file_path, 'wb') as f:
+                        while True:
+                            chunk = await response.content.read(1024)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                    
+                    await bot.send_document(message.chat.id, document=file_path, caption=f"Downloaded: {file_name}")
+                    await message.reply_text("✅ Download complete!")
+                    
+                    # Clean up: delete the downloaded file
+                    os.remove(file_path)
+                else:
+                    await message.reply_text(f"❌ Failed to download from: {download_url}")
+
+    except Exception as e:
+        await message.reply_text(f"❌ Error occurred: {str(e)}")
 
         
 if __name__ == '__main__':
