@@ -2536,6 +2536,49 @@ async def mediainfo_handler(client, message):
         if 'info_file_path' in locals() and os.path.exists(info_file_path):
             os.remove(info_file_path)
 
+
+
+# Command handler for "/getmodapk" command
+@Client.on_message(filters.private & filters.command("getmodsapk"))
+async def get_mod_apk(bot, msg):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a URL from getmodsapk.com.")
+    
+    # Extract URL from command arguments
+    apk_url = msg.command[1]
+
+    if not apk_url.startswith("https://files.getmodsapk.com/"):
+        return await msg.reply_text("Please provide a valid URL from getmodsapk.com.")
+
+    # Downloading and sending the file
+    sts = await msg.reply_text("🚀 Downloading APK... ⚡️")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(apk_url) as response:
+                if response.status == 200:
+                    # Extract filename from URL
+                    file_name = apk_url.split("/")[-1]
+                    # Adjust path to save downloaded file
+                    file_path = f"./downloads/{file_name}"
+                    # Write the downloaded content to file
+                    with open(file_path, 'wb') as f:
+                        f.write(await response.read())
+
+                    # Send the APK file as a document
+                    await bot.send_document(msg.chat.id, document=file_path, caption=f"Downloaded from {apk_url}")
+
+                    # Clean up: delete the downloaded file
+                    os.remove(file_path)
+
+                    await sts.edit("✅ APK sent successfully!")
+                else:
+                    await sts.edit("❌ Failed to download APK.")
+    except Exception as e:
+        await sts.edit(f"❌ Error: {str(e)}")
+
+    await sts.delete()
+
+
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
