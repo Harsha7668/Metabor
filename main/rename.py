@@ -2537,9 +2537,7 @@ async def mediainfo_handler(client, message):
             os.remove(info_file_path)
 
 
-# Ensure the downloads directory exists
-if not os.path.exists("downloads"):
-    os.makedirs("downloads")
+
 
 # Command handler for "/getmodapk" command
 @Client.on_message(filters.private & filters.command("getmodsapk"))
@@ -2562,7 +2560,7 @@ async def get_mod_apk(bot, msg):
                     # Extract filename from URL
                     file_name = apk_url.split("/")[-1]
                     # Adjust path to save downloaded file
-                    file_path = f"./downloads/{file_name}"
+                    file_path = f"DOWNLOAD_LOCATION/{file_name}"
                     # Write the downloaded content to file
                     with open(file_path, 'wb') as f:
                         f.write(await response.read())
@@ -2591,13 +2589,12 @@ from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 import subprocess
 
-# Initialize Pyrogram client
-app = Client("my_bot")
+
 
 DOWNLOAD_DIR = "./downloads/"
 
 # Command handler for "/download" command
-@app.on_message(filters.private & filters.command("download"))
+@Client.on_message(filters.private & filters.command("download"))
 async def download_file(bot, message):
     if len(message.command) < 2:
         await message.reply_text("Please provide a valid link to download.")
@@ -2624,7 +2621,7 @@ async def download_file(bot, message):
         await message.reply_text(f"❌ Error occurred: {str(e)}")
 
 # Command handler for "/upload" command
-@app.on_message(filters.private & filters.command("upload"))
+@Client.on_message(filters.private & filters.command("upload"))
 async def upload_file(bot, message):
     try:
         # List files in DOWNLOAD_DIR
