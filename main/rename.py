@@ -2589,7 +2589,6 @@ SEEDR_API_URL = "https://www.seedr.cc/rest"
 SEEDR_EMAIL = "sunriseseditsoffical249@gmail.com"
 SEEDR_PASSWORD = "venki8888"
 
-
 async def handle_seedr_conversion(bot, msg: Message, magnet_link: str):
     seedr_api_endpoint = f"{SEEDR_API_URL}/transfer/magnet"
     auth_credentials = aiohttp.BasicAuth(SEEDR_EMAIL, SEEDR_PASSWORD)
@@ -2604,6 +2603,8 @@ async def handle_seedr_conversion(bot, msg: Message, magnet_link: str):
                 else:
                     error_message = await resp.text()  # Get error message from response
                     await msg.reply_text(f"Failed to convert magnet link to Seedr link. Status code: {resp.status}. Error: {error_message}")
+    except aiohttp.ClientError as e:
+        await msg.reply_text(f"HTTP client error: {e}")
     except Exception as e:
         await msg.reply_text(f"Error converting magnet link: {e}")
 
