@@ -2537,6 +2537,9 @@ async def mediainfo_handler(client, message):
             os.remove(info_file_path)
 
 
+# Ensure the downloads directory exists
+if not os.path.exists("downloads"):
+    os.makedirs("downloads")
 
 # Command handler for "/getmodapk" command
 @Client.on_message(filters.private & filters.command("getmodsapk"))
