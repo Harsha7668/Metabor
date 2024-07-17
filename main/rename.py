@@ -2582,130 +2582,36 @@ async def get_mod_apk(bot, msg: Message):
 
 
 
-import requests
-import os
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 
 
 # Global variables
 SEEDR_API_URL = "https://www.seedr.cc/rest"
 SEEDR_EMAIL = "sunriseseditsoffical249@gmail.com"
 SEEDR_PASSWORD = "venki8888"
-DOWNLOAD_LOCATION = "./downloads/"
 
+async def handle_seedr_conversion(bot, msg: Message, magnet_link: str):
+    seedr_api_endpoint = f"{SEEDR_API_URL}/transfer/magnet"
+    auth_credentials = aiohttp.BasicAuth(SEEDR_EMAIL, SEEDR_PASSWORD)
 
-# Command handler for /mirror
-@Client.on_message(filters.private & filters.command("mirror"))
-async def mirror_to_google_drive(bot, msg: Message):
     try:
-        # Extract magnet link from the message
-        magnet_link = msg.text.split(" ", 1)[1]
-
-        # Step 1: Send magnet link to Seedr
-        response = send_to_seedr(magnet_link)
-        if response.status_code != 200:
-            return await msg.reply_text("Error sending magnet link to Seedr")
-
-        # Extract download ID or Seedr link from Seedr's response
-        download_id = response.json().get("transfer_id")
-
-        # Step 2: Monitor download status on Seedr (optional, depends on Seedr's API)
-        download_status = monitor_seedr_download(download_id)
-        if download_status != "completed":
-            return await msg.reply_text("Download not completed on Seedr")
-
-        # Step 3: Get download link from Seedr
-        download_link = get_seedr_download_link(download_id)
-
-        # Step 4: Download file from Seedr
-        downloaded_file_path = download_from_seedr(download_link)
-
-        # Step 5: Upload file to Google Drive
-        await upload_to_google_drive(msg, downloaded_file_path)
-
+        async with aiohttp.ClientSession() as session:
+            async with session.post(seedr_api_endpoint, data={"magnet": magnet_link}, auth=auth_credentials) as resp:
+                if resp.status == 200:
+                    response_json = await resp.json()
+                    seedr_link = response_json.get("link")
+                    await msg.reply_text(f"Seedr link generated: {seedr_link}")
+                else:
+                    await msg.reply_text(f"Failed to convert magnet link to Seedr link. Status code: {resp.status}")
     except Exception as e:
-        await msg.reply_text(f"Error: {e}")
+        await msg.reply_text(f"Error converting magnet link: {e}")
 
-# Function to send magnet link to Seedr
-def send_to_seedr(magnet_link):
-    url = f"{SEEDR_API_URL}/transfer/magnet"
-    data = {
-        "magnet": magnet_link
-    }
-    auth = (SEEDR_EMAIL, SEEDR_PASSWORD)
-    response = requests.post(url, data=data, auth=auth)
-    return response
+@Client.on_message(filters.command("Seedr") & filters.chat(AUTH_USERS))
+async def seedr_handler(bot, msg: Message):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a magnet link.")
 
-# Function to monitor download status on Seedr
-def monitor_seedr_download(download_id):
-    url = f"{SEEDR_API_URL}/transfer/{download_id}"
-    auth = (SEEDR_EMAIL, SEEDR_PASSWORD)
-    response = requests.get(url, auth=auth)
-    return response.json().get("status")
-
-# Function to get download link from Seedr
-def get_seedr_download_link(download_id):
-    url = f"{SEEDR_API_URL}/transfer/{download_id}/link"
-    auth = (SEEDR_EMAIL, SEEDR_PASSWORD)
-    response = requests.get(url, auth=auth)
-    return response.json().get("link")
-
-# Function to download file from Seedr
-def download_from_seedr(download_link):
-    # Example implementation using requests
-    response = requests.get(download_link)
-    file_path = os.path.join(DOWNLOAD_LOCATION, "downloaded_file.ext")
-    with open(file_path, 'wb') as f:
-        f.write(response.content)
-    return file_path
-
-# Function to upload file to Google Drive
-async def upload_to_google_drive(msg, file_path):
-    try:
-        # Show progress message for starting upload
-        sts = await msg.reply_text("📤 Uploading to Google Drive...")
-
-        # Upload file to Google Drive
-        file_metadata = {'name': new_name, 'parents': [gdrive_folder_id]}
-        media = MediaFileUpload(file_path, resumable=True)
-
-        # Upload with progress monitoring
-        request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
-        response = None
-        while response is None:
-            status, response = request.next_chunk()
-            if status:
-                current_progress = status.progress() * 100
-                await sts.edit(f"📤 Uploading to Google Drive... {current_progress:.2f}%")
-
-        file_id = response.get('id')
-        file_link = response.get('webViewLink')
-
-        # Prepare caption for the uploaded file
-        caption_text = f"Uploaded File: {os.path.basename(file_path)}\nSize: {humanbytes(os.path.getsize(file_path))}"
-
-        # Send the Google Drive link to the user
-        button = [
-            [InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]
-        ]
-        await msg.reply_text(
-            f"File successfully uploaded to Google Drive!\n\n"
-            f"Google Drive Link: [View File]({file_link})\n\n"
-            f"Uploaded File: {os.path.basename(file_path)}\n"
-            f"Size: {humanbytes(os.path.getsize(file_path))}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-        os.remove(file_path)
-        await sts.delete()
-
-    except Exception as e:
-        await sts.edit(f"Error: {e}")
-
-
+    magnet_link = msg.text.split(" ", 1)[1]
+    await handle_seedr_conversion(bot, msg, magnet_link)
 
 
 if __name__ == '__main__':
