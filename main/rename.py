@@ -2581,7 +2581,7 @@ async def get_mod_apk(bot, msg):
 
     await sts.delete()
 
-#!/usr/bin/env python3
+
 from pyrogram import Client, filters
 from pyrogram.types import Message
 import asyncio
@@ -2591,12 +2591,13 @@ from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 import subprocess
 
-
+# Initialize Pyrogram client
+app = Client("my_bot")
 
 DOWNLOAD_DIR = "./downloads/"
 
 # Command handler for "/download" command
-@Client.on_message(filters.private & filters.command("download"))
+@app.on_message(filters.private & filters.command("download"))
 async def download_file(bot, message):
     if len(message.command) < 2:
         await message.reply_text("Please provide a valid link to download.")
@@ -2621,6 +2622,29 @@ async def download_file(bot, message):
 
     except Exception as e:
         await message.reply_text(f"❌ Error occurred: {str(e)}")
+
+# Command handler for "/upload" command
+@app.on_message(filters.private & filters.command("upload"))
+async def upload_file(bot, message):
+    try:
+        # List files in DOWNLOAD_DIR
+        files = os.listdir(DOWNLOAD_DIR)
+
+        if not files:
+            await message.reply_text("No files available for upload.")
+            return
+
+        await message.reply_text("📤 Uploading files...")
+
+        # Upload each file to the chat
+        for file_name in files:
+            file_path = os.path.join(DOWNLOAD_DIR, file_name)
+            await bot.send_document(message.chat.id, document=file_path, caption=f"Uploaded: {file_name}")
+
+        await message.reply_text("✅ Upload complete!")
+
+    except Exception as e:
+        await message.reply_text(f"❌ Error occurred during upload: {str(e)}")
 
 # Function to check if a link is a Google Drive link
 def is_google_drive_link(url):
@@ -2697,7 +2721,8 @@ async def download_direct_link(bot, message, download_url):
 
     except Exception as e:
         await message.reply_text(f"❌ Error occurred: {str(e)}")
-        
+
+
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
