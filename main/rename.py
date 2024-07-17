@@ -2584,39 +2584,6 @@ async def get_mod_apk(bot, msg: Message):
 
 
 
-# Global variables
-SEEDR_API_URL = "https://www.seedr.cc/rest"
-SEEDR_EMAIL = "sunriseseditsoffical249@gmail.com"
-SEEDR_PASSWORD = "venki8888"
-
-async def handle_seedr_conversion(bot, msg: Message, magnet_link: str):
-    seedr_api_endpoint = f"{SEEDR_API_URL}/transfer/magnet"
-    auth_credentials = aiohttp.BasicAuth(SEEDR_EMAIL, SEEDR_PASSWORD)
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(seedr_api_endpoint, data={"magnet": magnet_link}, auth=auth_credentials) as resp:
-                if resp.status == 200:
-                    response_json = await resp.json()
-                    seedr_link = response_json.get("link")
-                    await msg.reply_text(f"Seedr link generated: {seedr_link}")
-                else:
-                    error_message = await resp.text()  # Get error message from response
-                    await msg.reply_text(f"Failed to convert magnet link to Seedr link. Status code: {resp.status}. Error: {error_message}")
-    except aiohttp.ClientError as e:
-        await msg.reply_text(f"HTTP client error: {e}")
-    except Exception as e:
-        await msg.reply_text(f"Error converting magnet link: {e}")
-
-@Client.on_message(filters.command("Seedr") & filters.chat(AUTH_USERS))
-async def seedr_handler(bot, msg: Message):
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide a magnet link.")
-
-    magnet_link = msg.text.split(" ", 1)[1]
-    await handle_seedr_conversion(bot, msg, magnet_link)
-
-
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
