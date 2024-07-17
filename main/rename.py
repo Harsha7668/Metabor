@@ -2597,8 +2597,9 @@ SEEDR_EMAIL = "sunriseseditsoffical249@gmail.com"
 SEEDR_PASSWORD = "venki8888"
 DOWNLOAD_LOCATION = "./downloads/"
 
+
 # Command handler for /mirror
-@Client.on_message(filters.private & filters.command("drive"))
+@Client.on_message(filters.private & filters.command("mirror"))
 async def mirror_to_google_drive(bot, msg: Message):
     try:
         # Extract magnet link from the message
@@ -2610,7 +2611,7 @@ async def mirror_to_google_drive(bot, msg: Message):
             return await msg.reply_text("Error sending magnet link to Seedr")
 
         # Extract download ID or Seedr link from Seedr's response
-        download_id = response.json().get("transfer_id")  # Adjust based on Seedr's API response
+        download_id = response.json().get("transfer_id")
 
         # Step 2: Monitor download status on Seedr (optional, depends on Seedr's API)
         download_status = monitor_seedr_download(download_id)
@@ -2641,7 +2642,7 @@ def send_to_seedr(magnet_link):
 
 # Function to monitor download status on Seedr
 def monitor_seedr_download(download_id):
-    url = f"{SEEDR_API_URL}/transfer/{download_id}/status"
+    url = f"{SEEDR_API_URL}/transfer/{download_id}"
     auth = (SEEDR_EMAIL, SEEDR_PASSWORD)
     response = requests.get(url, auth=auth)
     return response.json().get("status")
@@ -2703,6 +2704,7 @@ async def upload_to_google_drive(msg, file_path):
 
     except Exception as e:
         await sts.edit(f"Error: {e}")
+
 
 
 
