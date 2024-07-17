@@ -2589,6 +2589,7 @@ import aiohttp
 import os
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
+import subprocess
 
 
 
@@ -2611,6 +2612,9 @@ async def download_file(bot, message):
         elif is_torrent_link(download_url):
             # Handle Torrent links
             await download_torrent(bot, message, download_url)
+        elif download_url.startswith('magnet:'):
+            # Handle Magnet links
+            await download_magnet_link(bot, message, download_url)
         else:
             # Handle direct download links
             await download_direct_link(bot, message, download_url)
@@ -2656,6 +2660,16 @@ async def download_torrent(bot, message, torrent_url):
     except Exception as e:
         await message.reply_text(f"❌ Failed to download torrent: {str(e)}")
 
+# Function to download a magnet link using aria2c
+async def download_magnet_link(bot, message, magnet_link):
+    try:
+        command = f"aria2c -d {DOWNLOAD_DIR} {magnet_link}"
+        process = await asyncio.create_subprocess_shell(command)
+        await process.communicate()
+        await message.reply_text("✅ Magnet link download complete!")
+    except Exception as e:
+        await message.reply_text(f"❌ Failed to download magnet link: {str(e)}")
+
 # Function to handle direct download links
 async def download_direct_link(bot, message, download_url):
     try:
@@ -2683,8 +2697,8 @@ async def download_direct_link(bot, message, download_url):
 
     except Exception as e:
         await message.reply_text(f"❌ Error occurred: {str(e)}")
-
         
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
