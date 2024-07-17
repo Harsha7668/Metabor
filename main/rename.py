@@ -2541,7 +2541,7 @@ async def mediainfo_handler(client, message):
 
 # Command handler for "/getmodapk" command
 @Client.on_message(filters.private & filters.command("getmodsapk"))
-async def get_mod_apk(bot, msg):
+async def get_mod_apk(bot, msg: Message):
     if len(msg.command) < 2:
         return await msg.reply_text("Please provide a URL from getmodsapk.com.")
     
@@ -2560,7 +2560,7 @@ async def get_mod_apk(bot, msg):
                     # Extract filename from URL
                     file_name = apk_url.split("/")[-1]
                     # Adjust path to save downloaded file
-                    file_path = f"DOWNLOAD_LOCATION/{file_name}"
+                    file_path = os.path.join(DOWNLOAD_LOCATION, file_name)
                     # Write the downloaded content to file
                     with open(file_path, 'wb') as f:
                         f.write(await response.read())
@@ -2578,6 +2578,7 @@ async def get_mod_apk(bot, msg):
         await sts.edit(f"❌ Error: {str(e)}")
 
     await sts.delete()
+
 
 
 from pyrogram import Client, filters
