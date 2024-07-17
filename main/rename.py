@@ -2586,8 +2586,9 @@ async def get_mod_apk(bot, msg: Message):
 
 # Global variables
 SEEDR_API_URL = "https://www.seedr.cc/rest"
-SEEDR_EMAIL = "sunriseseditsoffical249@gmail.com"
+SEEDR_EMAIL = "sunriseseditsoffical249"
 SEEDR_PASSWORD = "venki8888"
+
 
 async def handle_seedr_conversion(bot, msg: Message, magnet_link: str):
     seedr_api_endpoint = f"{SEEDR_API_URL}/transfer/magnet"
@@ -2601,7 +2602,8 @@ async def handle_seedr_conversion(bot, msg: Message, magnet_link: str):
                     seedr_link = response_json.get("link")
                     await msg.reply_text(f"Seedr link generated: {seedr_link}")
                 else:
-                    await msg.reply_text(f"Failed to convert magnet link to Seedr link. Status code: {resp.status}")
+                    error_message = await resp.text()  # Get error message from response
+                    await msg.reply_text(f"Failed to convert magnet link to Seedr link. Status code: {resp.status}. Error: {error_message}")
     except Exception as e:
         await msg.reply_text(f"Error converting magnet link: {e}")
 
