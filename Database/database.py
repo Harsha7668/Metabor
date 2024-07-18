@@ -29,14 +29,7 @@ class Database:
             return user.get('settings', default_settings)
         return default_settings
     
-    async def save_thumbnail(self, user_id, thumbnail_path):
-        await self.files_col.update_one({'id': user_id}, {'$set': {'thumbnail_path': thumbnail_path}}, upsert=True)
-        
-    async def get_thumbnail_path(self, user_id):
-        file_data = await self.files_col.find_one({'id': user_id})
-        if file_data:
-            return file_data.get('thumbnail_path')
-        return None
+   
     
     async def save_sample_video_settings(self, user_id, sample_video_duration, screenshots):
         await self.users_col.update_one(
@@ -110,6 +103,56 @@ class Database:
         if user:
             return user.get('settings', {}).get('sample_video_duration')
         return None
+
+import motor.motor_asyncio
+
+class Database:
+    def __init__(self, uri, database_name):
+        self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
+        self.db = self._client[database_name]
+        self.users_col = self.db.users  # Collection for storing user settings
+        self.files_col = self.db.files  # Collection for storing file-related settings (thumbnails, etc.)
+    
+    async def update_user_settings(self, user_id, settings):
+        await self.users_col.update_one({'id': user_id}, {'$set': {'settings': settings}}, upsert=True)
+        
+    async def get_user_settings(self, user_id):
+        default_settings = {
+            'attach_photo': False,
+            'sample_photo_path': None,
+            'thumbnail_path': None,
+            'metadata_titles': {
+                'video_title': '',
+                'audio_title': '',
+                'subtitle_title': ''
+            }
+        }
+        user = await self.users_col.find_one({'id': user_id})
+        if user:
+            return user.get('settings', default_settings)
+        return default_settings
+    
+    async def save_thumbnail(self, user_id, thumbnail_path):
+        await self.files_col.update_one({'id': user_id}, {'$set': {'thumbnail_path': thumbnail_path}}, upsert=True)
+        
+    async def get_thumbnail_path(self, user_id):
+        file_data = await self.files_col.find_one({'id': user_id})
+        if file_data:
+            return file_data.get('thumbnail_path')
+        return None
+    
+    async def delete_thumbnail(self, user_id):
+        await self.files_col.update_one({'id': user_id}, {'$unset': {'thumbnail_path': ""}})
+    
+    async def save_attach_photo(self, user_id, photo_path):
+        await self.files_col.update_one({'id': user_id}, {'$set': {'sample_photo_path': photo_path}}, upsert=True)
+    
+    async def get_attach_photo_path(self, user_id):
+        file_data = await self.files_col.find_one({'id': user_id})
+        if file_data:
+            return file_data.get('attach_photo_path')
+        return None
+    
     
     async def close(self):
         self._client.close()
