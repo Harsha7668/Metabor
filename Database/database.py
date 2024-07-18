@@ -236,10 +236,10 @@ class Database:
         )
     
     async def get_user_quality_selection(self, user_id):
-    user = await self.users_col.find_one({'id': user_id})
+        user = await self.users_col.find_one({'id': user_id})
     if user:
         return user.get('settings', {}).get('quality_selection')
-    return None
+    
     
     async def close(self):
         self._client.close()
