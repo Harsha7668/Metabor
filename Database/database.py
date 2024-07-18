@@ -126,17 +126,64 @@ class Database:
             return file_data.get('attach_photo_file_id')
         return None
 
-    async def save_input_file_contents(self, user_id, input_file_contents):
+    async def save_merge_state(self, user_id, merge_state):
         try:
-            await self.users_col.update_one(
+            await self.merge_col.update_one(
                 {'id': user_id},
-                {'$set': {'settings.input_file_contents': input_file_contents}},
+                {'$set': {'merge_state': merge_state}},
                 upsert=True
             )
         except Exception as e:
-            print(f"Error saving input file contents to database: {e}")
+            print(f"Error saving merge state to database: {e}")
             # Handle the error accordingly (logging, exception handling, etc.)
- 
+
+    async def get_merge_state(self, user_id):
+        merge_state = await self.merge_col.find_one({'id': user_id})
+        if merge_state:
+            return merge_state.get('merge_state', {})
+        return {}
+
+    async def clear_merge_state(self, user_id):
+        try:
+            await self.merge_col.delete_one({'id': user_id})
+        except Exception as e:
+            print(f"Error clearing merge state from database: {e}")
+            # Handle the error accordingly (logging, exception handling, etc.)
+
+    async def save_merged_file_info(self, user_id, output_filename, file_size):
+        try:
+            await self.users_col.update_one(
+                {'id': user_id},
+                {'$set': {
+                    'merged_file_info': {
+                        'output_filename': output_filename,
+                        'file_size': file_size
+                    }
+                }},
+                upsert=True
+            )
+        except Exception as e:
+            print(f"Error saving merged file info to database: {e}")
+            # Handle the error accordingly (logging, exception handling, etc.)
+
+    async def get_merged_file_info(self, user_id):
+        user = await self.users_col.find_one({'id': user_id})
+        if user:
+            return user.get('merged_file_info', {})
+        return {}
+
+    async def clear_merged_file_info(self, user_id):
+        try:
+            await self.users_col.update_one(
+                {'id': user_id},
+                {'$unset': {'merged_file_info': ""}}
+            )
+        except Exception as e:
+            print(f"Error clearing merged file info from database: {e}")
+            # Handle the error accordingly (logging, exception handling, etc.)
+
+
+    
     async def close(self):
         self._client.close()
 
