@@ -254,8 +254,16 @@ class Database:
             return user.get('settings', {}).get('quality_selection')
         return None
 
-
-
+     # Function to store media info in MongoDB
+    async def store_media_info_in_db(title, date, html_content):
+        media_info_data = {
+            'title': title,
+            'date': date,
+            'html_content': html_content
+        }
+        result = await collection.insert_one(media_info_data)
+        return result.inserted_id
+    
 # Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)    
 
