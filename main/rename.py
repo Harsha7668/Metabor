@@ -2215,6 +2215,7 @@ async def safe_edit_message(message, new_text):
 
 
 
+
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
@@ -2246,41 +2247,49 @@ async def ytdlleech_handler(client: Client, msg: Message):
             ]
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
 
-            # Save thumbnail in database
-            thumbnail_url = info_dict.get('thumbnail')
-            if thumbnail_url:
-                thumbnail_id = await db.save_thumbnail(msg.from_user.id, thumbnail_url)
-                # Optional: You can update the database with this thumbnail_id if needed
-
-            # Retrieve thumbnail from the database
+            # Save thumbnail in database or retrieve if exists
             thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
             file_thumb = None
+
             if thumbnail_file_id:
                 try:
                     file_thumb = await client.download_media(thumbnail_file_id)
                 except Exception as e:
                     print(f"Error downloading thumbnail: {e}")
             else:
-                # Example code to download thumbnail from media thumbs (if available)
-                if hasattr(info_dict, 'thumbnails') and info_dict.thumbnails:
+                if 'thumbnail' in info_dict:
+                    thumbnail_url = info_dict.get('thumbnail')
+                    if thumbnail_url:
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(thumbnail_url) as resp:
+                                if resp.status == 200:
+                                    thumbnail_data = await resp.read()
+                                    # Save thumbnail to database
+                                    thumbnail_file_id = await db.save_thumbnail(msg.from_user.id, thumbnail_data)
+                                    file_thumb = await client.download_media(thumbnail_file_id)
+                                else:
+                                    print(f"Error downloading thumbnail: HTTP status {resp.status}")
+                elif hasattr(info_dict, 'thumbnails') and info_dict.thumbnails:
                     try:
-                        file_thumb = await client.download_media(info_dict.thumbnails[0].url)
+                        file_thumb = await client.download_media(info_dict.thumbnails[0]['url'])
                     except Exception as e:
-                        print(f"Error downloading thumbnail from info_dict: {e}")
-                        file_thumb = None
+                        print(f"Error downloading thumbnail: {e}")
 
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
-            user_quality_selection[msg.from_user.id] = {
+
+            # Store user's quality selection in database
+            await db.save_user_quality_selection(msg.from_user.id, {
                 'url': url,
                 'title': info_dict['title'],
                 'formats': formats
-            }
+            })
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
 
+
 # Callback query handler
-@Client.on_callback_query(filters.regex(r"^\d+$"))
+@app.on_callback_query(filters.regex(r"^\d+$"))
 async def callback_query_handler(client: Client, query):
     user_id = query.from_user.id
     format_id = query.data
@@ -2321,8 +2330,7 @@ async def callback_query_handler(client: Client, query):
             # Retrieve thumbnail file ID from database
             thumbnail_id = await db.get_thumbnail(user_id)
             if thumbnail_id:
-                # Optional: Retrieve the actual thumbnail file using thumbnail_id if needed
-                pass
+                file_thumb = await client.download_media(thumbnail_id)
 
             if file_size >= FILE_SIZE_LIMIT:
                 await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
@@ -2355,6 +2363,7 @@ async def callback_query_handler(client: Client, query):
             if file_thumb and os.path.exists(file_thumb):
                 os.remove(file_thumb)
             await sts.delete()
+            await query.message.delete()  # Delete the original message after processing
 
     except Exception as e:
         await query.answer(f"An error occurred: {e}")
