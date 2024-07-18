@@ -118,12 +118,12 @@ class Database:
         await self.files_col.update_one({'id': user_id}, {'$unset': {'thumbnail_file_id': ""}})
     
     async def save_attach_photo(self, user_id, file_id):
-        await self.files_col.update_one({'id': user_id}, {'$set': {'sample_photo_file_id': file_id}}, upsert=True)
+        await self.files_col.update_one({'id': user_id}, {'$set': {'attach_photo_file_id': file_id}}, upsert=True)
     
     async def get_attach_photo(self, user_id):
         file_data = await self.files_col.find_one({'id': user_id})
         if file_data:
-            return file_data.get('sample_photo_file_id')
+            return file_data.get('attach_photo_file_id')
         return None
     
  
