@@ -239,14 +239,11 @@ class Database:
         user = await self.users_col.find_one({'id': user_id})
     if user:
         return user.get('settings', {}).get('quality_selection')
-    """
-
-
-
-    """
+    
+    
     async def close(self):
         self._client.close()
-    """
+"""
 
 # Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)    
