@@ -125,7 +125,17 @@ class Database:
         if file_data:
             return file_data.get('attach_photo_file_id')
         return None
-    
+
+    async def save_input_file_contents(self, user_id, input_file_contents):
+        try:
+            await self.users_col.update_one(
+                {'id': user_id},
+                {'$set': {'settings.input_file_contents': input_file_contents}},
+                upsert=True
+            )
+        except Exception as e:
+            print(f"Error saving input file contents to database: {e}")
+            # Handle the error accordingly (logging, exception handling, etc.)
  
     async def close(self):
         self._client.close()
