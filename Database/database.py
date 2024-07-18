@@ -186,11 +186,11 @@ class Database:
 
     async def save_new_filename(user_id, new_filename):
     # Save new filename information to MongoDB
-    await files_col.update_one(
-        {'id': user_id},
-        {'$set': {'new_filename': new_filename}},
-        upsert=True
-    )
+              await files_col.update_one(
+              {'id': user_id},
+              {'$set': {'new_filename': new_filename}},
+              upsert=True
+              )
 
     async def get_new_filename(user_id):
     # Retrieve new filename information from MongoDB
