@@ -196,9 +196,32 @@ class Database:
     if file_data:
         return file_data.get('new_filename')
     return None
-    
+
+
+    async def save_screenshot_paths(self, user_id, screenshot_paths):
+        result = await self.users_col.update_one(
+            {'_id': user_id},
+            {'$set': {'screenshot_paths': screenshot_paths}},
+            upsert=True
+        )
+        return result
+
+    async def get_screenshot_paths(self, user_id):
+        user = await self.users_col.find_one({'_id': user_id})
+        if user:
+            return user.get('screenshot_paths', [])
+        return []
+
+    async def delete_screenshot_paths(self, user_id):
+        result = await self.users_col.update_one(
+            {'_id': user_id},
+            {'$unset': {'screenshot_paths': ''}}
+        )
+        return result.modified_count > 0
+        
     async def close(self):
         self._client.close()
+
 
 # Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)
