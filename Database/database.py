@@ -56,7 +56,20 @@ class Database:
         if user:
             return user.get('settings', {}).get('gofile_api_key')
         return None
-    
+        
+    async def save_custom_name(self, user_id, custom_name):
+        await self.users_col.update_one(
+            {'id': user_id},
+            {'$set': {'settings.custom_name': custom_name}},
+            upsert=True
+        )
+
+    async def get_custom_name(self, user_id):
+        user = await self.users_col.find_one({'id': user_id})
+        if user:
+            return user.get('settings', {}).get('custom_name')
+        return None
+        
     async def save_gdrive_folder_id(self, user_id, folder_id):
         await self.users_col.update_one({'id': user_id}, {'$set': {'settings.gdrive_folder_id': folder_id}}, upsert=True)
     
