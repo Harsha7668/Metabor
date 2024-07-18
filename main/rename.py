@@ -2400,7 +2400,7 @@ async def mediainfo_handler(client, message):
         )
 
         # Store media info in MongoDB
-        media_info_id = await store_media_info_in_db(media.file_name, current_date, media_info_html)
+        media_info_id = await db.store_media_info_in_db(media.file_name, current_date, media_info_html)
 
         # Upload the media info to Telegraph
         response = telegraph.post(
