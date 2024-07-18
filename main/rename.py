@@ -289,92 +289,30 @@ async def set_screenshots(client, callback_query: CallbackQuery):
 
 
 
-# Command to set thumbnail
-@Client.on_message(filters.private & filters.command("setthumbnail"))
-async def set_thumbnail_command(client, message):
-    user_id = message.from_user.id
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
-
-    # Check if thumbnail already exists
-    if os.path.isfile(thumbnail_path):
-        await message.reply("You already have a permanent thumbnail set. Send a new photo to update it.")
-    else:
-        await message.reply("Send a photo to set as your permanent thumbnail.")
-
-# Handler to set thumbnail from photo
-@Client.on_message(filters.photo & filters.private)
-async def set_thumbnail_handler(client, message):
-    user_id = message.from_user.id
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
-
-    # Check if thumbnail already exists
-    if os.path.isfile(thumbnail_path):
-        # Thumbnail exists, delete the old one
-        os.remove(thumbnail_path)
-
-    # Download the photo and save as thumbnail_{user_id}.jpg
-    await client.download_media(message=message, file_name=thumbnail_path)
-    
-    # Save thumbnail path to database
-    await db.save_thumbnail(user_id, thumbnail_path)
-    
-    await message.reply("Your permanent thumbnail is updated. If the bot is restarted, the new thumbnail will be preserved.")
-
-# Command to view thumbnail
-@Client.on_callback_query(filters.regex("^view_thumbnail$"))
-async def view_thumbnail(client, callback_query: CallbackQuery):
-    user_id = callback_query.from_user.id
-    thumbnail_path = await db.get_thumbnail_path(user_id)
-
-    if not thumbnail_path:
-        await callback_query.message.reply_text("You don't have any thumbnail.")
-        return
-
-    try:
-        await callback_query.message.reply_photo(photo=thumbnail_path, caption="This is your current thumbnail")
-    except Exception as e:
-        await callback_query.message.reply_text("An error occurred while trying to view your thumbnail.")
-
-# Command to delete thumbnail
-@Client.on_callback_query(filters.regex("^delete_thumbnail$"))
-async def delete_thumbnail(client, callback_query: CallbackQuery):
-    user_id = callback_query.from_user.id
-    await db.delete_thumbnail(user_id)
-    await callback_query.answer("Your thumbnail was removed ❌")
-
-# Command to set photo as attachment
-@Client.on_message(filters.private & filters.command("setphoto"))
-async def set_photo_command(client, message):
-    reply = message.reply_to_message
-    if not reply or not reply.photo:
-        return await message.reply_text("Please reply to a photo with the set photo command")
-
-    user_id = message.from_user.id
-    photo = reply.photo
-    photo_path = f"{DOWNLOAD_LOCATION}/photo_{user_id}.jpg"
-    
-    try:
-        await client.download_media(photo, photo_path)
-        await db.save_attach_photo(user_id, photo_path)
-        await message.reply_text(f"Photo saved successfully as `{photo_path}`.")
-    except Exception as e:
-        await message.reply_text(f"Error saving photo: {e}")
-
-# Command to preview photo attachment
 @Client.on_callback_query(filters.regex("^attach_photo$"))
-async def inline_attach_photo_callback(client, callback_query: CallbackQuery):
+async def inline_attach_photo_callback(_, callback_query):
     await callback_query.answer()
     user_id = callback_query.from_user.id
-    photo_path = await db.get_attach_photo_path(user_id)
+    
+    # Update user settings to indicate attachment request
+    await db.update_user_settings(user_id, {"attach_photo": True})
+    
+    await callback_query.message.edit_text("Please send a photo to be attached using the setphoto command.")
 
-    if not photo_path:
-        await callback_query.message.reply_text("No photo has been attached yet.")
-        return
+@Client.on_message(filters.private & filters.command("setphoto"))
+async def set_photo(bot, msg):
+    reply = msg.reply_to_message
+    if not reply or not reply.photo:
+        return await msg.reply_text("Please reply to a photo with the setphoto command")
+
+    user_id = msg.from_user.id
+    photo_file_id = reply.photo.file_id
 
     try:
-        await callback_query.message.reply_photo(photo=photo_path, caption="Attached Photo")
+        await db.save_sample_photo(user_id, photo_file_id)
+        await msg.reply_text("Photo saved successfully.")
     except Exception as e:
-        await callback_query.message.reply_text("An error occurred while trying to preview your photo.")
+        await msg.reply_text(f"Error saving photo: {e}")
 
 @Client.on_callback_query(filters.regex("^preview_photo$"))
 async def inline_preview_photo_callback(client, callback_query):
@@ -382,22 +320,16 @@ async def inline_preview_photo_callback(client, callback_query):
     user_id = callback_query.from_user.id
     
     # Retrieve the attachment path from the database
-    attachment_path = await db.get_attach_photo_path(user_id)
+    attachment_file_id = await db.get_sample_photo(user_id)
     
-    if not attachment_path:
+    if not attachment_file_id:
         await callback_query.message.reply_text("No photo has been attached yet.")
         return
     
     try:
-        # Send the photo using Pyrogram's reply_photo method
-        await callback_query.message.reply_photo(photo=attachment_path, caption="Attached Photo")
+        await callback_query.message.reply_photo(photo=attachment_file_id, caption="Attached Photo")
     except Exception as e:
         await callback_query.message.reply_text(f"Failed to send photo: {str(e)}")
-
-
-
-
-
 
 @Client.on_callback_query(filters.regex("^thumbnail_settings$"))
 async def inline_thumbnail_settings(client, callback_query: CallbackQuery):
@@ -409,6 +341,55 @@ async def inline_thumbnail_settings(client, callback_query: CallbackQuery):
         ]
     )
     await callback_query.message.edit_text("Thumbnail Settings:", reply_markup=keyboard)
+
+@Client.on_message(filters.private & filters.command("setthumbnail"))
+async def set_thumbnail_command(client, message):
+    user_id = message.from_user.id
+
+    # Check if thumbnail already exists
+    thumbnail_file_id = await db.get_thumbnail(user_id)
+    if thumbnail_file_id:
+        await message.reply("You already have a permanent thumbnail set. Send a new photo to update it.")
+    else:
+        await message.reply("Send a photo to set as your permanent thumbnail.")
+
+@Client.on_message(filters.photo & filters.private)
+async def set_thumbnail_handler(client, message):
+    user_id = message.from_user.id
+    photo_file_id = message.photo.file_id
+
+    # Save thumbnail file ID to database
+    await db.save_thumbnail(user_id, photo_file_id)
+    
+    await message.reply("Your permanent thumbnail is updated. If the bot is restarted, the new thumbnail will be preserved.")
+    
+@Client.on_callback_query(filters.regex("^view_thumbnail$"))
+async def view_thumbnail(client, callback_query: CallbackQuery):
+    user_id = callback_query.from_user.id
+    thumbnail_file_id = await db.get_thumbnail(user_id)
+
+    if not thumbnail_file_id:
+        await callback_query.message.reply_text("You don't have any thumbnail.")
+        return
+
+    try:
+        await callback_query.message.reply_photo(photo=thumbnail_file_id, caption="This is your current thumbnail")
+    except Exception as e:
+        await callback_query.message.reply_text("An error occurred while trying to view your thumbnail.")
+
+@Client.on_callback_query(filters.regex("^delete_thumbnail$"))
+async def delete_thumbnail(client, callback_query: CallbackQuery):
+    user_id = callback_query.from_user.id
+    thumbnail_file_id = await db.get_thumbnail(user_id)
+
+    try:
+        if thumbnail_file_id:
+            await db.delete_thumbnail(user_id)
+            await callback_query.message.reply_text("Your thumbnail was removed ❌")
+        else:
+            await callback_query.message.reply_text("You don't have any thumbnail ‼️")
+    except Exception as e:
+        await callback_query.message.reply_text("An error occurred while trying to remove your thumbnail. Please try again later.")
 
 
 
