@@ -2203,11 +2203,7 @@ async def clean_files(bot, msg: Message):
         await msg.reply_text(f"An unexpected error occurred: {e}")
 
 
-"""
-from yt_dlp import YoutubeDL
-
-
-
+# Function to handle progress updates
 async def progress_hook(status_message):
     async def hook(d):
         if d['status'] == 'downloading':
@@ -2262,8 +2258,25 @@ async def ytdlleech_handler(client: Client, msg: Message):
             # Save thumbnail in database
             thumbnail_url = info_dict.get('thumbnail')
             if thumbnail_url:
-                thumbnail_id = await save_thumbnail(msg.from_user.id, thumbnail_url)
+                thumbnail_id = await db.save_thumbnail(msg.from_user.id, thumbnail_url)
                 # Optional: You can update the database with this thumbnail_id if needed
+
+            # Retrieve thumbnail from the database
+            thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
+            file_thumb = None
+            if thumbnail_file_id:
+                try:
+                    file_thumb = await client.download_media(thumbnail_file_id)
+                except Exception as e:
+                    print(f"Error downloading thumbnail: {e}")
+            else:
+                # Example code to download thumbnail from media thumbs (if available)
+                if hasattr(info_dict, 'thumbnails') and info_dict.thumbnails:
+                    try:
+                        file_thumb = await client.download_media(info_dict.thumbnails[0].url)
+                    except Exception as e:
+                        print(f"Error downloading thumbnail from info_dict: {e}")
+                        file_thumb = None
 
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
             user_quality_selection[msg.from_user.id] = {
@@ -2275,8 +2288,6 @@ async def ytdlleech_handler(client: Client, msg: Message):
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
 
-
-# Callback query handler
 # Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+$"))
 async def callback_query_handler(client: Client, query):
@@ -2285,7 +2296,7 @@ async def callback_query_handler(client: Client, query):
 
     try:
         # Retrieve user's quality selection from the database
-        selection_data = await get_user_quality_selection(user_id)
+        selection_data = await db.get_user_quality_selection(user_id)
         if not selection_data:
             return await query.answer("No download in progress.")
 
@@ -2311,14 +2322,13 @@ async def callback_query_handler(client: Client, query):
             'merge_output_format': 'mkv'  # Ensure the output is in MKV format
         }
         download_path = f"{video_title}.mkv"
-        file_thumb = None
 
         try:
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
 
             # Retrieve thumbnail file ID from database
-            thumbnail_id = await get_thumbnail(user_id)
+            thumbnail_id = await db.get_thumbnail(user_id)
             if thumbnail_id:
                 # Optional: Retrieve the actual thumbnail file using thumbnail_id if needed
                 pass
@@ -2354,12 +2364,11 @@ async def callback_query_handler(client: Client, query):
             if file_thumb and os.path.exists(file_thumb):
                 os.remove(file_thumb)
             await sts.delete()
-            await query.message.delete()  # Delete the original message after processing
 
     except Exception as e:
         await query.answer(f"An error occurred: {e}")
 
-"""
+
 import datetime
 from html_telegraph_poster import TelegraphPoster  # Import TelegraphPoster
 
