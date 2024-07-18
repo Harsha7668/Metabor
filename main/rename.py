@@ -1345,7 +1345,8 @@ async def safe_edit_message(message, new_text):
             await message.edit(new_text)
     except Exception as e:
         print(f"Failed to edit message: {e}")
-
+        
+# Command to remove tags from media files
 @Client.on_message(filters.private & filters.command("removetags"))
 async def remove_tags(bot, msg):
     global REMOVETAGS_ENABLED
@@ -1383,7 +1384,7 @@ async def remove_tags(bot, msg):
         await safe_edit_message(sts, f"Error downloading media: {e}")
         return
 
-    cleaned_file = os.path.join(DOWNLOAD_LOCATION, new_filename if new_filename else "cleaned_" + os.path.basename(downloaded))
+    cleaned_file = new_filename if new_filename else "cleaned_" + os.path.basename(downloaded)
 
     await safe_edit_message(sts, "💠 Removing all tags... ⚡")
     try:
@@ -1398,7 +1399,7 @@ async def remove_tags(bot, msg):
     thumbnail_id = await get_thumbnail(msg.from_user.id)
     if thumbnail_id:
         try:
-            file_thumb = await bot.download_media(thumbnail_id, file_name=f"{THUMBNAIL_DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg")
+            file_thumb = await bot.download_media(thumbnail_id, file_name=f"thumbnail_{msg.from_user.id}.jpg")
         except Exception as e:
             print(f"Error downloading thumbnail: {e}")
 
@@ -1430,7 +1431,7 @@ async def remove_tags(bot, msg):
 
             # Notify in the group about the upload
             await msg.reply_text(
-                f"┏📥 **File Name:** {new_filename if new_filename else os.path.basename(cleaned_file)}\n"
+                f"┏📥 **File Name:** {os.path.basename(cleaned_file)}\n"
                 f"┠💾 **Size:** {humanbytes(filesize)}\n"
                 f"┠♻️ **Mode:** Remove Tags\n"
                 f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
@@ -1446,12 +1447,19 @@ async def remove_tags(bot, msg):
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
 
+    # Save new filename to database
+    if new_filename:
+        await db.save_new_filename(msg.from_user.id, new_filename)
 
 #Screenshots Command
 @Client.on_message(filters.private & filters.command("screenshots"))
 async def screenshots_command(client, message: Message):
     user_id = message.from_user.id
-    num_screenshots = user_settings.get(user_id, {}).get("screenshots", 5)  # Default to 5 if not set
+
+    # Fetch user settings for screenshots count
+    num_screenshots = await db.get_screenshots_count(user_id)
+    if not num_screenshots:
+        num_screenshots = 5  # Default to 5 if not set
 
     if not message.reply_to_message:
         return await message.reply_text("Please reply to a valid video file or document.")
@@ -1491,9 +1499,7 @@ async def screenshots_command(client, message: Message):
     screenshot_paths = []
     for i in range(num_screenshots):
         time_position = interval * i
-        screenshot_path = os.path.join(DOWNLOAD_LOCATION1, f"screenshot_{i}.jpg")
-
-        os.makedirs(DOWNLOAD_LOCATION1, exist_ok=True)
+        screenshot_path = f"screenshot_{user_id}_{i}.jpg"
 
         command = ['ffmpeg', '-ss', str(time_position), '-i', input_path, '-vframes', '1', '-y', screenshot_path]
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -1508,24 +1514,32 @@ async def screenshots_command(client, message: Message):
 
         screenshot_paths.append(screenshot_path)
 
-    await sts.edit(f"💠 Uploading {num_screenshots} screenshots to your PM... ⚡")
-    for i, screenshot_path in enumerate(screenshot_paths):
+        # Upload screenshot to user's PM
         try:
             await client.send_photo(chat_id=user_id, photo=screenshot_path)
         except Exception as e:
             await sts.edit(f"Error uploading screenshot {i+1}: {e}")
             os.remove(screenshot_path)
 
-    os.remove(input_path)
-    for screenshot_path in screenshot_paths:
-        os.remove(screenshot_path)
+        os.remove(screenshot_path)  # Remove local screenshot after uploading
+
+    # Save screenshot paths to database
+    await db.save_screenshot_paths(user_id, screenshot_paths)
+
+    os.remove(input_path)  # Remove downloaded media file
 
     # Send notification in group chat
     try:
         await message.reply_text("📸 Screenshots have been sent to your PM.")
     except Exception as e:
         print(f"Failed to send notification: {e}")
-    await sts.delete()
+
+    # Cleanup: Delete screenshot paths from database after sending
+    await db.delete_screenshot_paths(user_id)
+
+    await sts.delete()  # Delete the status message after completion
+
+
 
 #Sample Video Command
 @Client.on_message(filters.private & filters.command("samplevideo"))
