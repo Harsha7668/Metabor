@@ -2192,6 +2192,8 @@ async def clean_files(bot, msg: Message):
         await msg.reply_text(f"An unexpected error occurred: {e}")
 
 
+from yt_dlp import YoutubeDL
+
 # Function to handle progress updates
 async def progress_hook(status_message):
     async def hook(d):
