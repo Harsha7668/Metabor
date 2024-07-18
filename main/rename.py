@@ -1733,17 +1733,6 @@ async def gofile_upload(bot, msg: Message):
             print(f"Error deleting file: {e}")
 
 
-@Client.on_message(filters.command("gofilesetup") & filters.chat(GROUP))
-async def set_gofile_api_key(bot, msg: Message):
-    user_id = msg.from_user.id
-    args = msg.text.split(" ", 1)
-    if len(args) != 2:
-        return await msg.reply_text("Usage: /gofilesetup {your_api_key}")
-
-    api_key = args[1]
-    await db.save_gofile_api_key(user_id, api_key)
-    await msg.reply_text("Gofile API key has been set successfully.")
-
 
 @Client.on_message(filters.private & filters.command("clone"))
 async def clone_file(bot, msg: Message):
