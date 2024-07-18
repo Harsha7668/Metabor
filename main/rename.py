@@ -25,7 +25,7 @@ from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_
 from googleapiclient.http import MediaFileUpload
 from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, get_files_in_folder, drive_service
 from googleapiclient.errors import HttpError
-from database import update_user_settings, get_user_settings, save_thumbnail, get_thumbnail_path, save_sample_video_settings, save_gofile_api_key, get_gofile_api_key, save_gdrive_folder_id, get_gdrive_folder_id, save_metadata_titles, get_metadata_titles, close   
+from database import db
 
 DOWNLOAD_LOCATION1 = "./screenshots"
 
