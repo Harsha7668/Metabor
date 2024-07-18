@@ -908,7 +908,7 @@ async def change_index_audio(bot, msg):
         return
 
     # Thumbnail handling
-    thumbnail_file_id = await get_thumbnail(msg.from_user.id)
+    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
 
     if thumbnail_file_id:
         try:
@@ -1030,7 +1030,7 @@ async def change_index_subtitle(bot, msg):
         return
 
     # Thumbnail handling
-    thumbnail_file_id = await get_thumbnail(msg.from_user.id)
+    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
 
     if thumbnail_file_id:
         try:
@@ -1085,7 +1085,6 @@ async def start_merge_command(bot, msg: Message):
 
     await msg.reply_text("Send up to 10 video/document files one by one. Once done, send `/videomerge filename`.")
 
-# Command to finalize merging and start the process
 @Client.on_message(filters.private & filters.command("videomerge"))
 async def start_video_merge_command(bot, msg: Message):
     user_id = msg.from_user.id
@@ -1097,16 +1096,13 @@ async def start_video_merge_command(bot, msg: Message):
 
     await merge_and_upload(bot, msg)
 
-# Handling media files sent by users
 @Client.on_message(filters.document | filters.video & filters.private)
 async def handle_media_files(bot, msg: Message):
     user_id = msg.from_user.id
     if user_id in merge_state and len(merge_state[user_id]["files"]) < 10:
         merge_state[user_id]["files"].append(msg)
         await msg.reply_text("File received. Send another file or use `/videomerge filename` to start merging.")
-
-
-# Function to merge and upload files
+        
 async def merge_and_upload(bot, msg: Message):
     user_id = msg.from_user.id
     if user_id not in merge_state:
@@ -1114,12 +1110,23 @@ async def merge_and_upload(bot, msg: Message):
 
     files_to_merge = merge_state[user_id]["files"]
     output_filename = merge_state[user_id].get("output_filename", "merged_output.mp4")  # Default output filename
+    output_path = f"{output_filename}"
 
     sts = await msg.reply_text("🚀 Starting merge process...")
 
     try:
-        # Assume merge_videos function merges files directly without using input.txt
-        output_path = await merge_videos(files_to_merge, output_filename, sts)
+        file_paths = []
+        for file_msg in files_to_merge:
+            file_path = await download_media(file_msg, sts)
+            file_paths.append(file_path)
+
+        input_file = "input.txt"
+        with open(input_file, "w") as f:
+            for file_path in file_paths:
+                f.write(f"file '{file_path}'\n")
+
+        await sts.edit("💠 Merging videos... ⚡")
+        await merge_videos(input_file, output_path)
 
         filesize = os.path.getsize(output_path)
         filesize_human = humanbytes(filesize)
@@ -1127,16 +1134,12 @@ async def merge_and_upload(bot, msg: Message):
 
         await sts.edit("💠 Uploading... ⚡")
 
-        # Fetch thumbnail path from database
-        thumbnail_path = await db.get_thumbnail_path(user_id)
+        # Thumbnail handling
+        thumbnail_file_id = await db.get_thumbnail(user_id)
         file_thumb = None
-
-        # Download thumbnail if not already in database
-        if not thumbnail_path:
+        if thumbnail_file_id:
             try:
-                if "thumbs" in msg and msg.thumbs:
-                    thumbnail_path = await bot.download_media(msg.thumbs[0].file_id)
-                    await db.save_thumbnail_path(user_id, thumbnail_path)
+                file_thumb = await bot.download_media(thumbnail_file_id)
             except Exception as e:
                 print(f"Error downloading thumbnail: {e}")
 
@@ -1157,7 +1160,7 @@ async def merge_and_upload(bot, msg: Message):
             await bot.send_document(
                 user_id,
                 document=output_path,
-                thumb=thumbnail_path,
+                thumb=file_thumb,
                 caption=cap,
                 progress=progress_message,
                 progress_args=("💠 Upload Started... ⚡", sts, c_time)
@@ -1171,25 +1174,27 @@ async def merge_and_upload(bot, msg: Message):
                 f"❄ **File has been sent in Bot PM!**"
             )
 
-        # Save merged file info to database
-        await db.save_merged_file_info(user_id, output_filename, filesize)
-
     except Exception as e:
         await sts.edit(f"❌ Error: {e}")
 
     finally:
         # Clean up temporary files
-        for file_msg in files_to_merge:
-            if os.path.exists(file_msg):
-                os.remove(file_msg)
-        if thumbnail_path and os.path.exists(thumbnail_path):
-            os.remove(thumbnail_path)
+        for file_path in file_paths:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        if os.path.exists(input_file):
+            os.remove(input_file)
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
 
         # Clear merge state for the user
         if user_id in merge_state:
             del merge_state[user_id]
 
         await sts.delete()
+
 
 #leech command 
 # Leech Handler Only Auth Users
@@ -1384,7 +1389,7 @@ async def remove_tags(bot, msg):
 
     # Retrieve thumbnail from database
     file_thumb = None
-    thumbnail_id = await get_thumbnail(msg.from_user.id)
+    thumbnail_id = await db.get_thumbnail(msg.from_user.id)
     if thumbnail_id:
         try:
             file_thumb = await bot.download_media(thumbnail_id, file_name=f"thumbnail_{msg.from_user.id}.jpg")
