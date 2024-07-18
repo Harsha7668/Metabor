@@ -83,6 +83,25 @@ class Database:
             return user.get('settings', {}).get('metadata_titles', {})
         return {}
     
+    async def save_screenshots_count(self, user_id, screenshots_count):
+        await self.users_col.update_one(
+            {'id': user_id},
+            {'$set': {'settings.screenshots_count': screenshots_count}},
+            upsert=True
+        )
+    
+    async def get_screenshots_count(self, user_id):
+        user = await self.users_col.find_one({'id': user_id})
+        if user:
+            return user.get('settings', {}).get('screenshots_count')
+        return None
+    
+    async def get_sample_video_duration(self, user_id):
+        user = await self.users_col.find_one({'id': user_id})
+        if user:
+            return user.get('settings', {}).get('sample_video_duration')
+        return None
+    
     async def close(self):
         self._client.close()
 
