@@ -1622,26 +1622,25 @@ async def restart_app(bot, msg):
         return await msg.reply_text("Restarting app, wait for a minute.")
         
 
-# Unzip file command handler
+# Command to unzip a zip file
 @Client.on_message(filters.private & filters.command("unzip"))
 async def unzip(bot, msg):
     if not msg.reply_to_message:
         return await msg.reply_text("Please reply to a zip file to unzip.")
 
     media = msg.reply_to_message.document
-    if not media:
+    if not media or not media.file_name.endswith('.zip'):
         return await msg.reply_text("Please reply to a valid zip file.")
 
     sts = await msg.reply_text("🚀Downloading file...⚡")
     c_time = time.time()
-    input_path = await bot.download_media(media, progress
-                                          =progress_message, progress_args=("🚀Downloading file...⚡️", sts, c_time))
+    input_path = await bot.download_media(media, progress=progress_message, progress_args=("🚀Downloading file...⚡️", sts, c_time))
 
     if not os.path.exists(input_path):
         await sts.edit(f"Error: The downloaded file does not exist.")
         return
 
-    extract_path = os.path.join(DOWNLOAD_LOCATION, "extracted")
+    extract_path = os.path.join("extracted")
     os.makedirs(extract_path, exist_ok=True)
 
     await sts.edit("🚀Unzipping file...⚡")
@@ -1651,23 +1650,28 @@ async def unzip(bot, msg):
         await sts.edit(f"✅ File unzipped successfully. Uploading extracted files...⚡")
         await upload_files(bot, msg.chat.id, extract_path)
         await sts.edit(f"✅ All extracted files uploaded successfully.")
+
+        # Save extracted files to database
+        await db.save_extracted_files(msg.from_user.id, extracted_files)
     else:
         await sts.edit(f"❌ Failed to unzip file.")
 
     os.remove(input_path)
     shutil.rmtree(extract_path)
+
   
 
+# Command to upload to Gofile
 # Command to upload to Gofile
 @Client.on_message(filters.private & filters.command("gofile"))
 async def gofile_upload(bot, msg: Message):
     user_id = msg.from_user.id
-    
-    # Retrieve the user's Gofile API key or fallback to the global key
-    gofile_api_key = user_gofile_api_keys.get(user_id, GOFILE_API_KEY)
+
+    # Retrieve the user's Gofile API key from database
+    gofile_api_key = await db.get_gofile_api_key(user_id)
 
     if not gofile_api_key:
-        return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it or ensure a global key is set.")
+        return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
 
     reply = msg.reply_to_message
     if not reply:
@@ -1685,8 +1689,6 @@ async def gofile_upload(bot, msg: Message):
 
     sts = await msg.reply_text("🚀 Uploading to Gofile...")
     c_time = time.time()
-    
-    downloaded_file = None
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -1698,49 +1700,39 @@ async def gofile_upload(bot, msg: Message):
                 data = await resp.json()
                 server = data["data"]["server"]
 
-            # Download the media file
-            downloaded_file = await bot.download_media(
-                media,
-                file_name=os.path.join(DOWNLOAD_LOCATION, custom_name),
-                progress=progress_message,
-                progress_args=("🚀 Download Started...", sts, c_time)
-            )
+            # Download the media file directly to memory
+            file_bytes = await bot.download_media(media)
 
             # Upload the file to Gofile
-            with open(downloaded_file, "rb") as file:
-                form_data = aiohttp.FormData()
-                form_data.add_field("file", file, filename=custom_name)
-                form_data.add_field("token", gofile_api_key)
+            form_data = aiohttp.FormData()
+            form_data.add_field("file", file_bytes, filename=custom_name)
+            form_data.add_field("token", gofile_api_key)
 
-                async with session.post(
-                    f"https://{server}.gofile.io/uploadFile",
-                    data=form_data
-                ) as resp:
-                    if resp.status != 200:
-                        return await sts.edit(f"Upload failed: Status code {resp.status}")
+            async with session.post(
+                f"https://{server}.gofile.io/uploadFile",
+                data=form_data
+            ) as resp:
+                if resp.status != 200:
+                    return await sts.edit(f"Upload failed: Status code {resp.status}")
 
-                    response = await resp.json()
-                    if response["status"] == "ok":
-                        download_url = response["data"]["downloadPage"]
-                        await sts.edit(f"Upload successful!\nDownload link: {download_url}")
-                    else:
-                        await sts.edit(f"Upload failed: {response['message']}")
+                response = await resp.json()
+                if response["status"] == "ok":
+                    download_url = response["data"]["downloadPage"]
+                    await sts.edit(f"Upload successful!\nDownload link: {download_url}")
+                else:
+                    await sts.edit(f"Upload failed: {response['message']}")
 
     except Exception as e:
         await sts.edit(f"Error during upload: {e}")
 
-    finally:
-        try:
-            if downloaded_file and os.path.exists(downloaded_file):
-                os.remove(downloaded_file)
-        except Exception as e:
-            print(f"Error deleting file: {e}")
-
 @Client.on_message(filters.private & filters.command("clone"))
 async def clone_file(bot, msg: Message):
-    global GDRIVE_FOLDER_ID
+    user_id = msg.from_user.id
 
-    if not GDRIVE_FOLDER_ID:
+    # Retrieve the user's Google Drive folder ID from database
+    gdrive_folder_id = await db.get_gdrive_folder_id(user_id)
+
+    if not gdrive_folder_id:
         return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
 
     if len(msg.command) < 2:
@@ -1755,7 +1747,7 @@ async def clone_file(bot, msg: Message):
     sts = await msg.reply_text("Starting cloning process...")
 
     try:
-        copied_file_info = await copy_file(src_id, GDRIVE_FOLDER_ID)
+        copied_file_info = await copy_file(src_id, gdrive_folder_id)
         if copied_file_info:
             file_link = f"https://drive.google.com/file/d/{copied_file_info['id']}/view"
             button = [
@@ -2077,9 +2069,9 @@ def extract_video_from_file(input_path):
 async def list_files(bot, msg: Message):
     user_id = msg.from_user.id
 
-    # Retrieve the user's Google Drive folder ID
-    gdrive_folder_id = user_gdrive_folder_ids.get(user_id)
-    
+    # Retrieve the user's Google Drive folder ID from database
+    gdrive_folder_id = await db.get_gdrive_folder_id(user_id)
+
     if not gdrive_folder_id:
         return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
 
@@ -2120,7 +2112,7 @@ async def list_files(bot, msg: Message):
                     emoji = '📦'
                 else:
                     emoji = '📁'
-                
+
                 buttons.append([InlineKeyboardButton(f"{emoji} {category}", callback_data=f"{category}")])
                 for file in sorted(items, key=lambda x: x['name']):
                     file_link = f"https://drive.google.com/file/d/{file['id']}/view"
@@ -2135,192 +2127,59 @@ async def list_files(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"Error: {e}")
 
-# Command handler for /clean
+#cleam command
 @Client.on_message(filters.private & filters.command("clean"))
-async def clean_files_by_name(bot, msg: Message):
+async def clean_files(bot, msg: Message):
     user_id = msg.from_user.id
 
-    # Retrieve the user's Google Drive folder ID
-    gdrive_folder_id = user_gdrive_folder_ids.get(user_id)
-    
+    # Retrieve the user's Google Drive folder ID from database
+    gdrive_folder_id = await db.get_gdrive_folder_id(user_id)
+
     if not gdrive_folder_id:
         return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
 
     try:
-        # Extract file name from the command
+        # Check if the command is followed by a file name or a direct link
         command_parts = msg.text.split(maxsplit=1)
         if len(command_parts) < 2:
-            return await msg.reply_text("Please provide a file name to clean.")
+            return await msg.reply_text("Please provide a file name or direct link to delete.")
 
-        file_name = command_parts[1].strip()
+        query_or_link = command_parts[1].strip()
 
-        # Define query to find files by name in the specified folder
-        query = f"'{gdrive_folder_id}' in parents and trashed=false and name='{file_name}'"
+        # If the query_or_link starts with 'http', treat it as a direct link
+        if query_or_link.startswith("http"):
+            # Extract file ID from the direct link
+            file_id = extract_id_from_url(query_or_link)
+            if not file_id:
+                return await msg.reply_text("Invalid Google Drive file link. Please provide a valid direct link.")
 
-        # Execute the query to find matching files
-        response = drive_service.files().list(q=query, fields='files(id, name)').execute()
-        files = response.get('files', [])
+            # Delete the file by its ID
+            drive_service.files().delete(fileId=file_id).execute()
+            await msg.reply_text(f"Deleted File with ID '{file_id}' Successfully ✅.")
 
-        if not files:
-            return await msg.reply_text(f"No files found with the name '{file_name}' in the specified folder.")
+        else:
+            # Treat it as a file name and delete files by name in the specified folder
+            file_name = query_or_link
 
-        # Delete each found file
-        for file in files:
-            drive_service.files().delete(fileId=file['id']).execute()
-            await msg.reply_text(f"Deleted File '{file['name']}' Successfully ✅.")
+            # Define query to find files by name in the specified folder
+            query = f"'{gdrive_folder_id}' in parents and trashed=false and name='{file_name}'"
+
+            # Execute the query to find matching files
+            response = drive_service.files().list(q=query, fields='files(id, name)').execute()
+            files = response.get('files', [])
+
+            if not files:
+                return await msg.reply_text(f"No files found with the name '{file_name}' in the specified folder.")
+
+            # Delete each found file
+            for file in files:
+                drive_service.files().delete(fileId=file['id']).execute()
+                await msg.reply_text(f"Deleted File '{file['name']}' Successfully ✅.")
 
     except HttpError as error:
         await msg.reply_text(f"An error occurred: {error}")
     except Exception as e:
         await msg.reply_text(f"An unexpected error occurred: {e}")
-
-"""
-@Client.on_message(filters.private & filters.command("changeindexaudiolink"))
-async def change_index_audiolink(bot, msg):
-    global CHANGE_INDEX_ENABLED
-
-    if not CHANGE_INDEX_ENABLED:
-        return await msg.reply_text("The changeindexaudio feature is currently disabled.")
-
-    reply = msg.reply_to_message
-    if not reply and len(msg.command) < 4:
-        return await msg.reply_text("Please reply to a media file or provide a link with the index command\nFormat: `/changeindexaudio a-3 -n filename.mkv` (Audio)")
-
-    if len(msg.command) < 3:
-        return await msg.reply_text("Please provide the index command with a filename\nFormat: `/changeindexaudio a-3 -n filename.mkv` (Audio)")
-
-    index_cmd = None
-    output_filename = None
-
-    for i in range(1, len(msg.command)):
-        if msg.command[i] == "-n":
-            output_filename = " ".join(msg.command[i + 1:])
-            break
-
-    index_cmd = " ".join(msg.command[1:i])
-
-    if not output_filename:
-        return await msg.reply_text("Please provide a filename using the `-n` flag.")
-
-    if not index_cmd or not index_cmd.startswith("a-"):
-        return await msg.reply_text("Invalid format. Use `/changeindexaudio a-3 -n filename.mkv` for audio.")
-
-    media = reply.document or reply.audio or reply.video
-    if not media and not reply.text:
-        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) or provide a link with the index command.")
-
-    sts = await msg.reply_text("🚀 Processing... ⚡")
-
-    if reply.text and ("seedr" in reply.text or "workers" in reply.text):
-        download_link = reply.text
-        downloaded = await handle_link_download(download_link, output_filename, sts)
-        if not downloaded:
-            return await sts.edit("Failed to download the file from the provided link.")
-    else:
-        c_time = time.time()
-        try:
-            downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-        except Exception as e:
-            await sts.edit(f"Error downloading media: {e}")
-            return
-
-    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
-
-    index_params = index_cmd.split('-')
-    stream_type = index_params[0]
-    indexes = [int(i) - 1 for i in index_params[1:]]
-
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0:v']
-
-    for idx in indexes:
-        ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
-
-    ffmpeg_cmd.extend(['-map', '0:s?'])
-    ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
-
-    await sts.edit("💠 Changing audio indexing... ⚡")
-    process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await process.communicate()
-
-    if process.returncode != 0:
-        await sts.edit(f"❗ FFmpeg error: {stderr.decode('utf-8')}")
-        os.remove(downloaded)
-        return
-
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    file_thumb = None
-    if os.path.exists(thumbnail_path):
-        file_thumb = thumbnail_path
-    else:
-        try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-        except Exception as e:
-            file_thumb = None
-
-    filesize = os.path.getsize(output_file)
-    filesize_human = humanbytes(filesize)
-    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
-
-    if len(cap) > 1024:
-        cap = cap[:1021] + "..."
-
-    await sts.edit("💠 Uploading... ⚡")
-    c_time = time.time()
-
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, output_filename, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"**File successfully changed audio index and uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {output_filename}\n"
-            f"**Request User:** {msg.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-    else:
-        try:
-            await bot.send_document(
-                msg.chat.id,
-                document=output_file,
-                thumb=file_thumb,
-                caption=cap,
-                progress=progress_message,
-                progress_args=("💠 Upload Started... ⚡️", sts, c_time)
-            )
-        except Exception as e:
-            return await sts.edit(f"Error: {e}")
-
-    os.remove(downloaded)
-    os.remove(output_file)
-    if file_thumb and os.path.exists(file_thumb):
-        os.remove(file_thumb)
-    await sts.delete()
-
-async def handle_link_download(link: str, new_name: str, sts):
-    c_time = time.time()
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(link) as resp:
-                if resp.status == 200:
-                    with open(new_name, 'wb') as f:
-                        f.write(await resp.read())
-                    return new_name
-                else:
-                    await sts.edit(f"Failed to download file from link. Status code: {resp.status}")
-                    return None
-    except Exception as e:
-        await sts.edit(f"Error during download: {e}")
-        return None
-
-async def edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit(new_text)
-    except MessageNotModified:
-        pass
-"""
-
 
 
 
