@@ -29,8 +29,6 @@ class Database:
             return user.get('settings', default_settings)
         return default_settings
     
-   
-    
     async def save_sample_video_settings(self, user_id, sample_video_duration, screenshots):
         await self.users_col.update_one(
             {'id': user_id}, 
@@ -104,7 +102,6 @@ class Database:
             return user.get('settings', {}).get('sample_video_duration')
         return None
     
-   
     async def save_thumbnail(self, user_id, file_id):
         await self.files_col.update_one({'id': user_id}, {'$set': {'thumbnail_file_id': file_id}}, upsert=True)
         
@@ -113,8 +110,6 @@ class Database:
         if file_data:
             return file_data.get('thumbnail_file_id')
         return None
-
-
     
     async def delete_thumbnail(self, user_id):
         await self.files_col.update_one({'id': user_id}, {'$unset': {'thumbnail_file_id': ""}})
@@ -184,22 +179,21 @@ class Database:
             print(f"Error clearing merged file info from database: {e}")
             # Handle the error accordingly (logging, exception handling, etc.)
 
-    async def save_new_filename(user_id, new_filename):
-    # Save new filename information to MongoDB
-              await files_col.update_one(
-              {'id': user_id},
-              {'$set': {'new_filename': new_filename}},
-              upsert=True
-              )
+    async def save_new_filename(self, user_id, new_filename):
+        # Save new filename information to MongoDB
+        await self.files_col.update_one(
+            {'id': user_id},
+            {'$set': {'new_filename': new_filename}},
+            upsert=True
+        )
 
-    async def get_new_filename(user_id):
-    # Retrieve new filename information from MongoDB
-    file_data = await files_col.find_one({'id': user_id})
-    if file_data:
-        return file_data.get('new_filename')
-    return None
-
-
+    async def get_new_filename(self, user_id):
+        # Retrieve new filename information from MongoDB
+        file_data = await self.files_col.find_one({'id': user_id})
+        if file_data:
+            return file_data.get('new_filename')
+        return None
+    
     async def save_screenshot_paths(self, user_id, screenshot_paths):
         result = await self.users_col.update_one(
             {'_id': user_id},
@@ -221,7 +215,6 @@ class Database:
         )
         return result.modified_count > 0
 
-   
     async def save_extracted_files(self, user_id, file_list):
         await self.files_col.update_one(
             {'id': user_id},
@@ -235,9 +228,12 @@ class Database:
             return file_data.get('extracted_files', [])
         return []
 
-    
-    async def save_user_quality_selection(user_id, selection_data):
-              await users_col.update_one({'id': user_id}, {'$set': {'settings.quality_selection': selection_data}}, upsert=True)
+    async def save_user_quality_selection(self, user_id, selection_data):
+        await self.users_col.update_one(
+            {'id': user_id},
+            {'$set': {'settings.quality_selection': selection_data}},
+            upsert=True
+        )
     
     async def get_user_quality_selection(user_id):
         user = await users_col.find_one({'id': user_id})
@@ -247,7 +243,9 @@ class Database:
     
     async def close(self):
         self._client.close()
-
+    
 
 # Initialize the database instance
-db = Database(DATABASE_URI, DATABASE_NAME)
+db = Database(DATABASE_URI, DATABASE_NAME)    
+
+
