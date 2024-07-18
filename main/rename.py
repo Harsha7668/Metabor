@@ -619,8 +619,7 @@ async def change_metadata(bot, msg: Message):
         return await msg.reply_text("Metadata changing feature is currently disabled.")
 
     user_id = msg.from_user.id
-    db = Database(DATABASE_URI, DATABASE_NAME)
-
+   
     # Fetch metadata titles from the database
     metadata_titles = await db.get_metadata_titles(user_id)
     video_title = metadata_titles.get('video_title', '')
