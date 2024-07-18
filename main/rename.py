@@ -2636,21 +2636,33 @@ async def set_watermark_text(bot, msg):
     await msg.reply_text(f"Watermark text set to: {watermark_text}")
 
 import subprocess
-import os
+import json
+
+def get_video_duration(file_path):
+    cmd = [
+        'ffprobe', '-v', 'error', '-show_entries',
+        'format=duration', '-of',
+        'default=noprint_wrappers=1:nokey=1', file_path
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return float(result.stdout)
 
 async def edit_watermark(media_file: str, outfile: str, watermark_text: str):
+    duration = get_video_duration(media_file)
+    half_duration = duration / 2
+
     cmd = [
         'ffmpeg', '-hide_banner', '-ignore_unknown', '-i', media_file, '-vf',
         f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=2:bordercolor=white:enable='between(t,0,5)',"  # Start of the video
-        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=2:bordercolor=white:enable='between(t,(duration/2-2.5),(duration/2+2.5))',"  # Middle of the video
-        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=2:bordercolor=white:enable='gte(t,duration-5)'",  # End of the video
+        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=2:bordercolor=white:enable='between(t,{half_duration-2.5},{half_duration+2.5})',"  # Middle of the video
+        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=2:bordercolor=white:enable='gte(t,{duration-5})'",  # End of the video
         '-c:a', 'copy', outfile, '-y'
     ]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     if process.returncode != 0:
         raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
-        
+
 @Client.on_message(filters.private & filters.command("watermark"))
 async def apply_watermark(bot, msg):
     user_id = msg.from_user.id
