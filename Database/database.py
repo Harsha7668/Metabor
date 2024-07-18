@@ -104,28 +104,29 @@ class Database:
             return user.get('settings', {}).get('sample_video_duration')
         return None
     
-    async def save_thumbnail(self, user_id, thumbnail_path):
-        await self.files_col.update_one({'id': user_id}, {'$set': {'thumbnail_path': thumbnail_path}}, upsert=True)
+   
+    async def save_thumbnail(self, user_id, file_id):
+        await self.files_col.update_one({'id': user_id}, {'$set': {'thumbnail_file_id': file_id}}, upsert=True)
         
-    async def get_thumbnail_path(self, user_id):
+    async def get_thumbnail(self, user_id):
         file_data = await self.files_col.find_one({'id': user_id})
         if file_data:
-            return file_data.get('thumbnail_path')
+            return file_data.get('thumbnail_file_id')
         return None
     
     async def delete_thumbnail(self, user_id):
-        await self.files_col.update_one({'id': user_id}, {'$unset': {'thumbnail_path': ""}})
+        await self.files_col.update_one({'id': user_id}, {'$unset': {'thumbnail_file_id': ""}})
     
-    async def save_attach_photo(self, user_id, photo_path):
-        await self.files_col.update_one({'id': user_id}, {'$set': {'sample_photo_path': photo_path}}, upsert=True)
+    async def save_attach_photo(self, user_id, file_id):
+        await self.files_col.update_one({'id': user_id}, {'$set': {'sample_photo_file_id': file_id}}, upsert=True)
     
-    async def get_attach_photo_path(self, user_id):
+    async def get_attach_photo(self, user_id):
         file_data = await self.files_col.find_one({'id': user_id})
         if file_data:
-            return file_data.get('attach_photo_path')
+            return file_data.get('sample_photo_file_id')
         return None
     
-    
+ 
     async def close(self):
         self._client.close()
 
