@@ -240,23 +240,21 @@ class Database:
         if file_data:
             return file_data.get('extracted_files', [])
         return []
-"""
+
     async def save_user_quality_selection(self, user_id, selection_data):
-        await self.users_col.update_one(
+        await self.db.users.update_one(
             {'id': user_id},
             {'$set': {'settings.quality_selection': selection_data}},
             upsert=True
         )
-    
+
     async def get_user_quality_selection(self, user_id):
-        user = await self.users_col.find_one({'id': user_id})
-    if user:
-        return user.get('settings', {}).get('quality_selection')
-    
-    
-    async def close(self):
-        self._client.close()
-"""
+        user = await self.db.users.find_one({'id': user_id})
+        if user:
+            return user.get('settings', {}).get('quality_selection')
+        return None
+
+
 
 # Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)    
