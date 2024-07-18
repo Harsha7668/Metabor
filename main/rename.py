@@ -1653,8 +1653,7 @@ async def unzip(bot, msg):
     shutil.rmtree(extract_path)
 
   
-
-@Client.on_message(filters.command("gofile") & filters.chat(GROUP))
+@Client.on_message(filters.command("gofile") & filters.private)
 async def gofile_upload(bot, msg: Message):
     user_id = msg.from_user.id
     
