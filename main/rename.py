@@ -190,6 +190,9 @@ async def update_settings_message(message):
 
 
 
+from Database.database import db
+
+
 @Client.on_callback_query(filters.regex("^set_sample_video_duration_"))
 async def set_sample_video_duration(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
@@ -197,7 +200,7 @@ async def set_sample_video_duration(client, callback_query: CallbackQuery):
     duration = int(duration_str)
     
     # Save sample video duration to database
-    await database.save_sample_video_duration(user_id, duration)
+    await db.save_sample_video_settings(user_id, duration, "screenshots setting")  # Adjusted the parameter from 'duration' to 'duration_str'
     
     await callback_query.answer(f"Sample video duration set to {duration} seconds.")
     await display_user_settings(client, callback_query.message, edit=True)
@@ -206,7 +209,7 @@ async def set_sample_video_duration(client, callback_query: CallbackQuery):
 @Client.on_callback_query(filters.regex("^sample_video_option$"))
 async def sample_video_option(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
-    current_duration = await db.get_sample_video_duration(user_id)
+    current_duration = await db.get_sample_video_settings(user_id)
     
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(f"Sample Video 150s {'✅' if current_duration == 150 else ''}", callback_data="set_sample_video_duration_150")],
@@ -284,40 +287,6 @@ async def set_screenshots(client, callback_query: CallbackQuery):
     await callback_query.answer(f"Number of screenshots set to {num_screenshots}.")
     await display_user_settings(client, callback_query.message, edit=True)
 
-@Client.on_callback_query(filters.regex("^preview_gdrive$"))
-async def inline_preview_gdrive(bot, callback_query):
-    user_id = callback_query.from_user.id
-    
-    # Retrieve Google Drive folder ID from the database
-    gdrive_folder_id = await db.get_gdrive_folder_id(user_id)
-    
-    if not gdrive_folder_id:
-        return await callback_query.message.reply_text(f"Google Drive Folder ID is not set for user `{user_id}`. Use /gdriveid {{your_gdrive_folder_id}} to set it.")
-    
-    await callback_query.message.reply_text(f"Current Google Drive Folder ID for user `{user_id}`: {gdrive_folder_id}")
-
-@Client.on_callback_query(filters.regex("^attach_photo$"))
-async def inline_attach_photo_callback(_, callback_query):
-    await callback_query.answer()
-    user_id = callback_query.from_user.id
-    
-    # Update user settings to indicate attachment request
-    await db.update_user_settings(user_id, {"attach_photo": True})
-    
-    await callback_query.message.edit_text("Please send a photo to be attached using the setphoto command.")
-
-@Client.on_callback_query(filters.regex("^preview_photo$"))
-async def inline_preview_photo_callback(client, callback_query):
-    await callback_query.answer()
-    user_id = callback_query.from_user.id
-    attachment_path = os.path.join(DOWNLOAD_LOCATION, f"attachment_{user_id}.jpg")
-    
-    if not os.path.exists(attachment_path):
-        await callback_query.message.reply_text("No photo has been attached yet.")
-        return
-    
-    await callback_query.message.reply_photo(photo=attachment_path, caption="Attached Photo")
-
 @Client.on_callback_query(filters.regex("^thumbnail_settings$"))
 async def inline_thumbnail_settings(client, callback_query: CallbackQuery):
     keyboard = InlineKeyboardMarkup(
@@ -361,32 +330,67 @@ async def set_thumbnail_handler(client, message):
 @Client.on_callback_query(filters.regex("^view_thumbnail$"))
 async def view_thumbnail(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
-    thumbnail_path = await database.get_thumbnail_path(user_id)
+    thumbnail_path = await db.get_thumbnail_path(user_id)
 
     if not thumbnail_path:
         await callback_query.message.reply_text("You don't have any thumbnail.")
         return
 
     try:
-        await callback_query.message.reply_photo(photo=thumbnail_path, caption="This is your current thumbnail")
+        await client.send_photo(chat_id=callback_query.from_user.id, photo=thumbnail_path)
     except Exception as e:
-        await callback_query.message.reply_text("An error occurred while trying to view your thumbnail.")
+        await callback_query.message.reply_text(f"Failed to send thumbnail: {str(e)}")
 
 @Client.on_callback_query(filters.regex("^delete_thumbnail$"))
 async def delete_thumbnail(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
-    thumbnail_path = await database.get_thumbnail_path(user_id)
+    thumbnail_path = await db.get_thumbnail_path(user_id)
+
+    if not thumbnail_path:
+        await callback_query.message.reply_text("You don't have any thumbnail to delete.")
+        return
 
     try:
-        if thumbnail_path and os.path.exists(thumbnail_path):
-            os.remove(thumbnail_path)
-            await callback_query.message.reply_text("Your thumbnail was removed ❌")
-            # Remove thumbnail path from database
-            await db.save_thumbnail(user_id, None)
-        else:
-            await callback_query.message.reply_text("You don't have any thumbnail ‼️")
+        os.remove(thumbnail_path)
+        await db.delete_thumbnail(user_id)
+        await callback_query.message.reply_text("Thumbnail deleted successfully.")
     except Exception as e:
-        await callback_query.message.reply_text("An error occurred while trying to remove your thumbnail. Please try again later.")
+        await callback_query.message.reply_text(f"Failed to delete thumbnail: {str(e)}")
+
+@Client.on_callback_query(filters.regex("^preview_gdrive$"))
+async def inline_preview_gdrive(bot, callback_query):
+    user_id = callback_query.from_user.id
+    
+    # Retrieve Google Drive folder ID from the database
+    gdrive_folder_id = await db.get_gdrive_folder_id(user_id)
+    
+    if not gdrive_folder_id:
+        return await callback_query.message.reply_text(f"Google Drive Folder ID is not set for user `{user_id}`. Use /gdriveid {{your_gdrive_folder_id}} to set it.")
+    
+    await callback_query.message.reply_text(f"Current Google Drive Folder ID for user `{user_id}`: {gdrive_folder_id}")
+
+@Client.on_callback_query(filters.regex("^attach_photo$"))
+async def inline_attach_photo_callback(_, callback_query):
+    await callback_query.answer()
+    user_id = callback_query.from_user.id
+    
+    # Update user settings to indicate attachment request
+    await db.update_user_settings(user_id, {"attach_photo": True})
+    
+    await callback_query.message.edit_text("Please send a photo to be attached using the setphoto command.")
+
+@Client.on_callback_query(filters.regex("^preview_photo$"))
+async def inline_preview_photo_callback(client, callback_query):
+    await callback_query.answer()
+    user_id = callback_query.from_user.id
+    attachment_path = os.path.join(DOWNLOAD_LOCATION, f"attachment_{user_id}.jpg")
+    
+    if not os.path.exists(attachment_path):
+        await callback_query.message.reply_text("No photo has been attached yet.")
+        return
+    
+    await callback_query.message.reply_photo(photo=attachment_path, caption="Attached Photo")
+
 
 @Client.on_message(filters.private & filters.command("setmetadata"))
 async def set_metadata_command(client, msg):
