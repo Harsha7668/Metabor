@@ -218,7 +218,22 @@ class Database:
             {'$unset': {'screenshot_paths': ''}}
         )
         return result.modified_count > 0
-        
+
+   
+    async def save_extracted_files(self, user_id, file_list):
+        await self.files_col.update_one(
+            {'id': user_id},
+            {'$set': {'extracted_files': file_list}},
+            upsert=True
+        )
+
+    async def get_extracted_files(self, user_id):
+        file_data = await self.files_col.find_one({'id': user_id})
+        if file_data:
+            return file_data.get('extracted_files', [])
+        return []
+
+    
     async def close(self):
         self._client.close()
 
