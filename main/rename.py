@@ -2214,23 +2214,20 @@ async def safe_edit_message(message, new_text):
         print(f"Error editing message: {e}")
 
 
-
-
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
-async def ytdlleech_handler(client: Client, msg: Message):
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide a YouTube link.")
+async def ytdlleech_handler(client: Client, message: Message):
+    if len(message.command) < 2:
+        return await message.reply_text("Please provide a YouTube link.")
 
-    command_text = msg.text.split(" ", 1)[1]
+    command_text = message.text.split(" ", 1)[1]
     url = command_text.strip()
 
     ydl_opts = {
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',  # Example of format specification
+        'merge_output_format': 'mkv',  # Set output format to MKV
         'quiet': True,
-        'skip_download': True,
-        'force_generic_extractor': True,
-        'noplaylist': True,
-        'merge_output_format': 'mkv'  # Set output format to MKV
+        'noplaylist': True
     }
 
     try:
@@ -2240,55 +2237,27 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             buttons = [
                 InlineKeyboardButton(
-                    f"{f.get('format_note', 'Unknown')} - {humanbytes(f.get('filesize'))}", 
+                    f"{f.get('format_note', 'Unknown')} - {f.get('filesize_str', 'Unknown')}", 
                     callback_data=f"{f['format_id']}"
                 )
                 for f in formats if f.get('filesize') is not None
             ]
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
 
-            # Save thumbnail in database or retrieve if exists
-            thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
-            file_thumb = None
-
-            if thumbnail_file_id:
-                try:
-                    file_thumb = await client.download_media(thumbnail_file_id)
-                except Exception as e:
-                    print(f"Error downloading thumbnail: {e}")
-            else:
-                if 'thumbnail' in info_dict:
-                    thumbnail_url = info_dict.get('thumbnail')
-                    if thumbnail_url:
-                        async with aiohttp.ClientSession() as session:
-                            async with session.get(thumbnail_url) as resp:
-                                if resp.status == 200:
-                                    thumbnail_data = await resp.read()
-                                    # Save thumbnail to database
-                                    thumbnail_file_id = await db.save_thumbnail(msg.from_user.id, thumbnail_data)
-                                    file_thumb = await client.download_media(thumbnail_file_id)
-                                else:
-                                    print(f"Error downloading thumbnail: HTTP status {resp.status}")
-                elif hasattr(info_dict, 'thumbnails') and info_dict.thumbnails:
-                    try:
-                        file_thumb = await client.download_media(info_dict.thumbnails[0]['url'])
-                    except Exception as e:
-                        print(f"Error downloading thumbnail: {e}")
-
-            await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
+            # Display quality selection buttons
+            await message.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
 
             # Store user's quality selection in database
-            await db.save_user_quality_selection(msg.from_user.id, {
+            await db.save_user_quality_selection(message.from_user.id, {
                 'url': url,
                 'title': info_dict['title'],
                 'formats': formats
             })
 
     except Exception as e:
-        await msg.reply_text(f"Error: {e}")
+        await message.reply_text(f"Error: {e}")
 
-
-# Callback query handler
+# Callback query handler for quality selection
 @Client.on_callback_query(filters.regex(r"^\d+$"))
 async def callback_query_handler(client: Client, query):
     user_id = query.from_user.id
@@ -2311,15 +2280,15 @@ async def callback_query_handler(client: Client, query):
         quality = selected_format.get('format_note', 'Unknown')
         file_size = selected_format.get('filesize', 0)
 
-        sts = await query.message.reply_text(f"🚀 Downloading {quality} - {humanbytes(file_size)}... ⚡")
+        # Notify user about download initiation
+        sts = await query.message.reply_text(f"🚀 Downloading {quality} - {file_size}... ⚡")
 
         ydl_opts = {
-            'format': f'{format_id}+bestaudio/best',  # Ensure video and audio are merged
-            'outtmpl': f"{video_title}.mkv",  # Adjust the output file name to use MKV
+            'format': format_id,  # Use selected format
+            'outtmpl': f"{video_title}.mkv",  # Output file name
             'quiet': True,
             'noplaylist': True,
-            'progress_hooks': [await progress_hook(status_message=sts)],  # Await the progress hook correctly
-            'merge_output_format': 'mkv'  # Ensure the output is in MKV format
+            'progress_hooks': [create_task(progress_hook(sts))]  # Progress hook for async progress updates
         }
         download_path = f"{video_title}.mkv"
 
@@ -2327,25 +2296,21 @@ async def callback_query_handler(client: Client, query):
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
 
-            # Retrieve thumbnail file ID from database
-            thumbnail_id = await db.get_thumbnail(user_id)
-            if thumbnail_id:
-                file_thumb = await client.download_media(thumbnail_id)
-
+            # Handle upload to Google Drive or Telegram based on file size
             if file_size >= FILE_SIZE_LIMIT:
                 await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
                 file_link = await upload_to_google_drive(download_path, f"{video_title}.mkv", sts)
-                button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+                button = [[InlineKeyboardButton("☁️ Google Drive Link ☁️", url=f"{file_link}")]]
                 await query.message.reply_text(
                     f"**File successfully uploaded to Google Drive!**\n\n"
                     f"**Google Drive Link**: [View File]({file_link})\n\n"
                     f"**Uploaded File**: {video_title}.mkv\n"
-                    f"**Size**: {humanbytes(file_size)}",
+                    f"**Size**: {file_size}",
                     reply_markup=InlineKeyboardMarkup(button)
                 )
             else:
                 await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
-                caption = f"**Uploaded Document 📄**: {video_title}.mkv\n\n🌟 Size: {humanbytes(file_size)}"
+                caption = f"**Uploaded Document 📄**: {video_title}.mkv\n\n🌟 Size: {file_size}"
                 await query.message.reply_document(
                     document=open(download_path, 'rb'),
                     caption=caption,
@@ -2360,14 +2325,18 @@ async def callback_query_handler(client: Client, query):
         finally:
             if os.path.exists(download_path):
                 os.remove(download_path)
-            if file_thumb and os.path.exists(file_thumb):
-                os.remove(file_thumb)
             await sts.delete()
-            await query.message.delete()  # Delete the original message after processing
+            await query.message.delete()
 
     except Exception as e:
         await query.answer(f"An error occurred: {e}")
 
+
+
+
+
+
+# Callback query handler
 
 
 import datetime
