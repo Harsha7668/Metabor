@@ -28,7 +28,7 @@ from googleapiclient.errors import HttpError
 from Database.database import db
 
 
-
+merge_state = {}
 
 FILE_SIZE_LIMIT = 2000 * 1024 * 1024  # 2000 MB in bytes
 
