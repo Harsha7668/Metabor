@@ -86,6 +86,5 @@ class Database:
     async def close(self):
         self._client.close()
 
-
+# Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)
-      
