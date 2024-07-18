@@ -2492,7 +2492,7 @@ async def get_mod_apk(bot, msg: Message):
     await sts.delete()
 
 """
-
+"""
 @Client.on_message(filters.private & filters.command("getmodapk"))
 async def get_mod_apk(bot, msg: Message):
     if len(msg.command) < 2:
@@ -2531,7 +2531,50 @@ async def get_mod_apk(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"❌ Error: {str(e)}")
 
+    await sts.delete()"""
+
+
+# Function to handle "/getmodapk" command
+@Client.on_message(filters.private & filters.command("getmodapk"))
+async def get_mod_apk(bot, msg: Message):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a URL from getmodsapk.com or gamedva.com.")
+    
+    # Extract URL from command arguments
+    apk_url = msg.command[1]
+
+    # Validate URL
+    if not (apk_url.startswith("https://files.getmodsapk.com/") or apk_url.startswith("https://file.gamedva.com/")):
+        return await msg.reply_text("Please provide a valid URL from getmodsapk.com or gamedva.com.")
+
+    # Downloading and sending the file
+    sts = await msg.reply_text("🚀 Downloading APK... ⚡️")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(apk_url) as response:
+                if response.status == 200:
+                    # Extract filename from URL
+                    file_name = apk_url.split("/")[-1]
+
+                    # Write the downloaded content to a temporary file
+                    with open(file_name, 'wb') as f:
+                        f.write(await response.read())
+
+                    # Send the APK file as a document
+                    await bot.send_document(msg.chat.id, document=file_name, caption=f"Downloaded from {apk_url}")
+
+                    # Clean up: delete the downloaded file
+                    os.remove(file_name)
+
+                    await sts.edit("✅ APK sent successfully!")
+                else:
+                    await sts.edit("❌ Failed to download APK.")
+    except Exception as e:
+        await sts.edit(f"❌ Error: {str(e)}")
+
     await sts.delete()
+
+
 
 
 user_watermarks = {}
