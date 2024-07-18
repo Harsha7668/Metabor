@@ -1,5 +1,6 @@
 import motor.motor_asyncio
 from config import DATABASE_NAME, DATABASE_URI
+from pymongo import MongoClient
 
 class Database:
     def __init__(self, uri, database_name):
@@ -7,6 +8,7 @@ class Database:
         self.db = self._client[database_name]
         self.users_col = self.db.users  # Collection for storing user settings
         self.files_col = self.db.files  # Collection for storing file-related settings (thumbnails, etc.)
+        self.media_info_col = self.db.media_info  # Collection for storing media info
     
     async def update_user_settings(self, user_id, settings):
         await self.users_col.update_one({'id': user_id}, {'$set': {'settings': settings}}, upsert=True)
