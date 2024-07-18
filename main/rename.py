@@ -1654,12 +1654,10 @@ async def unzip(bot, msg):
 
   
 
-# Command to upload to Gofile
-# Command to upload to Gofile
-@Client.on_message(filters.private & filters.command("gofile"))
+@Client.on_message(filters.command("gofile") & filters.chat(GROUP))
 async def gofile_upload(bot, msg: Message):
     user_id = msg.from_user.id
-
+    
     # Retrieve the user's Gofile API key from database
     gofile_api_key = await db.get_gofile_api_key(user_id)
 
@@ -1667,21 +1665,25 @@ async def gofile_upload(bot, msg: Message):
         return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
 
     reply = msg.reply_to_message
-    if not reply:
+    if not reply or not reply.document and not reply.video:
         return await msg.reply_text("Please reply to a file or video to upload to Gofile.")
 
     media = reply.document or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a valid file or video.")
+    custom_name = None
 
+    # Check if a custom name is provided
     args = msg.text.split(" ", 1)
     if len(args) == 2:
         custom_name = args[1]
-    else:
-        custom_name = media.file_name
+        await db.save_custom_name(user_id, custom_name)  # Save custom name to database
+
+    # Use custom name if available, otherwise use the file name
+    file_name = custom_name or media.file_name
 
     sts = await msg.reply_text("🚀 Uploading to Gofile...")
     c_time = time.time()
+    
+    downloaded_file = None
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -1693,30 +1695,56 @@ async def gofile_upload(bot, msg: Message):
                 data = await resp.json()
                 server = data["data"]["server"]
 
-            # Download the media file directly to memory
-            file_bytes = await bot.download_media(media)
+            # Download the media file
+            downloaded_file = await bot.download_media(
+                media,
+                file_name=file_name,  # Use custom or original filename directly
+                progress=progress_message,
+                progress_args=("🚀 Download Started...", sts, c_time)
+            )
 
             # Upload the file to Gofile
-            form_data = aiohttp.FormData()
-            form_data.add_field("file", file_bytes, filename=custom_name)
-            form_data.add_field("token", gofile_api_key)
+            with open(downloaded_file, "rb") as file:
+                form_data = aiohttp.FormData()
+                form_data.add_field("file", file, filename=file_name)
+                form_data.add_field("token", gofile_api_key)
 
-            async with session.post(
-                f"https://{server}.gofile.io/uploadFile",
-                data=form_data
-            ) as resp:
-                if resp.status != 200:
-                    return await sts.edit(f"Upload failed: Status code {resp.status}")
+                async with session.post(
+                    f"https://{server}.gofile.io/uploadFile",
+                    data=form_data
+                ) as resp:
+                    if resp.status != 200:
+                        return await sts.edit(f"Upload failed: Status code {resp.status}")
 
-                response = await resp.json()
-                if response["status"] == "ok":
-                    download_url = response["data"]["downloadPage"]
-                    await sts.edit(f"Upload successful!\nDownload link: {download_url}")
-                else:
-                    await sts.edit(f"Upload failed: {response['message']}")
+                    response = await resp.json()
+                    if response["status"] == "ok":
+                        download_url = response["data"]["downloadPage"]
+                        await sts.edit(f"Upload successful!\nDownload link: {download_url}")
+                    else:
+                        await sts.edit(f"Upload failed: {response['message']}")
 
     except Exception as e:
         await sts.edit(f"Error during upload: {e}")
+
+    finally:
+        try:
+            if downloaded_file and os.path.exists(downloaded_file):
+                os.remove(downloaded_file)
+        except Exception as e:
+            print(f"Error deleting file: {e}")
+
+
+@Client.on_message(filters.command("gofilesetup") & filters.chat(GROUP))
+async def set_gofile_api_key(bot, msg: Message):
+    user_id = msg.from_user.id
+    args = msg.text.split(" ", 1)
+    if len(args) != 2:
+        return await msg.reply_text("Usage: /gofilesetup {your_api_key}")
+
+    api_key = args[1]
+    await db.save_gofile_api_key(user_id, api_key)
+    await msg.reply_text("Gofile API key has been set successfully.")
+
 
 @Client.on_message(filters.private & filters.command("clone"))
 async def clone_file(bot, msg: Message):
