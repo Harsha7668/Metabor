@@ -113,6 +113,8 @@ class Database:
         if file_data:
             return file_data.get('thumbnail_file_id')
         return None
+
+
     
     async def delete_thumbnail(self, user_id):
         await self.files_col.update_one({'id': user_id}, {'$unset': {'thumbnail_file_id': ""}})
@@ -233,6 +235,15 @@ class Database:
             return file_data.get('extracted_files', [])
         return []
 
+    
+    async def save_user_quality_selection(user_id, selection_data):
+    await users_col.update_one({'id': user_id}, {'$set': {'settings.quality_selection': selection_data}}, upsert=True)
+    
+    async def get_user_quality_selection(user_id):
+    user = await users_col.find_one({'id': user_id})
+    if user:
+        return user.get('settings', {}).get('quality_selection')
+    return None
     
     async def close(self):
         self._client.close()
