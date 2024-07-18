@@ -2171,7 +2171,7 @@ async def clean_files(bot, msg: Message):
         await msg.reply_text(f"An unexpected error occurred: {e}")
 
 
-
+"""
 from yt_dlp import YoutubeDL
 
 
@@ -2242,6 +2242,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
+
 
 # Callback query handler
 # Callback query handler
@@ -2326,7 +2327,7 @@ async def callback_query_handler(client: Client, query):
     except Exception as e:
         await query.answer(f"An error occurred: {e}")
 
-
+"""
 import datetime
 from html_telegraph_poster import TelegraphPoster  # Import TelegraphPoster
 
