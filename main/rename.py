@@ -2244,6 +2244,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
         await msg.reply_text(f"Error: {e}")
 
 # Callback query handler
+# Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+$"))
 async def callback_query_handler(client: Client, query):
     user_id = query.from_user.id
@@ -2287,6 +2288,7 @@ async def callback_query_handler(client: Client, query):
             thumbnail_id = await get_thumbnail(user_id)
             if thumbnail_id:
                 # Optional: Retrieve the actual thumbnail file using thumbnail_id if needed
+                pass
 
             if file_size >= FILE_SIZE_LIMIT:
                 await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
