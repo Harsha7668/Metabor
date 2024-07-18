@@ -624,13 +624,21 @@ async def rename_file(bot, msg):
 #Change Metadata Code
 @Client.on_message(filters.private & filters.command("changemetadata"))
 async def change_metadata(bot, msg: Message):
-    global METADATA_ENABLED, user_settings
+    global METADATA_ENABLED
 
     if not METADATA_ENABLED:
         return await msg.reply_text("Metadata changing feature is currently disabled.")
 
     user_id = msg.from_user.id
-    if user_id not in user_settings or not any(user_settings[user_id].values()):
+    db = Database(DATABASE_URI, DATABASE_NAME)
+
+    # Fetch metadata titles from the database
+    metadata_titles = await db.get_metadata_titles(user_id)
+    video_title = metadata_titles.get('video_title', '')
+    audio_title = metadata_titles.get('audio_title', '')
+    subtitle_title = metadata_titles.get('subtitle_title', '')
+
+    if not any([video_title, audio_title, subtitle_title]):
         return await msg.reply_text("Metadata titles are not set. Please set metadata titles using `/setmetadata video_title audio_title subtitle_title`.")
 
     reply = msg.reply_to_message
@@ -644,10 +652,6 @@ async def change_metadata(bot, msg: Message):
 
     if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
         return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
-
-    video_title = user_settings[user_id]['video_title']
-    audio_title = user_settings[user_id]['audio_title']
-    subtitle_title = user_settings[user_id]['subtitle_title']
 
     media = reply.document or reply.audio or reply.video
     if not media:
@@ -715,6 +719,8 @@ async def change_metadata(bot, msg: Message):
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await sts.delete()
+
+   
 
 #attach photo
 @Client.on_message(filters.private & filters.command("attachphoto"))
@@ -1133,15 +1139,16 @@ async def merge_and_upload(bot, msg: Message):
 
         await sts.edit("💠 Uploading... ⚡")
 
-        # Thumbnail handling
-        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
+        # Fetch thumbnail path from database
+        thumbnail_path = await db.get_thumbnail_path(user_id)
         file_thumb = None
-        if os.path.exists(thumbnail_path):
-            file_thumb = thumbnail_path
-        else:
+
+        # Download thumbnail if not already in database
+        if not thumbnail_path:
             try:
                 if "thumbs" in msg and msg.thumbs:
-                    file_thumb = await bot.download_media(msg.thumbs[0].file_id, file_name=thumbnail_path)
+                    thumbnail_path = await bot.download_media(msg.thumbs[0].file_id)
+                    await db.save_thumbnail_path(user_id, thumbnail_path)
             except Exception as e:
                 print(f"Error downloading thumbnail: {e}")
 
@@ -1162,7 +1169,7 @@ async def merge_and_upload(bot, msg: Message):
             await bot.send_document(
                 user_id,
                 document=output_path,
-                thumb=file_thumb,
+                thumb=thumbnail_path,
                 caption=cap,
                 progress=progress_message,
                 progress_args=("💠 Upload Started... ⚡", sts, c_time)
@@ -1187,8 +1194,8 @@ async def merge_and_upload(bot, msg: Message):
         for file_msg in files_to_merge:
             if os.path.exists(file_msg):
                 os.remove(file_msg)
-        if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
+        if thumbnail_path and os.path.exists(thumbnail_path):
+            os.remove(thumbnail_path)
 
         # Clear merge state for the user
         if user_id in merge_state:
@@ -1212,70 +1219,61 @@ async def linktofile(bot, msg: Message):
     if not media and not reply.text:
         return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
 
-    if reply.text and ("seedr" in reply.text or "workers" in reply.text):
-        await handle_link_download(bot, msg, reply.text, new_name, media)
+    # Retrieve or download thumbnail
+    thumbnail_id = await get_thumbnail(msg.from_user.id)
+    if thumbnail_id:
+        file_thumb = f"{THUMBNAIL_DOWNLOAD_LOCATION}/{thumbnail_id}.jpg"
     else:
-        if not media:
-            return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
-
-        sts = await msg.reply_text("🚀 Downloading...")
-        c_time = time.time()
-        try:
-            downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))
-        except RPCError as e:
-            return await sts.edit(f"Download failed: {e}")
-
-        filesize = os.path.getsize(downloaded)
-        filesize_human = humanbytes(filesize)
-
-        if CAPTION:
-            try:
-                cap = CAPTION.format(file_name=new_name, file_size=filesize_human)
-            except Exception as e:
-                return await sts.edit(text=f"Your caption has an error: unexpected keyword ({e})")
-        else:
-            cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
-
-        # Thumbnail handling
-        thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
         file_thumb = None
-        if media and media.thumbs:
-            if not os.path.exists(thumbnail_path):
-                try:
-                    file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-                except Exception as e:
-                    print(f"Error downloading thumbnail: {e}")
 
-        await edit_message(sts, "💠 Uploading...")
-        c_time = time.time()
+    sts = await msg.reply_text("🚀 Downloading...")
+    c_time = time.time()
+    try:
+        downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))
+    except RPCError as e:
+        return await sts.edit(f"Download failed: {e}")
 
-        if filesize > FILE_SIZE_LIMIT:
-            file_link = await upload_to_google_drive(downloaded, new_name, sts)
-            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-            await msg.reply_text(
-                f"**File successfully uploaded to Google Drive!**\n\n"
-                f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {new_name}\n"
-                f"**Request User:** {msg.from_user.mention}\n\n"
-                f"**Size**: {filesize_human}",
-                reply_markup=InlineKeyboardMarkup(button)
-            )
-        else:
-            try:
-                await bot.send_document(msg.chat.id, document=downloaded, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
-            except ValueError as e:
-                return await sts.edit(f"Upload failed: {e}")
-            except TimeoutError as e:
-                return await sts.edit(f"Upload timed out: {e}")
+    filesize = os.path.getsize(downloaded)
+    filesize_human = humanbytes(filesize)
 
+    if CAPTION:
         try:
-            if file_thumb and os.path.exists(file_thumb):
-                os.remove(file_thumb)
-            if os.path.exists(downloaded):
-                os.remove(downloaded)
+            cap = CAPTION.format(file_name=new_name, file_size=filesize_human)
         except Exception as e:
-            print(f"Error deleting files: {e}")
-        await sts.delete()
+            return await sts.edit(text=f"Your caption has an error: unexpected keyword ({e})")
+    else:
+        cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
+
+    await edit_message(sts, "💠 Uploading...")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(downloaded, new_name, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**File successfully uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {new_name}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=downloaded, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
+        except ValueError as e:
+            return await sts.edit(f"Upload failed: {e}")
+        except TimeoutError as e:
+            return await sts.edit(f"Upload timed out: {e}")
+
+    try:
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
+        if os.path.exists(downloaded):
+            os.remove(downloaded)
+    except Exception as e:
+        print(f"Error deleting files: {e}")
+    await sts.delete()
 
 async def handle_link_download(bot, msg: Message, link: str, new_name: str, media):
     sts = await msg.reply_text("🚀 Downloading from link...")
@@ -1302,15 +1300,12 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
     filesize_human = humanbytes(filesize)
     cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
 
-    # Thumbnail handling
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    file_thumb = None
-    if media and media.thumbs:
-        if not os.path.exists(thumbnail_path):
-            try:
-                file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-            except Exception as e:
-                print(f"Error downloading thumbnail: {e}")
+    # Retrieve or download thumbnail
+    thumbnail_id = await get_thumbnail(msg.from_user.id)
+    if thumbnail_id:
+        file_thumb = f"{THUMBNAIL_DOWNLOAD_LOCATION}/{thumbnail_id}.jpg"
+    else:
+        file_thumb = None
 
     await edit_message(sts, "💠 Uploading...")
     c_time = time.time()
@@ -1341,13 +1336,6 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
     except Exception as e:
         print(f"Error deleting file: {e}")
     await sts.delete()
-
-async def edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit(new_text)
-    except MessageNotModified:
-        pass
 
 
 #Removetags command 
@@ -1405,13 +1393,14 @@ async def remove_tags(bot, msg):
         os.remove(downloaded)
         return
 
-    file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    if not os.path.exists(file_thumb):
+    # Retrieve thumbnail from database
+    file_thumb = None
+    thumbnail_id = await get_thumbnail(msg.from_user.id)
+    if thumbnail_id:
         try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=file_thumb)
+            file_thumb = await bot.download_media(thumbnail_id, file_name=f"{THUMBNAIL_DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg")
         except Exception as e:
-            print(e)
-            file_thumb = None
+            print(f"Error downloading thumbnail: {e}")
 
     await safe_edit_message(sts, "🔼 Uploading cleaned file... ⚡")
     try:
@@ -1542,8 +1531,11 @@ async def screenshots_command(client, message: Message):
 @Client.on_message(filters.private & filters.command("samplevideo"))
 async def sample_video(bot, msg):
     user_id = msg.from_user.id
-    duration = user_settings.get(user_id, {}).get("sample_video_duration", 0)
-    if duration == 0:
+
+    # Fetch user settings
+    sample_video_duration = await db.get_sample_video_duration(user_id)
+
+    if sample_video_duration is None:
         return await msg.reply_text("Please set a valid sample video duration using /usersettings.")
 
     if not msg.reply_to_message:
@@ -1561,11 +1553,11 @@ async def sample_video(bot, msg):
         await sts.edit(f"Error downloading media: {e}")
         return
 
-    output_file = os.path.join(DOWNLOAD_LOCATION, f"sample_video_{duration}s.mp4")
+    output_file = os.path.join(DOWNLOAD_LOCATION, f"sample_video_{sample_video_duration}s.mp4")
 
     await sts.edit("🚀 Processing sample video... ⚡")
     try:
-        generate_sample_video(input_path, duration, output_file)
+        generate_sample_video(input_path, sample_video_duration, output_file)
     except Exception as e:
         await sts.edit(f"Error generating sample video: {e}")
         os.remove(input_path)
@@ -1586,6 +1578,9 @@ async def sample_video(bot, msg):
             progress=progress_message, 
             progress_args=("💠 Upload Started... ⚡️", sts, c_time)
         )
+        # Save sample video settings to database
+        await db.save_sample_video_settings(user_id, sample_video_duration, "Not set")
+
         # Send notification about the file upload
         await msg.reply_text(f"File Sample Video has been uploaded to your PM. Check your PM of the bot ✅ .")
 
@@ -1596,7 +1591,6 @@ async def sample_video(bot, msg):
     os.remove(input_path)
     os.remove(output_file)
     await sts.delete()
-
 
 
  # Define restart_app command
