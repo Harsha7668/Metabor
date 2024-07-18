@@ -182,7 +182,20 @@ class Database:
             print(f"Error clearing merged file info from database: {e}")
             # Handle the error accordingly (logging, exception handling, etc.)
 
+    async def save_new_filename(user_id, new_filename):
+    # Save new filename information to MongoDB
+    await files_col.update_one(
+        {'id': user_id},
+        {'$set': {'new_filename': new_filename}},
+        upsert=True
+    )
 
+    async def get_new_filename(user_id):
+    # Retrieve new filename information from MongoDB
+    file_data = await files_col.find_one({'id': user_id})
+    if file_data:
+        return file_data.get('new_filename')
+    return None
     
     async def close(self):
         self._client.close()
