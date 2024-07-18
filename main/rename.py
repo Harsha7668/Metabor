@@ -1197,81 +1197,93 @@ async def merge_and_upload(bot, msg: Message):
 
 
 #leech command 
-# Leech Handler Only Auth Users
+import os
+import time
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from database import Database  # Import your database handler
+
+db = Database()  # Initialize your database handler
+
+FILE_SIZE_LIMIT = 50 * 1024 * 1024  # Adjust as per your requirement
+
+# Leech command handler
 @Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
 async def linktofile(bot, msg: Message):
-    reply = msg.reply_to_message
-    if len(msg.command) < 2 or not reply:
+    if len(msg.command) < 2 or not msg.reply_to_message:
         return await msg.reply_text("Please reply to a file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
 
+    reply = msg.reply_to_message
     new_name = msg.text.split(" ", 1)[1]
-    if not new_name.endswith(".mkv"):
-        return await msg.reply_text("Please specify a filename ending with .mkv.")
+    
+    if not new_name.endswith((".mkv", ".mp4", ".zip")):
+        return await msg.reply_text("Please specify a filename ending with .mkv, .mp4, or .zip.")
 
-    media = reply.document or reply.audio or reply.video
-    if not media and not reply.text:
-        return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
+    media = reply.document or reply.audio or reply.video or reply.text
 
-    # Retrieve or download thumbnail
-    thumbnail_id = await get_thumbnail(msg.from_user.id)
-    if thumbnail_id:
-        file_thumb = f"{THUMBNAIL_DOWNLOAD_LOCATION}/{thumbnail_id}.jpg"
-    else:
-        file_thumb = None
-
-    sts = await msg.reply_text("🚀 Downloading...")
-    c_time = time.time()
-    try:
-        downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started...", sts, c_time))
-    except RPCError as e:
-        return await sts.edit(f"Download failed: {e}")
-
-    filesize = os.path.getsize(downloaded)
-    filesize_human = humanbytes(filesize)
-
-    if CAPTION:
-        try:
-            cap = CAPTION.format(file_name=new_name, file_size=filesize_human)
-        except Exception as e:
-            return await sts.edit(text=f"Your caption has an error: unexpected keyword ({e})")
-    else:
-        cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
-
-    await edit_message(sts, "💠 Uploading...")
+    sts = await msg.reply_text("🚀 Downloading... ⚡")
     c_time = time.time()
 
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(downloaded, new_name, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"**File successfully uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {new_name}\n"
-            f"**Request User:** {msg.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
+    if reply.text and ("seedr" in reply.text or "workers" in reply.text):
+        await handle_link_download(bot, msg, reply.text, new_name, media, sts, c_time)
     else:
-        try:
-            await bot.send_document(msg.chat.id, document=downloaded, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
-        except ValueError as e:
-            return await sts.edit(f"Upload failed: {e}")
-        except TimeoutError as e:
-            return await sts.edit(f"Upload timed out: {e}")
+        if not media:
+            return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
 
-    try:
-        if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
-        if os.path.exists(downloaded):
+        try:
+            downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+        except RPCError as e:
+            return await sts.edit(f"Download failed: {e}")
+
+        filesize = humanbytes(os.path.getsize(downloaded))
+
+        if CAPTION:
+            try:
+                cap = CAPTION.format(file_name=new_name, file_size=filesize)
+            except KeyError as e:
+                return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
+        else:
+            cap = f"{new_name}\n\n🌟 Size: {filesize}"
+
+        # Thumbnail handling
+        thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
+        og_thumbnail = None
+        if thumbnail_file_id:
+            try:
+                og_thumbnail = await bot.download_media(thumbnail_file_id)
+            except Exception:
+                pass
+        else:
+            if hasattr(media, 'thumbs') and media.thumbs:
+                try:
+                    og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
+                except Exception:
+                    pass
+
+        await sts.edit("💠 Uploading... ⚡")
+        c_time = time.time()
+
+        if os.path.getsize(downloaded) > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(downloaded, new_name, sts)
+            await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
+        else:
+            try:
+                await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+            except ValueError as e:
+                return await sts.edit(f"Upload failed: {e}")
+            except TimeoutError as e:
+                return await sts.edit(f"Upload timed out: {e}")
+
+        try:
+            if og_thumbnail:
+                os.remove(og_thumbnail)
             os.remove(downloaded)
-    except Exception as e:
-        print(f"Error deleting files: {e}")
-    await sts.delete()
+        except Exception as e:
+            print(f"Error deleting files: {e}")
 
-async def handle_link_download(bot, msg: Message, link: str, new_name: str, media):
-    sts = await msg.reply_text("🚀 Downloading from link...")
-    c_time = time.time()
+        await sts.delete()
 
+async def handle_link_download(bot, msg: Message, link: str, new_name: str, media, sts, c_time):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(link) as resp:
@@ -1289,46 +1301,46 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
         await sts.edit("File not found after download. Please check the link and try again.")
         return
 
-    filesize = os.path.getsize(new_name)
-    filesize_human = humanbytes(filesize)
-    cap = f"{new_name}\n\n🌟 Size: {filesize_human}"
+    filesize = humanbytes(os.path.getsize(new_name))
 
-    # Retrieve or download thumbnail
-    thumbnail_id = await get_thumbnail(msg.from_user.id)
-    if thumbnail_id:
-        file_thumb = f"{THUMBNAIL_DOWNLOAD_LOCATION}/{thumbnail_id}.jpg"
+    # Thumbnail handling
+    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
+    og_thumbnail = None
+    if thumbnail_file_id:
+        try:
+            og_thumbnail = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
     else:
-        file_thumb = None
+        if hasattr(media, 'thumbs') and media.thumbs:
+            try:
+                og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
+            except Exception:
+                pass
 
-    await edit_message(sts, "💠 Uploading...")
+    await sts.edit("💠 Uploading... ⚡")
     c_time = time.time()
 
-    if filesize > FILE_SIZE_LIMIT:
+    if os.path.getsize(new_name) > FILE_SIZE_LIMIT:
         file_link = await upload_to_google_drive(new_name, new_name, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"**Leech File successfully uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {new_name}\n"
-            f"**Request User:** {msg.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
+        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
     else:
         try:
-            await bot.send_document(msg.chat.id, document=new_name, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started...", sts, c_time))
+            await bot.send_document(msg.chat.id, document=new_name, thumb=og_thumbnail, caption=f"{new_name}\n\n🌟 Size: {filesize}", progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
         except ValueError as e:
             return await sts.edit(f"Upload failed: {e}")
         except TimeoutError as e:
             return await sts.edit(f"Upload timed out: {e}")
 
     try:
-        if file_thumb:
-            os.remove(file_thumb)
+        if og_thumbnail:
+            os.remove(og_thumbnail)
         os.remove(new_name)
     except Exception as e:
-        print(f"Error deleting file: {e}")
+        print(f"Error deleting files: {e}")
+
     await sts.delete()
+
 
 
 #Removetags command 
