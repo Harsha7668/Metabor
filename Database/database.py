@@ -196,7 +196,7 @@ class Database:
     # Retrieve new filename information from MongoDB
         file_data = await files_col.find_one({'id': user_id})
     if file_data:
-        return file_data.get('new_filename')
+            return file_data.get('new_filename')
     return None
 
 
