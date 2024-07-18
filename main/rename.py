@@ -2372,7 +2372,6 @@ async def callback_query_handler(client: Client, query):
 
 import datetime
 
-from pymongo import MongoClient
 from html_telegraph_poster import TelegraphPoster
 
 
