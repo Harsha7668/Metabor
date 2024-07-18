@@ -47,6 +47,15 @@ class Database:
             }},
             upsert=True
         )
+
+    async def get_sample_video_settings(self, user_id):
+        user = await self.users_col.find_one({'id': user_id})
+        if user:
+            settings = user.get('settings', {})
+            sample_video_duration = settings.get('sample_video_duration', "Not set")
+            screenshots = settings.get('screenshots', "Not set")
+            return sample_video_duration, screenshots
+        return "Not set", "Not set"
         
     async def save_gofile_api_key(self, user_id, api_key):
         await self.users_col.update_one({'id': user_id}, {'$set': {'settings.gofile_api_key': api_key}}, upsert=True)
