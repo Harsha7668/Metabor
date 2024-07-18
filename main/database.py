@@ -1,7 +1,6 @@
 import motor.motor_asyncio
 from config import DATABASE_NAME, DATABASE_URI
 
-
 class Database:
     def __init__(self, uri, database_name):
         self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
@@ -10,7 +9,7 @@ class Database:
         self.files_col = self.db.files  # Collection for storing file-related settings (thumbnails, etc.)
     
     async def update_user_settings(self, user_id, settings):
-        await self.users_col.update_one({'id': user_id}, {'$set': {'usersettings': settings}}, upsert=True)
+        await self.users_col.update_one({'id': user_id}, {'$set': {'settings': settings}}, upsert=True)
         
     async def get_user_settings(self, user_id):
         default_settings = {
@@ -81,11 +80,12 @@ class Database:
     async def get_metadata_titles(self, user_id):
         user = await self.users_col.find_one({'id': user_id})
         if user:
-            return user.get('usersettings', {}).get('metadata_titles', {})
+            return user.get('settings', {}).get('metadata_titles', {})
         return {}
     
     async def close(self):
         self._client.close()
+
 
 db = Database(DATABASE_URI, DATABASE_NAME)
       
