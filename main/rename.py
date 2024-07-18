@@ -309,7 +309,7 @@ async def set_photo(bot, msg):
     photo_file_id = reply.photo.file_id
 
     try:
-        await db.save_sample_photo(user_id, photo_file_id)
+        await db.save_attach_photo(user_id, photo_file_id)
         await msg.reply_text("Photo saved successfully.")
     except Exception as e:
         await msg.reply_text(f"Error saving photo: {e}")
@@ -320,7 +320,7 @@ async def inline_preview_photo_callback(client, callback_query):
     user_id = callback_query.from_user.id
     
     # Retrieve the attachment path from the database
-    attachment_file_id = await db.get_sample_photo(user_id)
+    attachment_file_id = await db.get_attach_photo(user_id)
     
     if not attachment_file_id:
         await callback_query.message.reply_text("No photo has been attached yet.")
