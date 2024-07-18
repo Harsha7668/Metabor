@@ -190,22 +190,24 @@ async def update_settings_message(message):
 
 
 
-# Callback query handler for setting sample video duration
 @Client.on_callback_query(filters.regex("^set_sample_video_duration_"))
 async def set_sample_video_duration(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
     duration_str = callback_query.data.split("_")[-1]
     duration = int(duration_str)
-    user_settings[user_id] = user_settings.get(user_id, {})
-    user_settings[user_id]["sample_video_duration"] = duration
+    
+    # Save sample video duration to database
+    await database.save_sample_video_duration(user_id, duration)
+    
     await callback_query.answer(f"Sample video duration set to {duration} seconds.")
     await display_user_settings(client, callback_query.message, edit=True)
-  
-# Callback query handler for selecting sample video option
+
+
 @Client.on_callback_query(filters.regex("^sample_video_option$"))
 async def sample_video_option(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
-    current_duration = user_settings.get(user_id, {}).get("sample_video_duration", "Not set")
+    current_duration = await database.get_sample_video_duration(user_id)
+    
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(f"Sample Video 150s {'✅' if current_duration == 150 else ''}", callback_data="set_sample_video_duration_150")],
         [InlineKeyboardButton(f"Sample Video 120s {'✅' if current_duration == 120 else ''}", callback_data="set_sample_video_duration_120")],
@@ -214,8 +216,10 @@ async def sample_video_option(client, callback_query: CallbackQuery):
         [InlineKeyboardButton(f"Sample Video 30s {'✅' if current_duration == 30 else ''}", callback_data="set_sample_video_duration_30")],
         [InlineKeyboardButton("Back", callback_data="back_to_settings")]
     ])
+    
     await callback_query.message.edit_text(f"Sample Video Duration Settings\nCurrent duration: {current_duration}", reply_markup=keyboard)
   
+
 # Callback query handler for returning to user settings
 @Client.on_callback_query(filters.regex("^back_to_settings$"))
 async def back_to_settings(client, callback_query: CallbackQuery):
@@ -224,8 +228,9 @@ async def back_to_settings(client, callback_query: CallbackQuery):
 @Client.on_message(filters.private & filters.command("usersettings"))
 async def display_user_settings(client, msg, edit=False):
     user_id = msg.from_user.id
-    current_duration = user_settings.get(user_id, {}).get("sample_video_duration", "Not set")
-    current_screenshots = user_settings.get(user_id, {}).get("screenshots", "Not set")
+    
+    current_duration = await database.get_sample_video_duration(user_id)
+    current_screenshots = await database.get_screenshots_count(user_id)
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
@@ -240,16 +245,17 @@ async def display_user_settings(client, msg, edit=False):
         [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
         [InlineKeyboardButton("Close ❌", callback_data="del")]
     ])
+    
     if edit:
         await msg.edit_text(f"User Settings\nCurrent sample video duration: {current_duration}\nCurrent screenshots setting: {current_screenshots}", reply_markup=keyboard)
     else:
         await msg.reply(f"User Settings\nCurrent sample video duration: {current_duration}\nCurrent screenshots setting: {current_screenshots}", reply_markup=keyboard)
 
-
 @Client.on_callback_query(filters.regex("^screenshots_option$"))
 async def screenshots_option(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
-    current_screenshots = user_settings.get(user_id, {}).get("screenshots", 5)  # Default to 5 if not set
+    current_screenshots = await database.get_screenshots_count(user_id)  # Default to 5 if not set
+    
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(f"Screenshots 1 {'✅' if current_screenshots == 1 else ''}", callback_data="set_screenshots_1")],
         [InlineKeyboardButton(f"Screenshots 2 {'✅' if current_screenshots == 2 else ''}", callback_data="set_screenshots_2")],
@@ -263,6 +269,7 @@ async def screenshots_option(client, callback_query: CallbackQuery):
         [InlineKeyboardButton(f"Screenshots 10 {'✅' if current_screenshots == 10 else ''}", callback_data="set_screenshots_10")],
         [InlineKeyboardButton("Back", callback_data="back_to_settings")]
     ])
+    
     await callback_query.message.edit_text(f"Screenshots Settings\nCurrent number: {current_screenshots}", reply_markup=keyboard)
     
 @Client.on_callback_query(filters.regex("^set_screenshots_"))
@@ -271,65 +278,34 @@ async def set_screenshots(client, callback_query: CallbackQuery):
     num_str = callback_query.data.split("_")[-1]
     num_screenshots = int(num_str)
     
-    user_settings[user_id] = user_settings.get(user_id, {})
-    user_settings[user_id]["screenshots"] = num_screenshots
+    # Save screenshots count to database
+    await database.save_screenshots_count(user_id, num_screenshots)
     
     await callback_query.answer(f"Number of screenshots set to {num_screenshots}.")
     await display_user_settings(client, callback_query.message, edit=True)
 
-
-
-# Inline query handler for previewing metadata titles
-@Client.on_callback_query(filters.regex("^preview_metadata$"))
-async def inline_preview_metadata_callback(_, callback_query):
-    await callback_query.answer()
-    user_id = callback_query.from_user.id
-    titles = user_settings.get(user_id, {})
-    if not titles or not any(titles.values()):
-        await callback_query.message.reply_text("Metadata titles are not fully set. Please set all titles first.")
-        return
-    
-    preview_text = f"Video Title: {titles.get('video_title', '')}\n" \
-                   f"Audio Title: {titles.get('audio_title', '')}\n" \
-                   f"Subtitle Title: {titles.get('subtitle_title', '')}"
-    await callback_query.message.reply_text(f"Current Metadata Titles:\n\n{preview_text}")
-
-# Inline query handler to preview the Gofile API key
-@Client.on_callback_query(filters.regex("^preview_gofilekey$"))
-async def inline_preview_gofile_api_key(bot, callback_query):
-    user_id = callback_query.from_user.id
-    
-    # Check if the API key is set for the user
-    if user_id not in user_gofile_api_keys:
-        return await callback_query.message.reply_text(f"Gofile API key is not set for user `{user_id}`. Use /gofilesetup {{your_api_key}} to set it.")
-    
-    # Reply with the current API key for the user
-    await callback_query.message.reply_text(f"Current Gofile API Key for user `{user_id}`: {user_gofile_api_keys[user_id]}")
-    
-# Inline query handler to preview the Google Drive folder ID
 @Client.on_callback_query(filters.regex("^preview_gdrive$"))
 async def inline_preview_gdrive(bot, callback_query):
     user_id = callback_query.from_user.id
     
-    # Check if the Google Drive folder ID is set for the user
-    if user_id not in user_gdrive_folder_ids:
+    # Retrieve Google Drive folder ID from the database
+    gdrive_folder_id = await database.get_gdrive_folder_id(user_id)
+    
+    if not gdrive_folder_id:
         return await callback_query.message.reply_text(f"Google Drive Folder ID is not set for user `{user_id}`. Use /gdriveid {{your_gdrive_folder_id}} to set it.")
     
-    # Reply with the current Google Drive folder ID for the user
-    await callback_query.message.reply_text(f"Current Google Drive Folder ID for user `{user_id}`: {user_gdrive_folder_ids[user_id]}")
-    
-# Inline query handler for attaching photo
+    await callback_query.message.reply_text(f"Current Google Drive Folder ID for user `{user_id}`: {gdrive_folder_id}")
+
 @Client.on_callback_query(filters.regex("^attach_photo$"))
 async def inline_attach_photo_callback(_, callback_query):
     await callback_query.answer()
     user_id = callback_query.from_user.id
-    user_settings[user_id] = user_settings.get(user_id, {})
-    user_settings[user_id]["attach_photo"] = True
+    
+    # Update user settings to indicate attachment request
+    await database.update_user_settings(user_id, {"attach_photo": True})
+    
     await callback_query.message.edit_text("Please send a photo to be attached using the setphoto command.")
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-
-# Inline query handler for previewing attached photo
 @Client.on_callback_query(filters.regex("^preview_photo$"))
 async def inline_preview_photo_callback(client, callback_query):
     await callback_query.answer()
@@ -342,10 +318,6 @@ async def inline_preview_photo_callback(client, callback_query):
     
     await callback_query.message.reply_photo(photo=attachment_path, caption="Attached Photo")
 
-
-
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-# Inline query handler for thumbnail settings
 @Client.on_callback_query(filters.regex("^thumbnail_settings$"))
 async def inline_thumbnail_settings(client, callback_query: CallbackQuery):
     keyboard = InlineKeyboardMarkup(
@@ -357,9 +329,6 @@ async def inline_thumbnail_settings(client, callback_query: CallbackQuery):
     )
     await callback_query.message.edit_text("Thumbnail Settings:", reply_markup=keyboard)
 
-
-
-# Command to set a permanent thumbnail
 @Client.on_message(filters.private & filters.command("setthumbnail"))
 async def set_thumbnail_command(client, message):
     user_id = message.from_user.id
@@ -371,7 +340,6 @@ async def set_thumbnail_command(client, message):
     else:
         await message.reply("Send a photo to set as your permanent thumbnail.")
 
-# Handler for setting the thumbnail
 @Client.on_message(filters.photo & filters.private)
 async def set_thumbnail_handler(client, message):
     user_id = message.from_user.id
@@ -384,45 +352,44 @@ async def set_thumbnail_handler(client, message):
 
     # Download the photo and save as thumbnail_{user_id}.jpg
     await client.download_media(message=message, file_name=thumbnail_path)
+    
+    # Save thumbnail path to database
+    await database.save_thumbnail(user_id, thumbnail_path)
+    
     await message.reply("Your permanent thumbnail is updated. If the bot is restarted, the new thumbnail will be preserved.")
-
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+    
 @Client.on_callback_query(filters.regex("^view_thumbnail$"))
 async def view_thumbnail(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
+    thumbnail_path = await database.get_thumbnail_path(user_id)
+
+    if not thumbnail_path:
+        await callback_query.message.reply_text("You don't have any thumbnail.")
+        return
 
     try:
         await callback_query.message.reply_photo(photo=thumbnail_path, caption="This is your current thumbnail")
     except Exception as e:
-        await callback_query.message.reply_text("You don't have any thumbnail.")
-
+        await callback_query.message.reply_text("An error occurred while trying to view your thumbnail.")
 
 @Client.on_callback_query(filters.regex("^delete_thumbnail$"))
 async def delete_thumbnail(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{user_id}.jpg"
+    thumbnail_path = await database.get_thumbnail_path(user_id)
 
     try:
-        if os.path.exists(thumbnail_path):
+        if thumbnail_path and os.path.exists(thumbnail_path):
             os.remove(thumbnail_path)
             await callback_query.message.reply_text("Your thumbnail was removed ❌")
+            # Remove thumbnail path from database
+            await database.save_thumbnail(user_id, None)
         else:
             await callback_query.message.reply_text("You don't have any thumbnail ‼️")
     except Exception as e:
         await callback_query.message.reply_text("An error occurred while trying to remove your thumbnail. Please try again later.")
-      
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-# Inline query handler to return to user settings
-@Client.on_callback_query(filters.regex("^back_to_settings$"))
-async def back_to_settings_callback(client, callback_query: CallbackQuery):
-    await display_user_settings(client, callback_query.message)
 
-# Command to set metadata titles
 @Client.on_message(filters.private & filters.command("setmetadata"))
 async def set_metadata_command(client, msg):
-    global user_settings  # Ensure we're modifying the global user_settings
-
     # Extract titles from the command message
     if len(msg.command) < 2:
         await msg.reply_text("Invalid command format. Use: setmetadata video_title | audio_title | subtitle_title")
@@ -433,17 +400,12 @@ async def set_metadata_command(client, msg):
         await msg.reply_text("Invalid number of titles. Use: setmetadata video_title | audio_title | subtitle_title")
         return
     
-    # Store the titles in user_settings
+    # Store the titles in the database
     user_id = msg.from_user.id
-    user_settings[user_id] = {
-        "video_title": titles[0].strip(),
-        "audio_title": titles[1].strip(),
-        "subtitle_title": titles[2].strip()
-    }
+    await database.save_metadata_titles(user_id, titles[0].strip(), titles[1].strip(), titles[2].strip())
     
     await msg.reply_text("Metadata titles set successfully ✅.")
 
-# Command to set Gofile API key for a user
 @Client.on_message(filters.command("gofilesetup") & filters.private)
 async def set_gofile_api_key(bot, msg):
     user_id = msg.from_user.id
@@ -452,10 +414,12 @@ async def set_gofile_api_key(bot, msg):
         return await msg.reply_text("Usage: /gofilesetup {your_api_key}")
     
     api_key = args[1].strip()
-    user_gofile_api_keys[user_id] = api_key
+    
+    # Save Gofile API key to the database
+    await database.save_gofile_api_key(user_id, api_key)
+    
     await msg.reply_text("Your Gofile API key has been set successfully.✅")
 
-# Command handler for /gdriveid setup
 @Client.on_message(filters.private & filters.command("gdriveid"))
 async def setup_gdrive_id(bot, msg: Message):
     user_id = msg.from_user.id
@@ -464,10 +428,46 @@ async def setup_gdrive_id(bot, msg: Message):
         return await msg.reply_text("Usage: /gdriveid {your_gdrive_folder_id}")
     
     gdrive_folder_id = args[1].strip()
-    user_gdrive_folder_ids[user_id] = gdrive_folder_id
-    await msg.reply_text(f"Google Drive folder ID set to: {gdrive_folder_id} for user `{user_id}`\n\nGoogle Drive folder ID set successfully✅!")
     
+    # Save Google Drive folder ID to the database
+    await database.save_gdrive_folder_id(user_id, gdrive_folder_id)
+    
+    await msg.reply_text(f"Google Drive folder ID set to: {gdrive_folder_id} for user `{user_id}`\n\nGoogle Drive folder ID set successfully✅!")
 
+@Client.on_callback_query(filters.regex("^preview_metadata$"))
+async def inline_preview_metadata_callback(_, callback_query):
+    await callback_query.answer()
+    user_id = callback_query.from_user.id
+    
+    # Fetch metadata titles from the database
+    titles = await database.get_metadata_titles(user_id)
+    
+    if not titles or not any(titles.values()):
+        await callback_query.message.reply_text("Metadata titles are not fully set. Please set all titles first.")
+        return
+    
+    preview_text = f"Video Title: {titles.get('video_title', '')}\n" \
+                   f"Audio Title: {titles.get('audio_title', '')}\n" \
+                   f"Subtitle Title: {titles.get('subtitle_title', '')}"
+    
+    await callback_query.message.reply_text(f"Current Metadata Titles:\n\n{preview_text}")
+
+@Client.on_callback_query(filters.regex("^preview_gofilekey$"))
+async def inline_preview_gofile_api_key(bot, callback_query):
+    user_id = callback_query.from_user.id
+    
+    # Fetch Gofile API key from the database
+    api_key = await database.get_gofile_api_key(user_id)
+    
+    if not api_key:
+        return await callback_query.message.reply_text(f"Gofile API key is not set for user `{user_id}`. Use /gofilesetup {{your_api_key}} to set it.")
+    
+    await callback_query.message.reply_text(f"Current Gofile API Key for user `{user_id}`: {api_key}")
+
+
+
+    
+  
 
 # Command handler for /mirror
 @Client.on_message(filters.private & filters.command("mirror"))
