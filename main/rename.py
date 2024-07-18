@@ -2623,6 +2623,114 @@ async def get_mod_apk(bot, msg: Message):
     await sts.delete()
 
 
+user_watermarks = {}
+
+@Client.on_message(filters.private & filters.command("setwatermark"))
+async def set_watermark_text(bot, msg):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Usage: /setwatermark Your Watermark Text")
+
+    watermark_text = " ".join(msg.command[1:])
+    user_id = msg.from_user.id
+    user_watermarks[user_id] = watermark_text
+    await msg.reply_text(f"Watermark text set to: {watermark_text}")
+
+async def edit_watermark(media_file: str, outfile: str, watermark_text: str):
+    cmd = [
+        'ffmpeg', '-hide_banner', '-ignore_unknown', '-i', media_file, '-vf',
+        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=2:bordercolor=white:enable='between(t,0,5)',"  # Start of the video
+        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=2:bordercolor=white:enable='between(t,(main_h/2-2.5),(main_h/2+2.5))',"  # Middle of the video
+        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=2:bordercolor=white:enable='gte(t,main_h-5)'",  # End of the video
+        '-c:a', 'copy', outfile, '-y'
+    ]
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
+
+@Client.on_message(filters.private & filters.command("watermark"))
+async def apply_watermark(bot, msg):
+    user_id = msg.from_user.id
+    if user_id not in user_watermarks:
+        return await msg.reply_text("Please set a watermark text using /setwatermark command first.")
+
+    watermark_text = user_watermarks[user_id]
+
+    if len(msg.command) < 3 or msg.command[1] != "-n":
+        return await msg.reply_text("Format: /watermark -n filename.mkv")
+
+    output_filename = " ".join(msg.command[2:]).strip()
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the watermark command\nFormat: /watermark -n filename.mkv")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the watermark command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await safe_edit_message(sts, f"Error downloading media: {e}")
+        return
+
+    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+
+    await safe_edit_message(sts, "💠 Adding watermark... ⚡")
+    try:
+        await edit_watermark(downloaded, output_file, watermark_text)
+    except Exception as e:
+        await safe_edit_message(sts, f"Error adding watermark: {e}")
+        os.remove(downloaded)
+        return
+
+    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    if not os.path.exists(thumbnail_path):
+        try:
+            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+        except Exception as e:
+            file_thumb = None
+    else:
+        file_thumb = thumbnail_path
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+    await safe_edit_message(sts, "💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**File successfully watermarked and uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {output_filename}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except Exception as e:
+            return await safe_edit_message(sts, f"Error: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
+    await sts.delete()
+
+
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
