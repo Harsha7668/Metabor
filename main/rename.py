@@ -206,7 +206,7 @@ async def set_sample_video_duration(client, callback_query: CallbackQuery):
 @Client.on_callback_query(filters.regex("^sample_video_option$"))
 async def sample_video_option(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
-    current_duration = await database.get_sample_video_duration(user_id)
+    current_duration = await db.get_sample_video_duration(user_id)
     
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(f"Sample Video 150s {'✅' if current_duration == 150 else ''}", callback_data="set_sample_video_duration_150")],
@@ -229,8 +229,8 @@ async def back_to_settings(client, callback_query: CallbackQuery):
 async def display_user_settings(client, msg, edit=False):
     user_id = msg.from_user.id
     
-    current_duration = await database.get_sample_video_duration(user_id)
-    current_screenshots = await database.get_screenshots_count(user_id)
+    current_duration = await db.get_sample_video_duration(user_id)
+    current_screenshots = await db.get_screenshots_count(user_id)
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
@@ -254,7 +254,7 @@ async def display_user_settings(client, msg, edit=False):
 @Client.on_callback_query(filters.regex("^screenshots_option$"))
 async def screenshots_option(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
-    current_screenshots = await database.get_screenshots_count(user_id)  # Default to 5 if not set
+    current_screenshots = await db.get_screenshots_count(user_id)  # Default to 5 if not set
     
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(f"Screenshots 1 {'✅' if current_screenshots == 1 else ''}", callback_data="set_screenshots_1")],
@@ -279,7 +279,7 @@ async def set_screenshots(client, callback_query: CallbackQuery):
     num_screenshots = int(num_str)
     
     # Save screenshots count to database
-    await database.save_screenshots_count(user_id, num_screenshots)
+    await db.save_screenshots_count(user_id, num_screenshots)
     
     await callback_query.answer(f"Number of screenshots set to {num_screenshots}.")
     await display_user_settings(client, callback_query.message, edit=True)
@@ -289,7 +289,7 @@ async def inline_preview_gdrive(bot, callback_query):
     user_id = callback_query.from_user.id
     
     # Retrieve Google Drive folder ID from the database
-    gdrive_folder_id = await database.get_gdrive_folder_id(user_id)
+    gdrive_folder_id = await db.get_gdrive_folder_id(user_id)
     
     if not gdrive_folder_id:
         return await callback_query.message.reply_text(f"Google Drive Folder ID is not set for user `{user_id}`. Use /gdriveid {{your_gdrive_folder_id}} to set it.")
@@ -302,7 +302,7 @@ async def inline_attach_photo_callback(_, callback_query):
     user_id = callback_query.from_user.id
     
     # Update user settings to indicate attachment request
-    await database.update_user_settings(user_id, {"attach_photo": True})
+    await db.update_user_settings(user_id, {"attach_photo": True})
     
     await callback_query.message.edit_text("Please send a photo to be attached using the setphoto command.")
 
@@ -354,7 +354,7 @@ async def set_thumbnail_handler(client, message):
     await client.download_media(message=message, file_name=thumbnail_path)
     
     # Save thumbnail path to database
-    await database.save_thumbnail(user_id, thumbnail_path)
+    await db.save_thumbnail(user_id, thumbnail_path)
     
     await message.reply("Your permanent thumbnail is updated. If the bot is restarted, the new thumbnail will be preserved.")
     
@@ -382,7 +382,7 @@ async def delete_thumbnail(client, callback_query: CallbackQuery):
             os.remove(thumbnail_path)
             await callback_query.message.reply_text("Your thumbnail was removed ❌")
             # Remove thumbnail path from database
-            await database.save_thumbnail(user_id, None)
+            await db.save_thumbnail(user_id, None)
         else:
             await callback_query.message.reply_text("You don't have any thumbnail ‼️")
     except Exception as e:
@@ -402,7 +402,7 @@ async def set_metadata_command(client, msg):
     
     # Store the titles in the database
     user_id = msg.from_user.id
-    await database.save_metadata_titles(user_id, titles[0].strip(), titles[1].strip(), titles[2].strip())
+    await db.save_metadata_titles(user_id, titles[0].strip(), titles[1].strip(), titles[2].strip())
     
     await msg.reply_text("Metadata titles set successfully ✅.")
 
@@ -416,7 +416,7 @@ async def set_gofile_api_key(bot, msg):
     api_key = args[1].strip()
     
     # Save Gofile API key to the database
-    await database.save_gofile_api_key(user_id, api_key)
+    await db.save_gofile_api_key(user_id, api_key)
     
     await msg.reply_text("Your Gofile API key has been set successfully.✅")
 
@@ -430,7 +430,7 @@ async def setup_gdrive_id(bot, msg: Message):
     gdrive_folder_id = args[1].strip()
     
     # Save Google Drive folder ID to the database
-    await database.save_gdrive_folder_id(user_id, gdrive_folder_id)
+    await db.save_gdrive_folder_id(user_id, gdrive_folder_id)
     
     await msg.reply_text(f"Google Drive folder ID set to: {gdrive_folder_id} for user `{user_id}`\n\nGoogle Drive folder ID set successfully✅!")
 
@@ -440,7 +440,7 @@ async def inline_preview_metadata_callback(_, callback_query):
     user_id = callback_query.from_user.id
     
     # Fetch metadata titles from the database
-    titles = await database.get_metadata_titles(user_id)
+    titles = await db.get_metadata_titles(user_id)
     
     if not titles or not any(titles.values()):
         await callback_query.message.reply_text("Metadata titles are not fully set. Please set all titles first.")
@@ -457,7 +457,7 @@ async def inline_preview_gofile_api_key(bot, callback_query):
     user_id = callback_query.from_user.id
     
     # Fetch Gofile API key from the database
-    api_key = await database.get_gofile_api_key(user_id)
+    api_key = await db.get_gofile_api_key(user_id)
     
     if not api_key:
         return await callback_query.message.reply_text(f"Gofile API key is not set for user `{user_id}`. Use /gofilesetup {{your_api_key}} to set it.")
