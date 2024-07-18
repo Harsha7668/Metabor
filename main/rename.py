@@ -1196,17 +1196,6 @@ async def merge_and_upload(bot, msg: Message):
         await sts.delete()
 
 
-#leech command 
-import os
-import time
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from database import Database  # Import your database handler
-
-db = Database()  # Initialize your database handler
-
-FILE_SIZE_LIMIT = 50 * 1024 * 1024  # Adjust as per your requirement
-
 # Leech command handler
 @Client.on_message(filters.command("leech") & filters.chat(AUTH_USERS))
 async def linktofile(bot, msg: Message):
