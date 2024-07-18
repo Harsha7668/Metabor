@@ -12,6 +12,8 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "6487202001:AAEUGww1KdtlQsMFERlA7elYlR82
 ADMIN = int(os.environ.get("ADMIN", '6469754522')) 
 FSUB_UPDATES = os.environ.get("FSUB_CHANNEL", "Sunrises24BotUpdates")
 FSUB_GROUP = os.environ.get("FSUB_GROUP", "Sunrises24BotSupport")
+DATABASE_URI = os.environ.get("DATABASE_URI", "mongodb+srv://UPLOADXPRO24BOT:UPLOADXPRO24BOT@cluster0.hjfk60f.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+DATABASE_NAME = os.environ.get("DATABASE_NAME", "cluster0")
 CAPTION = os.environ.get("CAPTION", "")
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 DOWNLOAD_LOCATION = "./DOWNLOADS"
