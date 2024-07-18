@@ -2334,35 +2334,14 @@ async def callback_query_handler(client: Client, query):
 
 
 
-
-
-# Callback query handler
-
-
 import datetime
-
+import os
+import subprocess
 from html_telegraph_poster import TelegraphPoster
-
-
 
 # Initialize Telegraph
 telegraph = TelegraphPoster(use_api=True)
 telegraph.create_api_token("MediaInfoBot")
-
-
-
-# Function to extract media information using mediainfo command
-def get_mediainfo(file_path):
-    process = subprocess.Popen(
-        ["mediainfo", file_path, "--Output=HTML"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"Error getting media info: {stderr.decode().strip()}")
-    return stdout.decode().strip()
-
 
 # Command handler for /mediainfo
 @Client.on_message(filters.command("mediainfo") & filters.private)
@@ -2384,13 +2363,13 @@ async def mediainfo_handler(client, message):
         else:
             raise ValueError("No valid media found in the replied message.")
 
-        # Get media info
+        # Get media info using mediainfo command
         media_info_html = get_mediainfo(file_path)
 
-        # Get the current date
+        # Get current date
         current_date = datetime.datetime.now().strftime("%B %d, %Y")
 
-        # Prepare the media info with additional details using allowed tags
+        # Prepare the media info with additional details
         media_info_html = (
             f"<strong>SUNRISES 24 BOT UPDATES</strong><br>"
             f"<strong>MediaInfo X</strong><br>"
@@ -2433,6 +2412,22 @@ async def mediainfo_handler(client, message):
         # Clean up downloaded file
         if os.path.exists(file_path):
             os.remove(file_path)
+
+# Function to get media info using mediainfo command
+def get_mediainfo(file_path):
+    process = subprocess.Popen(
+        ["mediainfo", file_path, "--Output=HTML"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout, stderr = process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"Error getting media info: {stderr.decode().strip()}")
+    return stdout.decode().strip()
+
+
+
+
 
 
 """
