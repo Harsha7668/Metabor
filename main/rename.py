@@ -498,7 +498,7 @@ async def mirror_to_google_drive(bot, msg: Message):
     user_id = msg.from_user.id
     
     # Retrieve the user's Google Drive folder ID
-    gdrive_folder_id = user_gdrive_folder_ids.get(user_id)
+    gdrive_folder_id = await db.get_gdrive_folder_id(user_id)
     
     if not gdrive_folder_id:
         return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
@@ -512,14 +512,13 @@ async def mirror_to_google_drive(bot, msg: Message):
         return await msg.reply_text("Please reply to a file with the new filename and extension.")
 
     new_name = msg.text.split(" ", 1)[1]
-    download_path = os.path.join(DOWNLOAD_LOCATION, new_name)
 
     try:
         # Show progress message for downloading
         sts = await msg.reply_text("🚀 Downloading...")
         
         # Download the file
-        downloaded_file = await bot.download_media(message=reply, file_name=download_path, progress=progress_message, progress_args=("Downloading", sts, time.time()))
+        downloaded_file = await bot.download_media(message=reply, file_name=new_name, progress=progress_message, progress_args=("Downloading", sts, time.time()))
         filesize = os.path.getsize(downloaded_file)
         
         # Once downloaded, update the message to indicate uploading
@@ -554,7 +553,7 @@ async def mirror_to_google_drive(bot, msg: Message):
             [InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]
         ]
         await msg.reply_text(
-            f"File successfully Mirror and Uploaded to Google Drive!\n\n"
+            f"File successfully mirrored and uploaded to Google Drive!\n\n"
             f"Google Drive Link: [View File]({file_link})\n\n"
             f"Uploaded File: {new_name}\n"
             f"Size: {humanbytes(filesize)}",
@@ -592,14 +591,18 @@ async def rename_file(bot, msg):
     else:
         cap = f"{new_name}\n\n🌟 Size: {filesize}"
 
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    # Retrieve thumbnail from the database
+    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
     og_thumbnail = None
-    if os.path.exists(thumbnail_path):
-        og_thumbnail = thumbnail_path
+    if thumbnail_file_id:
+        try:
+            og_thumbnail = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
     else:
         if hasattr(media, 'thumbs') and media.thumbs:
             try:
-                og_thumbnail = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+                og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
             except Exception:
                 pass
 
@@ -616,15 +619,11 @@ async def rename_file(bot, msg):
             return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded)
-    if og_thumbnail and os.path.exists(og_thumbnail):
-        os.remove(og_thumbnail)
     await sts.delete()
 
 #Change Metadata Code
-
-
 @Client.on_message(filters.private & filters.command("changemetadata"))
-async def change_metadata(bot, msg):
+async def change_metadata(bot, msg: Message):
     global METADATA_ENABLED, user_settings
 
     if not METADATA_ENABLED:
@@ -662,7 +661,7 @@ async def change_metadata(bot, msg):
         await safe_edit_message(sts, f"Error downloading media: {e}")
         return
 
-    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+    output_file = output_filename
 
     await safe_edit_message(sts, "💠 Changing metadata... ⚡")
     try:
@@ -672,14 +671,20 @@ async def change_metadata(bot, msg):
         os.remove(downloaded)
         return
 
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    if not os.path.exists(thumbnail_path):
+    # Retrieve thumbnail from the database
+    thumbnail_file_id = await db.get_thumbnail(user_id)
+    file_thumb = None
+    if thumbnail_file_id:
         try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-        except Exception as e:
-            file_thumb = None
+            file_thumb = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
     else:
-        file_thumb = thumbnail_path
+        if hasattr(media, 'thumbs') and media.thumbs:
+            try:
+                file_thumb = await bot.download_media(media.thumbs[0].file_id)
+            except Exception as e:
+                file_thumb = None
 
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
@@ -712,9 +717,8 @@ async def change_metadata(bot, msg):
     await sts.delete()
 
 #attach photo
-
 @Client.on_message(filters.private & filters.command("attachphoto"))
-async def attach_photo(bot, msg):
+async def attach_photo(bot, msg: Message):
     global PHOTO_ATTACH_ENABLED
 
     if not PHOTO_ATTACH_ENABLED:
@@ -749,13 +753,16 @@ async def attach_photo(bot, msg):
         await safe_edit_message(sts, f"Error downloading media: {e}")
         return
 
-    attachment_path = f"{DOWNLOAD_LOCATION}/attachment_{msg.from_user.id}.jpg"
-    if not os.path.exists(attachment_path):
+    # Retrieve attachment from the database
+    attachment_file_id = await db.get_attach_photo(msg.from_user.id)
+    if not attachment_file_id:
         await safe_edit_message(sts, "Please send a photo to be attached using the `setphoto` command.")
         os.remove(downloaded)
         return
 
-    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+    attachment_path = await bot.download_media(attachment_file_id)
+
+    output_file = output_filename
 
     await safe_edit_message(sts, "💠 Adding photo attachment... ⚡")
     try:
@@ -765,13 +772,21 @@ async def attach_photo(bot, msg):
         os.remove(downloaded)
         return
 
-    file_thumb = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-    if not os.path.exists(file_thumb):
+    # Retrieve thumbnail from the database
+    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
+    file_thumb = None
+    if thumbnail_file_id:
         try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=file_thumb)
-        except Exception as e:
-            print(e)
-            file_thumb = None
+            file_thumb = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
+    else:
+        if hasattr(media, 'thumbs') and media.thumbs:
+            try:
+                file_thumb = await bot.download_media(media.thumbs[0].file_id)
+            except Exception as e:
+                print(e)
+                file_thumb = None
 
     filesize = os.path.getsize(output_file)
 
@@ -816,10 +831,14 @@ async def attach_photo(bot, msg):
         os.remove(downloaded)
         os.remove(output_file)
         if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb) 
+            os.remove(file_thumb)
+        if os.path.exists(attachment_path):
+            os.remove(attachment_path)
 
-#changeindexaudio
-# Command to change index audio
+
+
+
+# Command handler
 @Client.on_message(filters.private & filters.command("changeindexaudio"))
 async def change_index_audio(bot, msg):
     global CHANGE_INDEX_ENABLED
@@ -891,15 +910,15 @@ async def change_index_audio(bot, msg):
         return
 
     # Thumbnail handling
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
+    thumbnail_file_id = await get_thumbnail(msg.from_user.id)
 
-    if os.path.exists(thumbnail_path):
-        file_thumb = thumbnail_path
-    else:
+    if thumbnail_file_id:
         try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
+            file_thumb = await bot.download_media(thumbnail_file_id)
         except Exception as e:
             file_thumb = None
+    else:
+        file_thumb = None
 
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
@@ -909,6 +928,7 @@ async def change_index_audio(bot, msg):
     c_time = time.time()
 
     if filesize > FILE_SIZE_LIMIT:
+        # Handle large file uploads (e.g., upload to Google Drive)
         file_link = await upload_to_google_drive(output_file, output_filename, sts)
         button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
         await msg.reply_text(
@@ -920,6 +940,7 @@ async def change_index_audio(bot, msg):
             reply_markup=InlineKeyboardMarkup(button)
         )
     else:
+        # Directly send the document with thumbnail
         try:
             await bot.send_document(
                 msg.chat.id,
@@ -932,123 +953,17 @@ async def change_index_audio(bot, msg):
         except Exception as e:
             return await sts.edit(f"Error: {e}")
 
+    # Clean up downloaded and temporary files
     os.remove(downloaded)
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await sts.delete()
+
 
 #changeindex subtitles 
 # Command to change index subtitle
 
-@Client.on_message(filters.private & filters.command("changeindexsub"))
-async def change_index_subtitle(bot, msg):
-    global CHANGE_INDEX_ENABLED
-
-    if not CHANGE_INDEX_ENABLED:
-        return await msg.reply_text("The changeindexsub feature is currently disabled.")
-
-    reply = msg.reply_to_message
-    if not reply:
-        return await msg.reply_text("Please reply to a media file with the index command\nFormat: `/changeindexsub s-3 -n filename.mkv` (Subtitle)")
-
-    if len(msg.command) < 3:
-        return await msg.reply_text("Please provide the index command with a filename\nFormat: `/changeindexsub s-3 -n filename.mkv` (Subtitle)")
-
-    index_cmd = None
-    output_filename = None
-
-    # Extract index command and output filename from the command
-    for i in range(1, len(msg.command)):
-        if msg.command[i] == "-n":
-            output_filename = " ".join(msg.command[i + 1:])  # Join all the parts after the flag
-            break
-
-    index_cmd = " ".join(msg.command[1:i])  # Get the index command before the flag
-
-    if not output_filename:
-        return await msg.reply_text("Please provide a filename using the `-n` flag.")
-
-    if not index_cmd or not index_cmd.startswith("s-"):
-        return await msg.reply_text("Invalid format. Use `/changeindexsub s-3 -n filename.mkv` for subtitles.")
-
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the index command.")
-
-    sts = await msg.reply_text("🚀 Downloading media... ⚡")
-    c_time = time.time()
-    try:
-        # Download the media file
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-    except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
-        return
-
-    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
-
-    index_params = index_cmd.split('-')
-    stream_type = index_params[0]
-    indexes = [int(i) - 1 for i in index_params[1:]]
-
-    # Construct the FFmpeg command to modify indexes
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
-
-    for idx in indexes:
-        ffmpeg_cmd.extend(['-map', f'0:{stream_type}:{idx}'])
-
-    # Copy all audio and video streams
-    ffmpeg_cmd.extend(['-map', '0:v?', '-map', '0:a?', '-c', 'copy', output_file, '-y'])
-
-    await safe_edit_message(sts, "💠 Changing subtitle indexing... ⚡")
-    process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await process.communicate()
-
-    if process.returncode != 0:
-        await safe_edit_message(sts, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
-        os.remove(downloaded)
-        return
-
-    # Thumbnail handling
-    thumbnail_path = f"{DOWNLOAD_LOCATION}/thumbnail_{msg.from_user.id}.jpg"
-
-    if os.path.exists(thumbnail_path):
-        file_thumb = thumbnail_path
-    else:
-        try:
-            file_thumb = await bot.download_media(media.thumbs[0].file_id, file_name=thumbnail_path)
-        except Exception as e:
-            file_thumb = None
-
-    filesize = os.path.getsize(output_file)
-    filesize_human = humanbytes(filesize)
-    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
-
-    await safe_edit_message(sts, "💠 Uploading... ⚡")
-    c_time = time.time()
-
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, output_filename, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"**File successfully changed subtitle index and uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {output_filename}\n"
-            f"**Request User:** {msg.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-    else:
-        try:
-            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
-        except Exception as e:
-            return await safe_edit_message(sts, f"Error: {e}")
-
-    os.remove(downloaded)
-    os.remove(output_file)
-    if file_thumb and os.path.exists(file_thumb):
-        os.remove(file_thumb)
-    await sts.delete()
 
 
 
