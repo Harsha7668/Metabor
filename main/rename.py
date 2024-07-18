@@ -287,17 +287,9 @@ async def set_screenshots(client, callback_query: CallbackQuery):
     await callback_query.answer(f"Number of screenshots set to {num_screenshots}.")
     await display_user_settings(client, callback_query.message, edit=True)
 
-@Client.on_callback_query(filters.regex("^thumbnail_settings$"))
-async def inline_thumbnail_settings(client, callback_query: CallbackQuery):
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[            
-            [InlineKeyboardButton("View Thumbnail", callback_data="view_thumbnail")],
-            [InlineKeyboardButton("Delete Thumbnail", callback_data="delete_thumbnail")],
-            [InlineKeyboardButton("Back to Settings", callback_data="back_to_settings")]
-        ]
-    )
-    await callback_query.message.edit_text("Thumbnail Settings:", reply_markup=keyboard)
 
+
+# Command to set thumbnail
 @Client.on_message(filters.private & filters.command("setthumbnail"))
 async def set_thumbnail_command(client, message):
     user_id = message.from_user.id
@@ -309,6 +301,7 @@ async def set_thumbnail_command(client, message):
     else:
         await message.reply("Send a photo to set as your permanent thumbnail.")
 
+# Handler to set thumbnail from photo
 @Client.on_message(filters.photo & filters.private)
 async def set_thumbnail_handler(client, message):
     user_id = message.from_user.id
@@ -326,7 +319,8 @@ async def set_thumbnail_handler(client, message):
     await db.save_thumbnail(user_id, thumbnail_path)
     
     await message.reply("Your permanent thumbnail is updated. If the bot is restarted, the new thumbnail will be preserved.")
-    
+
+# Command to view thumbnail
 @Client.on_callback_query(filters.regex("^view_thumbnail$"))
 async def view_thumbnail(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
@@ -337,25 +331,86 @@ async def view_thumbnail(client, callback_query: CallbackQuery):
         return
 
     try:
-        await client.send_photo(chat_id=callback_query.from_user.id, photo=thumbnail_path)
+        await callback_query.message.reply_photo(photo=thumbnail_path, caption="This is your current thumbnail")
     except Exception as e:
-        await callback_query.message.reply_text(f"Failed to send thumbnail: {str(e)}")
+        await callback_query.message.reply_text("An error occurred while trying to view your thumbnail.")
 
+# Command to delete thumbnail
 @Client.on_callback_query(filters.regex("^delete_thumbnail$"))
 async def delete_thumbnail(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
-    thumbnail_path = await db.get_thumbnail_path(user_id)
+    await db.delete_thumbnail(user_id)
+    await callback_query.answer("Your thumbnail was removed ❌")
 
-    if not thumbnail_path:
-        await callback_query.message.reply_text("You don't have any thumbnail to delete.")
+# Command to set photo as attachment
+@Client.on_message(filters.private & filters.command("setphoto"))
+async def set_photo_command(client, message):
+    reply = message.reply_to_message
+    if not reply or not reply.photo:
+        return await message.reply_text("Please reply to a photo with the set photo command")
+
+    user_id = message.from_user.id
+    photo = reply.photo
+    photo_path = f"{DOWNLOAD_LOCATION}/photo_{user_id}.jpg"
+    
+    try:
+        await client.download_media(photo, photo_path)
+        await db.save_attach_photo(user_id, photo_path)
+        await message.reply_text(f"Photo saved successfully as `{photo_path}`.")
+    except Exception as e:
+        await message.reply_text(f"Error saving photo: {e}")
+
+# Command to preview photo attachment
+@Client.on_callback_query(filters.regex("^attach_photo$"))
+async def inline_attach_photo_callback(client, callback_query: CallbackQuery):
+    await callback_query.answer()
+    user_id = callback_query.from_user.id
+    photo_path = await db.get_attach_photo_path(user_id)
+
+    if not photo_path:
+        await callback_query.message.reply_text("No photo has been attached yet.")
         return
 
     try:
-        os.remove(thumbnail_path)
-        await db.delete_thumbnail(user_id)
-        await callback_query.message.reply_text("Thumbnail deleted successfully.")
+        await callback_query.message.reply_photo(photo=photo_path, caption="Attached Photo")
     except Exception as e:
-        await callback_query.message.reply_text(f"Failed to delete thumbnail: {str(e)}")
+        await callback_query.message.reply_text("An error occurred while trying to preview your photo.")
+
+@Client.on_callback_query(filters.regex("^preview_photo$"))
+async def inline_preview_photo_callback(client, callback_query):
+    await callback_query.answer()
+    user_id = callback_query.from_user.id
+    
+    # Retrieve the attachment path from the database
+    attachment_path = await db.get_attach_photo_path(user_id)
+    
+    if not attachment_path:
+        await callback_query.message.reply_text("No photo has been attached yet.")
+        return
+    
+    try:
+        # Send the photo using Pyrogram's reply_photo method
+        await callback_query.message.reply_photo(photo=attachment_path, caption="Attached Photo")
+    except Exception as e:
+        await callback_query.message.reply_text(f"Failed to send photo: {str(e)}")
+
+
+
+
+
+
+@Client.on_callback_query(filters.regex("^thumbnail_settings$"))
+async def inline_thumbnail_settings(client, callback_query: CallbackQuery):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[            
+            [InlineKeyboardButton("View Thumbnail", callback_data="view_thumbnail")],
+            [InlineKeyboardButton("Delete Thumbnail", callback_data="delete_thumbnail")],
+            [InlineKeyboardButton("Back to Settings", callback_data="back_to_settings")]
+        ]
+    )
+    await callback_query.message.edit_text("Thumbnail Settings:", reply_markup=keyboard)
+
+
 
 @Client.on_callback_query(filters.regex("^preview_gdrive$"))
 async def inline_preview_gdrive(bot, callback_query):
@@ -368,28 +423,6 @@ async def inline_preview_gdrive(bot, callback_query):
         return await callback_query.message.reply_text(f"Google Drive Folder ID is not set for user `{user_id}`. Use /gdriveid {{your_gdrive_folder_id}} to set it.")
     
     await callback_query.message.reply_text(f"Current Google Drive Folder ID for user `{user_id}`: {gdrive_folder_id}")
-
-@Client.on_callback_query(filters.regex("^attach_photo$"))
-async def inline_attach_photo_callback(_, callback_query):
-    await callback_query.answer()
-    user_id = callback_query.from_user.id
-    
-    # Update user settings to indicate attachment request
-    await db.update_user_settings(user_id, {"attach_photo": True})
-    
-    await callback_query.message.edit_text("Please send a photo to be attached using the setphoto command.")
-
-@Client.on_callback_query(filters.regex("^preview_photo$"))
-async def inline_preview_photo_callback(client, callback_query):
-    await callback_query.answer()
-    user_id = callback_query.from_user.id
-    attachment_path = os.path.join(DOWNLOAD_LOCATION, f"attachment_{user_id}.jpg")
-    
-    if not os.path.exists(attachment_path):
-        await callback_query.message.reply_text("No photo has been attached yet.")
-        return
-    
-    await callback_query.message.reply_photo(photo=attachment_path, caption="Attached Photo")
 
 
 @Client.on_message(filters.private & filters.command("setmetadata"))
@@ -1622,22 +1655,6 @@ async def unzip(bot, msg):
     os.remove(input_path)
     shutil.rmtree(extract_path)
   
-# Handler for setting the photo with user ID
-@Client.on_message(filters.private & filters.command("setphoto"))
-async def set_photo(bot, msg):
-    reply = msg.reply_to_message
-    if not reply or not reply.photo:
-        return await msg.reply_text("Please reply to a photo with the set photo command")
-
-    user_id = msg.from_user.id
-    photo = reply.photo
-    attachment_path = os.path.join(DOWNLOAD_LOCATION, f"attachment_{user_id}.jpg")
-    try:
-        await bot.download_media(photo, attachment_path)
-        await msg.reply_text(f"Photo saved successfully as `{attachment_path}`.")
-    except Exception as e:
-        await msg.reply_text(f"Error saving photo: {e}")
-
 
 # Command to upload to Gofile
 @Client.on_message(filters.private & filters.command("gofile"))
