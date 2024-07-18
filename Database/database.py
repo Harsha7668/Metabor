@@ -237,10 +237,10 @@ class Database:
 
     
     async def save_user_quality_selection(user_id, selection_data):
-    await users_col.update_one({'id': user_id}, {'$set': {'settings.quality_selection': selection_data}}, upsert=True)
+              await users_col.update_one({'id': user_id}, {'$set': {'settings.quality_selection': selection_data}}, upsert=True)
     
     async def get_user_quality_selection(user_id):
-    user = await users_col.find_one({'id': user_id})
+        user = await users_col.find_one({'id': user_id})
     if user:
         return user.get('settings', {}).get('quality_selection')
     return None
