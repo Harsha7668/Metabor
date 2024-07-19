@@ -2392,7 +2392,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             file_data = {
                 'title': info_dict['title'],
-                'thumbnail': info_dict.get('thumbnail')  # No default thumbnail path
+                'thumbnail': info_dict.get('thumbnail')
             }
             await db.save_file_data(msg.from_user.id, file_data)
 
@@ -2447,7 +2447,6 @@ async def callback_query_handler(client: Client, query):
         if not os.path.exists(file_name):
             return await safe_edit_message(sts, "Error: Download failed. File not found.")
 
-        # Use YouTube thumbnail directly
         file_thumb = thumbnail_url if thumbnail_url else None
         
         if file_size >= FILE_SIZE_LIMIT:
@@ -2470,7 +2469,7 @@ async def callback_query_handler(client: Client, query):
                     await query.message.reply_document(
                         document=file,
                         caption=caption,
-                        thumb=file_thumb,
+                        thumb=file_thumb,  # Ensure this is either None or a valid URL
                         progress=progress_message,
                         progress_args=("💠 Upload Started... ⚡", sts, time.time())
                     )
