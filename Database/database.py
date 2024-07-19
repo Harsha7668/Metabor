@@ -265,7 +265,7 @@ class Database:
     async def store_media_info_in_db(self, media_info):
         result = await self.media_info_col.insert_one(media_info)
         return result.inserted_id
-
+        
     async def save_file_data(self, user_id, file_data):
         result = await self.file_data_col.update_one(
             {'user_id': user_id},
