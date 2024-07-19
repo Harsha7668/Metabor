@@ -2192,8 +2192,11 @@ async def clean_files(bot, msg: Message):
         await msg.reply_text(f"An unexpected error occurred: {e}")
 
 
-
 from yt_dlp import YoutubeDL
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+import os
+import time
 
 # Function to handle progress updates
 async def progress_hook(status_message):
@@ -2213,7 +2216,6 @@ async def safe_edit_message(message, new_text):
             await message.edit_text(new_text)
     except Exception as e:
         print(f"Error editing message: {e}")
-
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2247,7 +2249,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
             
-            # Save user's quality selection in MongoDB
+            # Save user's quality selection in the database
             await db.save_user_quality_selection(msg.from_user.id, {
                 'url': url,
                 'title': info_dict['title'],
@@ -2265,7 +2267,7 @@ async def callback_query_handler(client: Client, query):
     format_id = query.data
 
     try:
-        # Retrieve user's quality selection from MongoDB
+        # Retrieve user's quality selection from the database
         selection_data = await db.get_user_quality_selection(user_id)
         if not selection_data:
             return await query.answer("No download in progress.")
@@ -2284,27 +2286,31 @@ async def callback_query_handler(client: Client, query):
 
         sts = await query.message.reply_text(f"🚀 Downloading {quality} - {humanbytes(file_size)}... ⚡")
 
+        download_path = f"{video_title}.mkv"  # File name based on video title
+        file_thumb = None
+
         ydl_opts = {
             'format': f'{format_id}+bestaudio/best',  # Ensure video and audio are merged
-            'outtmpl': os.path.join("downloads", f"{video_title}.mkv"),  # Adjust the output file name to use MKV
+            'outtmpl': download_path,  # Adjust the output file name to use MKV
             'quiet': True,
             'noplaylist': True,
             'progress_hooks': [await progress_hook(status_message=sts)],  # Await the progress hook correctly
             'merge_output_format': 'mkv'  # Ensure the output is in MKV format
         }
-        download_path = os.path.join("downloads", f"{video_title}.mkv")
-        file_thumb = None
 
         try:
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
 
             if thumbnail_url:
-                thumbnail_path = f"downloads/thumbnail_{query.from_user.id}.jpg"
+                thumbnail_path = f"thumbnail_{msg.from_user.id}.jpg"
                 ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
                 with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
                     ydl_thumb.download([thumbnail_url])
                 file_thumb = thumbnail_path
+                # Save the thumbnail file ID to the database
+                thumbnail_file_id = await upload_thumbnail_to_cloud(thumbnail_path)  # Assume this function uploads and returns file_id
+                await db.save_thumbnail(user_id, thumbnail_file_id)
 
             if file_size >= FILE_SIZE_LIMIT:
                 await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
@@ -2320,10 +2326,11 @@ async def callback_query_handler(client: Client, query):
             else:
                 await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
                 caption = f"**Uploaded Document 📄**: {video_title}.mkv\n\n🌟 Size: {humanbytes(file_size)}"
+                thumb_id = await db.get_thumbnail(user_id)
                 await query.message.reply_document(
                     document=open(download_path, 'rb'),
                     caption=caption,
-                    thumb=file_thumb,
+                    thumb=thumb_id,
                     progress=progress_message,
                     progress_args=("💠 Upload Started... ⚡", sts, time.time())
                 )
@@ -2343,6 +2350,8 @@ async def callback_query_handler(client: Client, query):
     except Exception as e:
         await query.answer(f"An error occurred: {e}")
 
+
+        
 
 import datetime
 import os
