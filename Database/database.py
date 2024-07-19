@@ -31,6 +31,19 @@ class Database:
             return user.get('settings', default_settings)
         return default_settings
     
+    async def save_toggle_settings(self, user_id, toggles):
+        await self.settings_col.update_one(
+            {'user_id': user_id},
+            {'$set': {'toggles': toggles}},
+            upsert=True
+        )
+
+    async def get_toggle_settings(self, user_id):
+        user = await self.settings_col.find_one({'user_id': user_id})
+        if user:
+            return user.get('toggles', {})
+        return {}
+        
     async def save_sample_video_settings(self, user_id, sample_video_duration, screenshots):
         await self.users_col.update_one(
             {'id': user_id}, 
