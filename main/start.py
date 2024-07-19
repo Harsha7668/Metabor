@@ -43,18 +43,16 @@ joined_channel_2 = {}
 
 
 
-
-async def notify_log_channel(message: str):
-    """Send notification to the log channel."""
-    try:
-        await bot.send_message(LOG_CHANNEL_ID, message)
-    except PyMongoError as e:
-        print(f"An error occurred while sending log message: {e}")
-
 @Client.on_message(filters.command("start"))
 async def start(bot: Client, msg: Message):
     user_id = msg.chat.id
     username = msg.from_user.username or "Unknown"
+    
+    # Check if the user is banned
+    banned_user = await db.get_banned_user(user_id)
+    if banned_user:
+        await msg.reply_text("Sorry, you are banned. Contact the admin for more information.")
+        return
 
     # Fetch user membership status from the database
     joined_channel_1, joined_channel_2 = await db.get_user_membership(user_id)
@@ -64,7 +62,7 @@ async def start(bot: Client, msg: Message):
         try:
             user = await bot.get_chat_member(FSUB_UPDATES, user_id)
             if user.status == "kicked":
-                await msg.reply_text("Sorry, you are **banned**.")
+                await msg.reply_text("Sorry, you are banned.")
                 return
         except UserNotParticipant:
             await msg.reply_text(
@@ -84,7 +82,7 @@ async def start(bot: Client, msg: Message):
         try:
             user = await bot.get_chat_member(FSUB_GROUP, user_id)
             if user.status == "kicked":
-                await msg.reply_text("Sorry, you are **banned**.")
+                await msg.reply_text("Sorry, you are banned.")
                 return
         except UserNotParticipant:
             await msg.reply_text(
@@ -118,12 +116,16 @@ async def start(bot: Client, msg: Message):
 
         # Notify log channel
         log_message = (
-            f"💬**User Joined**:\n"
-            f"🆔**ID**: {user_id}\n"
-            f"👤**Username**: {username}"
+            f"💬 **Bot Started**\n"
+            f"🆔 **ID**: {user_id}\n"
+            f"👤 **Username**: {username}\n"
+            f"**Joined Updates Channel**: {joined_channel_1}\n"
+            f"**Joined Group Channel**: {joined_channel_2}"
         )
-        await notify_log_channel(log_message)
-
+        await notify_log_channel(bot, log_message)
+    
+    # Add or update the user in the database
+    await db.add_user(user_id, username)
 
 async def check_membership(bot: Client, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
     user_id = msg.chat.id
