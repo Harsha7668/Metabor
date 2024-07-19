@@ -3,7 +3,11 @@ import asyncio, time
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from pyrogram.errors import UserNotParticipant, UserBannedInChannel
-from config import FSUB_UPDATES, FSUB_GROUP, SUNRISES_PIC
+from config import *
+from Database.database import db
+from pymongo.errors import PyMongoError
+
+
 
 START_TEXT = """
 Hᴇʟʟᴏ Mᴀᴡа❤️! I ᴀᴍ ᴛʜᴇ Aᴅᴠᴀɴᴄᴇᴅ Rᴇɴᴀᴍᴇ 𝟸𝟺 Bᴏᴛ [MᴇᴛᴀMᴏʀᴘʜᴇʀ]⚡
@@ -37,63 +41,7 @@ Exᴘʟᴏʀᴇ sɪᴍᴘʟɪᴄɪᴛʏ! 💥
 joined_channel_1 = {}
 joined_channel_2 = {}
 
-@Client.on_message(filters.command("start"))
-async def start(bot, msg: Message):
-    user_id = msg.chat.id
-    
-    # Check for channel 1 (updates channel) membership
-    if FSUB_UPDATES:
-        try:
-            user = await bot.get_chat_member(FSUB_UPDATES, user_id)
-            if user.status == "kicked":
-                await msg.reply_text("Sorry, you are **banned**.")
-                return
-        except UserNotParticipant:
-            await msg.reply_text(
-                text="**Please join my first updates channel before using me.**",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton(text="Join Updates Channel", url=f"https://t.me/{FSUB_UPDATES}")]
-                ])
-            )
-            joined_channel_1[user_id] = False
-            return
-        else:
-            joined_channel_1[user_id] = True
 
-    # Check for channel 2 (group) membership
-    if FSUB_GROUP:
-        try:
-            user = await bot.get_chat_member(FSUB_GROUP, user_id)
-            if user.status == "kicked":
-                await msg.reply_text("Sorry, you are **banned**.")
-                return
-        except UserNotParticipant:
-            await msg.reply_text(
-                text="**Please join my Group before using me.**",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton(text="JOIN GROUP", url=f"https://t.me/{FSUB_GROUP}")]
-                ])
-            )
-            joined_channel_2[user_id] = False
-            return
-        else:
-            joined_channel_2[user_id] = True
-
-    # If the user has joined both required channels, send the start message with photo
-    start_text = START_TEXT.format(msg.from_user.first_name) if hasattr(msg, "message_id") else START_TEXT
-    await bot.send_photo(
-        chat_id=user_id,
-        photo=SUNRISES_PIC,
-        caption=start_text,
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("Developer ❤️", url="https://t.me/Sunrises_24"),
-             InlineKeyboardButton("Updates 📢", url="https://t.me/Sunrises24botupdates")],
-            [InlineKeyboardButton("Help 🌟", callback_data="help"),
-             InlineKeyboardButton("About 🧑🏻‍💻", callback_data="about")],
-            [InlineKeyboardButton("Support ❤️‍🔥", url="https://t.me/Sunrises24botSupport")]
-        ]),
-        reply_to_message_id=getattr(msg, "message_id", None)
-    )
 
 async def check_membership(bot, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
     user_id = msg.chat.id
@@ -255,3 +203,37 @@ async def ping(bot, msg):
     time_taken_s = (end_t - start_t) * 1000
     await rm.edit(f"Pong!📍\n{time_taken_s:.3f} ms")
  
+@Client.on_message(filters.command("users") & filters.user(ADMIN))  # Replace with your admin user ID
+async def count_users(bot, msg):
+    try:
+        total_users = await db.count_users()
+        banned_users = await db.count_banned_users()
+
+        response = (
+            f"**User Statistics:**\n"
+            f"Total Active Users: {total_users}\n"
+            f"Banned Users: {banned_users}"
+        )
+        await msg.reply_text(response)
+    except PyMongoError as e:
+        await msg.reply_text(f"An error occurred while counting users: {e}")
+
+@Client.on_message(filters.command("ban") & filters.user(ADMIN))  # Replace with your admin user ID
+async def ban_user(bot, msg):
+    try:
+        user_id = int(msg.text.split()[1])
+        await db.ban_user(user_id)
+        await bot.kick_chat_member(chat_id=msg.chat.id, user_id)  # Optionally remove user from chat
+        await msg.reply_text(f"User {user_id} has been banned.")
+    except Exception as e:
+        await msg.reply_text(f"An error occurred: {e}")
+
+@Client.on_message(filters.command("unban") & filters.user(ADMIN))  # Replace with your admin user ID
+async def unban_user(bot, msg):
+    try:
+        user_id = int(msg.text.split()[1])
+        await db.unban_user(user_id)
+        await bot.unban_chat_member(chat_id=msg.chat.id, user_id)  # Optionally restore user to chat
+        await msg.reply_text(f"User {user_id} has been unbanned.")
+    except Exception as e:
+        await msg.reply_text(f"An error occurred: {e}")
