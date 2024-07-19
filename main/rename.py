@@ -44,6 +44,42 @@ EXTRACT_ENABLED = True
 
 
 
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+# Command handler to start the interaction (only in admin)
+@Client.on_message(filters.command("bsettings") & filters.chat(ADMIN))
+async def bot_settings_command(_, msg):
+    await display_bot_settings_inline(msg)
+
+
+# Inline function to display user settings with inline buttons
+async def display_bot_settings_inline(msg):
+    global METADATA_ENABLED, PHOTO_ATTACH_ENABLED, MIRROR_ENABLED, RENAME_ENABLED, REMOVETAGS_ENABLED, CHANGE_INDEX_ENABLED
+
+    metadata_status = "✅ Enabled" if METADATA_ENABLED else "❌ Disabled"
+    photo_attach_status = "✅ Enabled" if PHOTO_ATTACH_ENABLED else "❌ Disabled"
+    mirror_status = "✅ Enabled" if MIRROR_ENABLED else "❌ Disabled"
+    rename_status = "✅ Enabled" if RENAME_ENABLED else "❌ Disabled"
+    removealltags_status = "✅ Enabled" if REMOVETAGS_ENABLED else "❌ Disabled"
+    change_index_status = "✅ Enabled" if CHANGE_INDEX_ENABLED else "❌ Disabled"
+    merge_video_status = "✅ Enabled" if MERGE_ENABLED else "❌ Disabled"    
+    
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],            
+            [InlineKeyboardButton(f"{rename_status} Change Rename 📝", callback_data="toggle_rename")],
+            [InlineKeyboardButton(f"{removealltags_status} Remove All Tags 📛", callback_data="toggle_removealltags")],
+            [InlineKeyboardButton(f"{metadata_status} Change Metadata ☄️", callback_data="toggle_metadata")],            
+            [InlineKeyboardButton(f"{change_index_status} Change Index ♻️", callback_data="toggle_change_index")],
+            [InlineKeyboardButton(f"{merge_video_status} Merge Video 🎞️", callback_data="toggle_merge_video")],
+            [InlineKeyboardButton(f"{photo_attach_status} Attach Photo 🖼️", callback_data="toggle_photo_attach")],                        
+            [InlineKeyboardButton(f"{mirror_status} Mirror 💽", callback_data="toggle_mirror")],            
+            [InlineKeyboardButton("Close ❌", callback_data="del")],
+            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")]
+        ]
+    )
+
+    await msg.reply_text("Use inline buttons to manage your settings:", reply_markup=keyboard)
+
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 @Client.on_callback_query(filters.regex("del"))
@@ -52,6 +88,59 @@ async def closed(bot, msg):
         await msg.message.delete()
     except:
         return
+
+# Callback query handlers
+
+@Client.on_callback_query(filters.regex("^toggle_rename$"))
+async def toggle_rename_callback(_, callback_query):
+    global RENAME_ENABLED
+
+    RENAME_ENABLED = not RENAME_ENABLED
+    await update_settings_message(callback_query.message)
+
+@Client.on_callback_query(filters.regex("^toggle_removealltags$"))
+async def toggle_removealltags_callback(_, callback_query):
+    global REMOVETAGS_ENABLED
+
+    REMOVETAGS_ENABLED = not REMOVETAGS_ENABLED
+    await update_settings_message(callback_query.message)
+
+@Client.on_callback_query(filters.regex("^toggle_metadata$"))
+async def toggle_metadata_callback(_, callback_query):
+    global METADATA_ENABLED
+
+    METADATA_ENABLED = not METADATA_ENABLED
+    await update_settings_message(callback_query.message)
+
+
+@Client.on_callback_query(filters.regex("^toggle_photo_attach$"))
+async def toggle_photo_attach_callback(_, callback_query):
+    global PHOTO_ATTACH_ENABLED
+
+    PHOTO_ATTACH_ENABLED = not PHOTO_ATTACH_ENABLED
+    await update_settings_message(callback_query.message)
+
+
+@Client.on_callback_query(filters.regex("^toggle_mirror$"))
+async def toggle_multitask_callback(_, callback_query):
+    global MIRROR_ENABLED
+
+    MIRROR_ENABLED = not MIRROR_ENABLED
+    await update_settings_message(callback_query.message)
+
+@Client.on_callback_query(filters.regex("^toggle_change_index$"))
+async def toggle_change_index_callback(_, callback_query):
+    global CHANGE_INDEX_ENABLED
+
+    CHANGE_INDEX_ENABLED = not CHANGE_INDEX_ENABLED
+    await update_settings_message(callback_query.message)
+
+@Client.on_callback_query(filters.regex("^toggle_merge_video$"))
+async def toggle_merge_video_callback(_, callback_query):
+    global MERGE_ENABLED
+
+    MERGE_ENABLED = not MERGE_ENABLED
+    await update_settings_message(callback_query.message)
     
 # Callback query handler for the "sunrises24_bot_updates" button
 @Client.on_callback_query(filters.regex("^sunrises24_bot_updates$"))
@@ -59,6 +148,35 @@ async def sunrises24_bot_updates_callback(_, callback_query):
     await callback_query.answer("MADE BY @SUNRISES24BOTUPDATES ❤️", show_alert=True)    
 
 
+async def update_settings_message(message):
+    global METADATA_ENABLED, PHOTO_ATTACH_ENABLED, MIRROR_ENABLED, RENAME_ENABLED, REMOVETAGS_ENABLED, CHANGE_INDEX_ENABLED
+
+    metadata_status = "✅ Enabled" if METADATA_ENABLED else "❌ Disabled"
+    photo_attach_status = "✅ Enabled" if PHOTO_ATTACH_ENABLED else "❌ Disabled"
+    mirror_status = "✅ Enabled" if MIRROR_ENABLED else "❌ Disabled"
+    rename_status = "✅ Enabled" if RENAME_ENABLED else "❌ Disabled"
+    removealltags_status = "✅ Enabled" if REMOVETAGS_ENABLED else "❌ Disabled"
+    change_index_status = "✅ Enabled" if CHANGE_INDEX_ENABLED else "❌ Disabled"
+    merge_video_status = "✅ Enabled" if MERGE_ENABLED else "❌ Disabled"    
+      
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],            
+            [InlineKeyboardButton(f"{rename_status} Change Rename 📝", callback_data="toggle_rename")],
+            [InlineKeyboardButton(f"{removealltags_status} Remove All Tags 📛", callback_data="toggle_removealltags")],
+            [InlineKeyboardButton(f"{metadata_status} Change Metadata ☄️", callback_data="toggle_metadata")],            
+            [InlineKeyboardButton(f"{change_index_status} Change Index ♻️", callback_data="toggle_change_index")],
+            [InlineKeyboardButton(f"{merge_video_status} Merge Video 🎞️", callback_data="toggle_merge_video")],
+            [InlineKeyboardButton(f"{photo_attach_status} Attach Photo 🖼️", callback_data="toggle_photo_attach")],                        
+            [InlineKeyboardButton(f"{multitask_status} Mirror 💽", callback_data="toggle_mirror")],            
+            [InlineKeyboardButton("Close ❌", callback_data="del")],
+            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")]
+        ]
+    )
+
+    await message.edit_text("Use inline buttons to manage your settings:", reply_markup=keyboard)
+    
+    
 
 @Client.on_callback_query(filters.regex("^set_sample_video_duration_"))
 async def set_sample_video_duration(client, callback_query: CallbackQuery):
