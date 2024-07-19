@@ -2207,6 +2207,28 @@ async def progress_hook(status_message):
     return hook
 
 
+async def progress_hook(status_message):
+    async def hook(d):
+        if d['status'] == 'downloading':
+            current_progress = d.get('_percent_str', '0%')
+            current_size = humanbytes(d.get('total_bytes', 0))
+            await safe_edit_message(status_message, f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
+        elif d['status'] == 'finished':
+            await safe_edit_message(status_message, "Download finished. 🚀")
+    return hook
+
+def download_thumbnail(thumbnail_url, file_name):
+    try:
+        response = requests.get(thumbnail_url)
+        if response.status_code == 200:
+            with open(file_name, 'wb') as f:
+                f.write(response.content)
+            return True
+        else:
+            return False
+    except Exception as e:
+        print(f"Error downloading thumbnail: {e}")
+        return False
 
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
@@ -2276,6 +2298,8 @@ async def callback_query_handler(client: Client, query):
     quality = selected_format.get('format_note', 'Unknown')
     file_size = selected_format.get('filesize', 0)
     file_name = f"{video_title} - {quality}.mkv"
+    thumbnail_url = selection['thumbnail']
+    thumbnail_file = "thumbnail.jpg"
 
     sts = await query.message.reply_text(f"🚀 Downloading {quality} - {humanbytes(file_size)}... ⚡")
 
@@ -2295,8 +2319,10 @@ async def callback_query_handler(client: Client, query):
         if not os.path.exists(file_name):
             return await safe_edit_message(sts, "Error: Download failed. File not found.")
 
-        file_thumb = await db.get_thumbnail(user_id)
-        if not file_thumb:
+        # Download thumbnail
+        if thumbnail_url and download_thumbnail(thumbnail_url, thumbnail_file):
+            file_thumb = thumbnail_file
+        else:
             file_thumb = None
         
         if file_size >= FILE_SIZE_LIMIT:
@@ -2313,14 +2339,19 @@ async def callback_query_handler(client: Client, query):
         else:
             await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
             caption = f"**Uploaded Document 📄**: {file_name}\n\n🌟 Size: {humanbytes(file_size)}"
-            with open(file_name, 'rb') as file:
-                await query.message.reply_document(
-                    document=file,
-                    caption=caption,
-                    thumb=file_thumb,
-                    progress=progress_message,
-                    progress_args=("💠 Upload Started... ⚡", sts, time.time())
-                )
+            
+            try:
+                with open(file_name, 'rb') as file:
+                    await query.message.reply_document(
+                        document=file,
+                        caption=caption,
+                        thumb=file_thumb,
+                        progress=progress_message,
+                        progress_args=("💠 Upload Started... ⚡", sts, time.time())
+                    )
+            except Exception as e:
+                await safe_edit_message(sts, f"Error uploading file: {e}")
+                return
 
     except Exception as e:
         await safe_edit_message(sts, f"Error: {e}")
@@ -2328,6 +2359,8 @@ async def callback_query_handler(client: Client, query):
     finally:
         if os.path.exists(file_name):
             os.remove(file_name)
+        if os.path.exists(thumbnail_file):
+            os.remove(thumbnail_file)
         await sts.delete()
         await query.message.delete()
 
