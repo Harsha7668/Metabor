@@ -41,7 +41,13 @@ Exᴘʟᴏʀᴇ sɪᴍᴘʟɪᴄɪᴛʏ! 💥
 joined_channel_1 = {}
 joined_channel_2 = {}
 
-
+async def notify_log_channel(message: str):
+    """Send notification to the log channel."""
+    try:
+        await bot.send_message(LOG_CHANNEL_ID, message)
+    except PyMongoError as e:
+        print(f"An error occurred while sending log message: {e}")
+        
 
 @Client.on_message(filters.command("start"))
 async def start(bot: Client, msg: Message):
