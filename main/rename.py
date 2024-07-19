@@ -2265,10 +2265,10 @@ async def callback_query_handler(client: Client, query):
     user_id = query.from_user.id
     format_id = query.data
 
-    if user_id not in user_quality_selection:
+    if user_id not in db.user_quality_selection:
         return await query.answer("No download in progress.")
 
-    selection = user_quality_selection.pop(user_id)
+    selection = db.user_quality_selection.pop(user_id)
     url = selection['url']
     video_title = selection['title']
     thumbnail_url = selection['thumbnail']
