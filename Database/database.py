@@ -364,7 +364,7 @@ class Database:
             print(f"An error occurred while retrieving banned user: {e}")
             raise
      
-    async def clear_all(self):
+    async def clear_database(self):
         # Drop all collections
         await self.users_col.drop()
         await self.files_col.drop()
