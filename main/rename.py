@@ -2193,12 +2193,10 @@ async def clean_files(bot, msg: Message):
 
 
 from yt_dlp import YoutubeDL
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 import os
-import time
 
-# Function to handle progress updates
+# Global variables removed
+
 async def progress_hook(status_message):
     async def hook(d):
         if d['status'] == 'downloading':
@@ -2248,18 +2246,18 @@ async def ytdlleech_handler(client: Client, msg: Message):
             ]
             buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
             await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
-            
-            # Save user's quality selection in the database
-            await db.save_user_quality_selection(msg.from_user.id, {
+            db.user_quality_selection[msg.from_user.id] = {
                 'url': url,
                 'title': info_dict['title'],
                 'thumbnail': info_dict.get('thumbnail'),
                 'formats': formats
-            })
+            }
+
+            # Save video title and URL to the database
+            await db.save_video_data(msg.from_user.id, {'title': info_dict['title'], 'url': url})
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
-
 
 # Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+$"))
@@ -2267,89 +2265,85 @@ async def callback_query_handler(client: Client, query):
     user_id = query.from_user.id
     format_id = query.data
 
+    if user_id not in user_quality_selection:
+        return await query.answer("No download in progress.")
+
+    selection = user_quality_selection.pop(user_id)
+    url = selection['url']
+    video_title = selection['title']
+    thumbnail_url = selection['thumbnail']
+    formats = selection['formats']
+
+    selected_format = next((f for f in formats if f['format_id'] == format_id), None)
+    if not selected_format:
+        return await query.answer("Invalid format selection.")
+
+    quality = selected_format.get('format_note', 'Unknown')
+    file_size = selected_format.get('filesize', 0)
+
+    sts = await query.message.reply_text(f"🚀 Downloading {quality} - {humanbytes(file_size)}... ⚡")
+
+    ydl_opts = {
+        'format': f'{format_id}+bestaudio/best',  # Ensure video and audio are merged
+        'outtmpl': f"{video_title}.mkv",  # Adjust the output file name to use MKV
+        'quiet': True,
+        'noplaylist': True,
+        'progress_hooks': [await progress_hook(status_message=sts)],  # Await the progress hook correctly
+        'merge_output_format': 'mkv'  # Ensure the output is in MKV format
+    }
+    download_path = f"{video_title}.mkv"
+    file_thumb = None
+
     try:
-        # Retrieve user's quality selection from the database
-        selection_data = await db.get_user_quality_selection(user_id)
-        if not selection_data:
-            return await query.answer("No download in progress.")
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
 
-        url = selection_data['url']
-        video_title = selection_data['title']
-        thumbnail_url = selection_data['thumbnail']
-        formats = selection_data['formats']
-
-        selected_format = next((f for f in formats if f['format_id'] == format_id), None)
-        if not selected_format:
-            return await query.answer("Invalid format selection.")
-
-        quality = selected_format.get('format_note', 'Unknown')
-        file_size = selected_format.get('filesize', 0)
-
-        sts = await query.message.reply_text(f"🚀 Downloading {quality} - {humanbytes(file_size)}... ⚡")
-
-        download_path = f"{video_title}.mkv"  # File name based on video title
-        file_thumb = None
-
-        ydl_opts = {
-            'format': f'{format_id}+bestaudio/best',  # Ensure video and audio are merged
-            'outtmpl': download_path,  # Adjust the output file name to use MKV
-            'quiet': True,
-            'noplaylist': True,
-            'progress_hooks': [await progress_hook(status_message=sts)],  # Await the progress hook correctly
-            'merge_output_format': 'mkv'  # Ensure the output is in MKV format
-        }
-
-        try:
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-
-            if thumbnail_url:
-                thumbnail_path = f"thumbnail_{video_title}.jpg"
+        if thumbnail_url:
+            file_thumb = await db.get_thumbnail(user_id)
+            if not file_thumb:
+                thumbnail_path = f"{video_title}_thumbnail.jpg"
                 ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
                 with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
                     ydl_thumb.download([thumbnail_url])
                 file_thumb = thumbnail_path
-                # Save the thumbnail file ID to the database
-                thumbnail_file_id = await upload_thumbnail_to_cloud(thumbnail_path)  # Assume this function uploads and returns file_id
-                await db.save_thumbnail(user_id, thumbnail_file_id)
+                await db.save_thumbnail(user_id, file_thumb)
 
-            if file_size >= FILE_SIZE_LIMIT:
-                await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
-                file_link = await upload_to_google_drive(download_path, f"{video_title}.mkv", sts)
-                button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-                await query.message.reply_text(
-                    f"**File successfully uploaded to Google Drive!**\n\n"
-                    f"**Google Drive Link**: [View File]({file_link})\n\n"
-                    f"**Uploaded File**: {video_title}.mkv\n"
-                    f"**Size**: {humanbytes(file_size)}",
-                    reply_markup=InlineKeyboardMarkup(button)
-                )
-            else:
-                await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
-                caption = f"**Uploaded Document 📄**: {video_title}.mkv\n\n🌟 Size: {humanbytes(file_size)}"
-                thumb_id = await db.get_thumbnail(user_id)
-                await query.message.reply_document(
-                    document=open(download_path, 'rb'),
-                    caption=caption,
-                    thumb=thumb_id,
-                    progress=progress_message,
-                    progress_args=("💠 Upload Started... ⚡", sts, time.time())
-                )
-
-        except Exception as e:
-            await safe_edit_message(sts, f"Error: {e}")
-
-        finally:
-            # Cleanup temporary files
-            if os.path.exists(download_path):
-                os.remove(download_path)
-            if file_thumb and os.path.exists(file_thumb):
-                os.remove(file_thumb)
-            await sts.delete()
-            await query.message.delete()  # Delete the original message after processing
+        if file_size >= FILE_SIZE_LIMIT:
+            await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
+            file_link = await upload_to_google_drive(download_path, f"{video_title}.mkv", sts)
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+            await query.message.reply_text(
+                f"**File successfully uploaded to Google Drive!**\n\n"
+                f"**Google Drive Link**: [View File]({file_link})\n\n"
+                f"**Uploaded File**: {video_title}.mkv\n"
+                f"**Size**: {humanbytes(file_size)}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        else:
+            await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
+            caption = f"**Uploaded Document 📄**: {video_title}.mkv\n\n🌟 Size: {humanbytes(file_size)}"
+            await query.message.reply_document(
+                document=open(download_path, 'rb'),
+                caption=caption,
+                thumb=file_thumb,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, time.time())
+            )
 
     except Exception as e:
-        await query.answer(f"An error occurred: {e}")
+        await safe_edit_message(sts, f"Error: {e}")
+
+    finally:
+        if os.path.exists(download_path):
+            os.remove(download_path)
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
+        await sts.delete()
+        await query.message.delete()
+
+
+
+
         
 
 import datetime
