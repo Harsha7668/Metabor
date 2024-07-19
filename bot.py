@@ -1,13 +1,13 @@
 #SUNRISES24BOTS
 #TG:@SUNRISES_24
 from pyrogram import Client
+from aiohttp import web
+from main.web_support import web_server
 from config import *
 import os
 
 
-class Bot(Client):
-    if not os.path.isdir(DOWNLOAD_LOCATION):
-        os.makedirs(DOWNLOAD_LOCATION)
+class Bot(Client):    
 
     def __init__(self):
         super().__init__(
@@ -21,8 +21,12 @@ class Bot(Client):
         )
     async def start(self):
         await super().start()
-        me = await self.get_me()      
-        print(f"{me.first_name} | @{me.username} 𝚂𝚃𝙰𝚁𝚃𝙴𝙳...⚡️")
+        me = await self.get_me()
+        app = web.AppRunner(await web_server())
+        await app.setup()
+        bind_address = "0.0.0.0"
+        await web.TCPSite(app, bind_address, PORT).start()        
+        await self.send_message(f"{me.first_name} | @{me.username} 𝚂𝚃𝙰𝚁𝚃𝙴𝙳...⚡️")
         
         
     async def stop(self, *args):
