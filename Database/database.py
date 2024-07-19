@@ -250,14 +250,16 @@ class Database:
         return []
 
     async def save_user_quality_selection(self, user_id, selection_data):
-        await self.user_quality_selection_col.update_one(
+        result = await self.user_quality_selection_col.update_one(
             {'user_id': user_id},
             {'$set': selection_data},
             upsert=True
         )
+        return result
 
     async def get_user_quality_selection(self, user_id):
-        return await self.user_quality_selection_col.find_one({'user_id': user_id})
+        selection_data = await self.user_quality_selection_col.find_one({'user_id': user_id})
+        return selection_data
 
      # Function to store media info in MongoDB
     async def store_media_info_in_db(self, media_info):
@@ -265,14 +267,17 @@ class Database:
         return result.inserted_id
 
     async def save_file_data(self, user_id, file_data):
-        await self.file_data_col.update_one(
+        result = await self.file_data_col.update_one(
             {'user_id': user_id},
             {'$set': file_data},
             upsert=True
         )
-        
+        return result
+
+   
     async def get_file_data(self, user_id):
-        return await self.file_data_col.find_one({'user_id': user_id})
+        file_data = await self.file_data_col.find_one({'user_id': user_id})
+        return file_data
 
     async def save_stats(self, stats):
         try:
