@@ -44,7 +44,7 @@ EXTRACT_ENABLED = True
 
 
 
-@@Client.on_message(filters.command("bsettings") & filters.user(ADMIN))
+@Client.on_message(filters.command("bsettings") & filters.user(ADMIN))
 async def bot_settings_command(client, msg):
     toggles = await db.get_toggle_settings(msg.from_user.id)
     await display_bot_settings_inline(msg, toggles)
