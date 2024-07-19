@@ -6,11 +6,7 @@ from pyrogram.errors import UserNotParticipant, UserBannedInChannel
 from config import *
 from Database.database import db
 from pymongo.errors import PyMongoError
-import psutil
-from datetime import datetime, timedelta
 
-# Global variables
-START_TIME = datetime.now()
 
 
 START_TEXT = """
