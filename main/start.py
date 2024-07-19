@@ -142,7 +142,7 @@ async def handle_private_message(bot: Client, msg: Message):
     user_id = msg.chat.id
     
     # Fetch user membership status from the database
-    joined_channel_1, joined_channel_2 = await db.get_user_membership(user_id)
+    joined_channel_1, joined_channe2 = await db.get_user_membership(user_id)
     
     # Check membership for updates channel
     if FSUB_UPDATES and not await check_membership(bot, msg, FSUB_UPDATES, joined_channel_1, "Please join my updates channel before using me.", f"https://t.me/{FSUB_UPDATES}"):
