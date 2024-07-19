@@ -312,12 +312,17 @@ class Database:
             upsert=True
          )
 
-    async def get_user_membership(user_id: int):
-        """Fetch the user's membership status from the database."""
-        user = users_collection.find_one({"user_id": user_id})
-        if user:
-            return user.get('joined_updates_channel', False), user.get('joined_group_channel', False)
-        return False, False
+    async def get_user_membership(self, user_id):
+        try:
+            user = await self.users_col.find_one({"user_id": user_id})
+            if user:
+                return user.get('joined_updates_channel', False), user.get('joined_group_channel', False)
+            return False, False
+        except PyMongoError as e:
+            print(f"An error occurred while retrieving user membership: {e}")
+            raise
+
+    
 
     async def add_user(user_id: int, username: str):
         """Add or update a user in the database."""
