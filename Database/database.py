@@ -269,8 +269,8 @@ class Database:
         )
 
     async def get_file_data(user_id):
-    file_data = await self.files_col.find_one({'id': user_id})
-    return file_data
+        file_data = await self.files_col.find_one({'id': user_id})
+        return file_data
     
 # Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)    
