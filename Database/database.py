@@ -12,6 +12,8 @@ class Database:
         self.media_info_col = self.db.media_info  # Collection for storing media info
         self.stats_col = self.db.stats  # Collection for storing server stats
         self.banned_col = self.db["banned_users"]
+        self.user_quality_selection_col = self.db['user_quality_selection']
+        self.file_data_col = self.db['file_data']
     
     async def update_user_settings(self, user_id, settings):
         await self.users_col.update_one({'id': user_id}, {'$set': {'settings': settings}}, upsert=True)
@@ -248,33 +250,29 @@ class Database:
         return []
 
     async def save_user_quality_selection(self, user_id, selection_data):
-        await self.db.users.update_one(
-            {'id': user_id},
-            {'$set': {'settings.quality_selection': selection_data}},
+        await self.user_quality_selection_col.update_one(
+            {'user_id': user_id},
+            {'$set': selection_data},
             upsert=True
         )
 
-    async def user_quality_selection(self, user_id):
-        user = await self.db.users.find_one({'id': user_id})
-        if user:
-            return user.get('settings', {}).get('quality_selection')
-        return None
+    async def get_user_quality_selection(self, user_id):
+        return await self.user_quality_selection_col.find_one({'user_id': user_id})
 
      # Function to store media info in MongoDB
     async def store_media_info_in_db(self, media_info):
         result = await self.media_info_col.insert_one(media_info)
         return result.inserted_id
 
-    async def save_file_data(user_id, file_data):
-        await self.files_col.update_one(
-            {'id': user_id},
+    async def save_file_data(self, user_id, file_data):
+        await self.file_data_col.update_one(
+            {'user_id': user_id},
             {'$set': file_data},
             upsert=True
         )
-
-    async def get_file_data(user_id):
-        file_data = await self.files_col.find_one({'id': user_id})
-        return file_data
+        
+    async def get_file_data(self, user_id):
+        return await self.file_data_col.find_one({'user_id': user_id})
 
     async def save_stats(self, stats):
         try:
