@@ -27,7 +27,7 @@ from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, 
 from googleapiclient.errors import HttpError
 from Database.database import db
 import psutil
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 # Global variables
 START_TIME = datetime.now()
@@ -2799,7 +2799,7 @@ async def ban_user(bot, msg):
     try:
         user_id = int(msg.text.split()[1])
         await db.ban_user(user_id)
-        await bot.kick_chat_member(chat_id=msg.chat.id, user_id=user_id)  # Optionally remove user from chat
+        await bot.ban_chat_member(chat_id=msg.chat.id, user_id=user_id)  # Use ban_chat_member
         await msg.reply_text(f"User {user_id} has been banned.")
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
@@ -2809,11 +2809,10 @@ async def unban_user(bot, msg):
     try:
         user_id = int(msg.text.split()[1])
         await db.unban_user(user_id)
-        await bot.unban_chat_member(chat_id=msg.chat.id, user_id=user_id)  # Optionally restore user to chat
+        await bot.unban_chat_member(chat_id=msg.chat.id, user_id=user_id)  # Use unban_chat_member
         await msg.reply_text(f"User {user_id} has been unbanned.")
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
-
 
 
 
