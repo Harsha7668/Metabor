@@ -301,16 +301,19 @@ class Database:
 
  
 
-    async def update_user_membership(user_id: int, joined_updates_channel: bool, joined_group_channel: bool):
-        """Update the user's membership status in the database."""
-        users_collection.update_one(
-            {"user_id": user_id},
-            {"$set": {
-                "joined_updates_channel": joined_updates_channel,
-                "joined_group_channel": joined_group_channel
-            }},
-            upsert=True
-         )
+    async def update_user_membership(self, user_id, joined_channel_1, joined_channel_2):
+        try:
+        # Update the user's membership status in the database
+            await self.users_col.update_one(
+                {"user_id": user_id},
+                {"$set": {"joined_updates_channel": joined_channel_1, "joined_group_channel": joined_channel_2}},
+                upsert=True
+            )
+        except PyMongoError as e:
+            print(f"An error occurred while updating user membership: {e}")
+            raise
+
+     
 
     async def get_user_membership(self, user_id):
         try:
