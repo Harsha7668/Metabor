@@ -2337,12 +2337,14 @@ import datetime
 import os
 import subprocess
 from html_telegraph_poster import TelegraphPoster
+from pyrogram import Client, filters
 
 # Initialize Telegraph
 telegraph = TelegraphPoster(use_api=True)
 telegraph.create_api_token("MediaInfoBot")
 
-
+# Initialize your Database instance
+db = Database(uri="your_mongodb_uri", database_name="your_database_name")
 
 # Command handler for /mediainfo
 @Client.on_message(filters.command("mediainfo") & filters.private)
@@ -2365,7 +2367,7 @@ async def mediainfo_handler(client, message):
             raise ValueError("No valid media found in the replied message.")
 
         # Get media info using mediainfo command
-        media_info_html = get_mediainfo(file_path)
+        media_info_html, media_info_summary = get_mediainfo(file_path)
 
         # Get current date
         current_date = datetime.datetime.now().strftime("%B %d, %Y")
@@ -2396,16 +2398,17 @@ async def mediainfo_handler(client, message):
         )
         telegraph_url = f"https://telegra.ph/{response['path']}"
 
-        # Prepare message with links
+        # Prepare message with summary and links
         message_text = (
-            f"SUNRISES 24 BOT UPDATES\n"
-            f"MediaInfo X\n"
+            f"**SUNRISES 24 BOT UPDATES**\n"
+            f"**MediaInfo X**\n"
             f"{current_date} by [SUNRISES 24 BOT UPDATES](https://t.me/Sunrises24BotUpdates)\n\n"
-            f"[View Info on Telegraph]({telegraph_url})\n"
+            f"{media_info_summary}\n\n"
+            f"[View Detailed Info on Telegraph]({telegraph_url})\n"
             f"Rights designed by Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ"
         )
 
-        # Reply with media info and link
+        # Reply with media info summary and link
         await message.reply_text(message_text)
 
     except Exception as e:
@@ -2429,9 +2432,46 @@ def get_mediainfo(file_path):
     stdout, stderr = process.communicate()
     if process.returncode != 0:
         raise Exception(f"Error getting media info: {stderr.decode().strip()}")
-    return stdout.decode().strip()
+    media_info_html = stdout.decode().strip()
 
+    process_summary = subprocess.Popen(
+        ["mediainfo", file_path, "--Output=JSON"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout_summary, stderr_summary = process_summary.communicate()
+    if process_summary.returncode != 0:
+        raise Exception(f"Error getting media info summary: {stderr_summary.decode().strip()}")
+    media_info_json = stdout_summary.decode().strip()
+    
+    media_info_summary = parse_media_info_summary(media_info_json)
 
+    return media_info_html, media_info_summary
+
+def parse_media_info_summary(media_info_json):
+    import json
+    info = json.loads(media_info_json)
+    tracks = info.get("media", {}).get("track", [])
+    summary = ""
+    for track in tracks:
+        if track.get("@type") == "General":
+            summary += f"**File Name:** {track.get('CompleteName', 'N/A')}\n"
+            summary += f"**File Size:** {track.get('FileSize/String', 'N/A')}\n"
+            summary += f"**Duration:** {track.get('Duration/String', 'N/A')}\n"
+            summary += f"**Overall Bit Rate:** {track.get('OverallBitRate/String', 'N/A')}\n\n"
+        elif track.get("@type") == "Video":
+            summary += f"**Video:**\n"
+            summary += f"**Format:** {track.get('Format', 'N/A')}\n"
+            summary += f"**Codec ID:** {track.get('CodecID', 'N/A')}\n"
+            summary += f"**Width:** {track.get('Width', 'N/A')}\n"
+            summary += f"**Height:** {track.get('Height', 'N/A')}\n"
+            summary += f"**Frame Rate:** {track.get('FrameRate', 'N/A')}\n\n"
+        elif track.get("@type") == "Audio":
+            summary += f"**Audio:**\n"
+            summary += f"**Format:** {track.get('Format', 'N/A')}\n"
+            summary += f"**Channels:** {track.get('Channel(s)', 'N/A')}\n"
+            summary += f"**Sampling Rate:** {track.get('SamplingRate/String', 'N/A')}\n\n"
+    return summary.strip()
 
 
 
