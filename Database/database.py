@@ -32,18 +32,25 @@ class Database:
             return user.get('settings', default_settings)
         return default_settings
     
-    async def save_toggle_settings(self, user_id, toggles):
-        await self.settings_col.update_one(
-            {'user_id': user_id},
-            {'$set': {'toggles': toggles}},
-            upsert=True
-        )
+    async def save_toggle_settings(self, user_id, settings):
+        try:
+            await self.settings_col.update_one(
+                {'user_id': user_id},
+                {'$set': settings},
+                upsert=True
+            )
+        except Exception as e:
+            print(f"An error occurred while saving toggle settings: {e}")
 
     async def get_toggle_settings(self, user_id):
-        user = await self.settings_col.find_one({'user_id': user_id})
-        if user:
-            return user.get('toggles', {})
-        return {}
+        try:
+            user = await self.settings_col.find_one({'user_id': user_id})
+            if user:
+                return user
+            return {}
+        except Exception as e:
+            print(f"An error occurred while retrieving toggle settings: {e}")
+            return {}
         
     async def save_sample_video_settings(self, user_id, sample_video_duration, screenshots):
         await self.users_col.update_one(
@@ -293,8 +300,8 @@ class Database:
                 {'$set': stats},
                 upsert=True
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"An error occurred while saving stats: {e}")
 
     async def get_stats(self):
         try:
@@ -302,24 +309,20 @@ class Database:
             if stats:
                 return stats
             return {}
-        except Exception:
+        except Exception as e:
+            print(f"An error occurred while retrieving stats: {e}")
             return {}
 
-    async def get_user_count(self):
+    async def get_users_count(self):
         try:
-            count = await self.users_col.count_documents({})
-            return count
-        except Exception:
-            return 0
+            total_users = await self.users_col.count_documents({})
+            blocked_users = await self.users_col.count_documents({'blocked': True})
+            return total_users, blocked_users
+        except Exception as e:
+            print(f"An error occurred while counting users: {e}")
+            return 0, 0
 
 
-    async def get_blocked_user_count(self):
-        try:
-            count = await self.users_col.count_documents({'blocked': True})
-            return count
-        except Exception:
-            return 0
-    
 # Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)    
 
