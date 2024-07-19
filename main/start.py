@@ -37,7 +37,9 @@ Exᴘʟᴏʀᴇ sɪᴍᴘʟɪᴄɪᴛʏ! 💥
 """
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
- 
+
+
+# Use dictionaries to track channel membership
 joined_channel_1 = {}
 joined_channel_2 = {}
 
@@ -61,7 +63,7 @@ async def start(bot, msg: Message):
                 return
         except UserNotParticipant:
             await msg.reply_text(
-                text="**Please join my first updates channel before using me.**",
+                text="**Please join my updates channel before using me.**",
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton(text="Join Updates Channel", url=f"https://t.me/{FSUB_UPDATES}")]
                 ])
@@ -80,7 +82,7 @@ async def start(bot, msg: Message):
                 return
         except UserNotParticipant:
             await msg.reply_text(
-                text="**Please join my Group before using me.**",
+                text="**Please join my group before using me.**",
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton(text="JOIN GROUP", url=f"https://t.me/{FSUB_GROUP}")]
                 ])
@@ -113,7 +115,7 @@ async def start(bot, msg: Message):
     )
 
     # Log user details (only for the first interaction if needed)
-    if user_id not in joined_channel_1:
+    if not joined_channel_1.get(user_id) and not joined_channel_2.get(user_id):
         log_message = (
             f"💬**User Joined**:\n"
             f"🆔**ID**: {user_id}\n"
@@ -122,7 +124,8 @@ async def start(bot, msg: Message):
         try:
             await bot.send_message(LOG_CHANNEL_ID, log_message)
         except PyMongoError as e:
-            print(f"An error occurred while sending log message: {e}")
+            print(f"An error occurred while sending log message: {e}") 
+
 
 
 async def check_membership(bot, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
