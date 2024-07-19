@@ -61,6 +61,16 @@ class Database:
         except PyMongoError as e:
             print(f"An error occurred while banning user: {e}")
             raise
+
+    async def unban_user(self, user_id):
+        try:
+            # Remove user from banned list
+            await self.banned_col.delete_one({"user_id": user_id})
+            # Re-add user to active users collection (if needed)
+            # User re-addition logic can be added here if desired
+        except PyMongoError as e:
+            print(f"An error occurred while unbanning user: {e}")
+            raise
     
     async def update_user_settings(self, user_id, settings):
         await self.users_col.update_one({'id': user_id}, {'$set': {'settings': settings}}, upsert=True)
@@ -421,16 +431,7 @@ class Database:
             raise
 """  
 
-    async def unban_user(self, user_id):
-        try:
-            # Remove user from banned list
-            await self.banned_col.delete_one({"user_id": user_id})
-            # Re-add user to active users collection (if needed)
-            # User re-addition logic can be added here if desired
-        except PyMongoError as e:
-            print(f"An error occurred while unbanning user: {e}")
-            raise
-
+    
     async def get_user(self, user_id):
         try:
             return await self.users_col.find_one({"user_id": user_id})
