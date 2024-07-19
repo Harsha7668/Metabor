@@ -2195,8 +2195,16 @@ async def clean_files(bot, msg: Message):
 
 
 from yt_dlp import YoutubeDL
-from pymongo import MongoClient
 
+async def progress_hook(status_message):
+    async def hook(d):
+        if d['status'] == 'downloading':
+            current_progress = d.get('_percent_str', '0%')
+            current_size = humanbytes(d.get('total_bytes', 0))
+            await safe_edit_message(status_message, f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
+        elif d['status'] == 'finished':
+            await safe_edit_message(status_message, "Download finished. 🚀")
+    return hook
 
 # Function to handle YouTube download command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2323,14 +2331,12 @@ async def callback_query_handler(client: Client, query):
 
 
 
-import datetime
-import subprocess
 from html_telegraph_poster import TelegraphPoster
-from pymongo import MongoClient
 
 # Initialize Telegraph
 telegraph = TelegraphPoster(use_api=True)
 telegraph.create_api_token("MediaInfoBot")
+
 
 
 # Function to extract media information using mediainfo command
