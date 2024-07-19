@@ -2332,10 +2332,7 @@ from pymongo import MongoClient
 telegraph = TelegraphPoster(use_api=True)
 telegraph.create_api_token("MediaInfoBot")
 
-# Initialize MongoDB Client
-mongo_client = MongoClient('mongodb://localhost:27017/')
-db = mongo_client['your_database_name']  # Replace with your database name
-media_info_col = db['media_info']
+
 
 # Function to extract media information using mediainfo command
 def get_mediainfo(file_path):
@@ -2348,6 +2345,8 @@ def get_mediainfo(file_path):
     if process.returncode != 0:
         raise Exception(f"Error getting media info: {stderr.decode().strip()}")
     return stdout.decode().strip()
+
+
 
 
 @Client.on_message(filters.command("mediainfo") & filters.private)
