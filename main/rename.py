@@ -2192,28 +2192,9 @@ async def clean_files(bot, msg: Message):
         await msg.reply_text(f"An unexpected error occurred: {e}")
 
 
+
 from yt_dlp import YoutubeDL
 import os
-
-# Global variables removed
-
-async def progress_hook(status_message):
-    async def hook(d):
-        if d['status'] == 'downloading':
-            current_progress = d.get('_percent_str', '0%')
-            current_size = humanbytes(d.get('total_bytes', 0))
-            await safe_edit_message(status_message, f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
-        elif d['status'] == 'finished':
-            await safe_edit_message(status_message, "Download finished. 🚀")
-    return hook
-
-# Function to safely edit messages
-async def safe_edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit_text(new_text)
-    except Exception as e:
-        print(f"Error editing message: {e}")
 
 # Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
@@ -2288,7 +2269,7 @@ async def callback_query_handler(client: Client, query):
         'outtmpl': f"{video_title}.mkv",  # Adjust the output file name to use MKV
         'quiet': True,
         'noplaylist': True,
-        'progress_hooks': [await progress_hook(status_message=sts)],  # Await the progress hook correctly
+        'progress_hooks': [await progress_hook(status_message=sts)],  # Correctly call progress_hook
         'merge_output_format': 'mkv'  # Ensure the output is in MKV format
     }
     download_path = f"{video_title}.mkv"
@@ -2340,6 +2321,9 @@ async def callback_query_handler(client: Client, query):
             os.remove(file_thumb)
         await sts.delete()
         await query.message.delete()
+
+
+
 
 
 
