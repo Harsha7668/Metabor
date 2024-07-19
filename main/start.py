@@ -6,7 +6,11 @@ from pyrogram.errors import UserNotParticipant, UserBannedInChannel
 from config import *
 from Database.database import db
 from pymongo.errors import PyMongoError
+import psutil
+from datetime import datetime, timedelta
 
+# Global variables
+START_TIME = datetime.now()
 
 
 START_TEXT = """
@@ -312,3 +316,66 @@ async def unban_user(bot, msg):
         await msg.reply_text(f"User {user_id} has been unbanned.")
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
+
+
+
+
+@Client.on_message(filters.command("stats"))
+async def stats_command(_, msg):
+    uptime = datetime.now() - START_TIME
+    uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
+
+    total_space = psutil.disk_usage('/').total / (1024 ** 3)
+    used_space = psutil.disk_usage('/').used / (1024 ** 3)
+    free_space = psutil.disk_usage('/').free / (1024 ** 3)
+
+    cpu_usage = psutil.cpu_percent()
+    ram_usage = psutil.virtual_memory().percent
+
+    stats_message = (
+        f"📊 **Server Stats** 📊\n\n"
+        f"⏳ **Uptime:** `{uptime_str}`\n"
+        f"💾 **Total Space:** `{total_space:.2f} GB`\n"
+        f"📂 **Used Space:** `{used_space:.2f} GB` ({used_space / total_space * 100:.1f}%)\n"
+        f"📁 **Free Space:** `{free_space:.2f} GB`\n"
+        f"⚙️ **CPU Usage:** `{cpu_usage:.1f}%`\n"
+        f"💻 **RAM Usage:** `{ram_usage:.1f}%`\n"
+    )
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")]
+        ]
+    )
+
+    await msg.reply_text(stats_message, reply_markup=keyboard)
+
+@Client.on_callback_query(filters.regex("^refresh_stats$"))
+async def refresh_stats_callback(_, callback_query):
+    # Refresh stats
+    uptime = datetime.now() - START_TIME
+    uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
+
+    total_space = psutil.disk_usage('/').total / (1024 ** 3)
+    used_space = psutil.disk_usage('/').used / (1024 ** 3)
+    free_space = psutil.disk_usage('/').free / (1024 ** 3)
+
+    cpu_usage = psutil.cpu_percent()
+    ram_usage = psutil.virtual_memory().percent
+
+    stats_message = (
+        f"📊 **Server Stats** 📊\n\n"
+        f"⏳ **Uptime:** `{uptime_str}`\n"
+        f"💾 **Total Space:** `{total_space:.2f} GB`\n"
+        f"📂 **Used Space:** `{used_space:.2f} GB` ({used_space / total_space * 100:.1f}%)\n"
+        f"📁 **Free Space:** `{free_space:.2f} GB`\n"
+        f"⚙️ **CPU Usage:** `{cpu_usage:.1f}%`\n"
+        f"💻 **RAM Usage:** `{ram_usage:.1f}%`\n"
+    )
+
+    await callback_query.message.edit_text(stats_message, reply_markup=InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")]
+        ]
+    ))
+
