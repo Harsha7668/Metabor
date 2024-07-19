@@ -2318,24 +2318,35 @@ async def callback_query_handler(client: Client, query):
 
 
 
-
-
-
-        
-
 import datetime
-import os
 import subprocess
 from html_telegraph_poster import TelegraphPoster
-from pyrogram import Client, filters
+from pymongo import MongoClient
 
 # Initialize Telegraph
 telegraph = TelegraphPoster(use_api=True)
 telegraph.create_api_token("MediaInfoBot")
 
-# Command handler for /mediainfo
+# Initialize MongoDB Client
+mongo_client = MongoClient('mongodb://localhost:27017/')
+db = mongo_client['your_database_name']  # Replace with your database name
+media_info_col = db['media_info']
+
+# Function to extract media information using mediainfo command
+def get_mediainfo(file_path):
+    process = subprocess.Popen(
+        ["mediainfo", file_path, "--Output=HTML"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout, stderr = process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"Error getting media info: {stderr.decode().strip()}")
+    return stdout.decode().strip()
+
+
 @Client.on_message(filters.command("mediainfo") & filters.private)
-async def mediainfo_handler(client, message):
+async def mediainfo_handler(client: Client, message: Message):
     if not message.reply_to_message or (not message.reply_to_message.document and not message.reply_to_message.video):
         await message.reply_text("Please reply to a document or video to get media info.")
         return
@@ -2353,13 +2364,13 @@ async def mediainfo_handler(client, message):
         else:
             raise ValueError("No valid media found in the replied message.")
 
-        # Get media info using mediainfo command
+        # Get media info
         media_info_html = get_mediainfo(file_path)
 
-        # Get current date
+        # Get the current date
         current_date = datetime.datetime.now().strftime("%B %d, %Y")
 
-        # Prepare the media info with additional details
+        # Prepare the media info with additional details using allowed tags
         media_info_html = (
             f"<strong>SUNRISES 24 BOT UPDATES</strong><br>"
             f"<strong>MediaInfo X</strong><br>"
@@ -2369,12 +2380,12 @@ async def mediainfo_handler(client, message):
         )
 
         # Store media info in MongoDB
-        media_info = {
-            'title': media.file_name,
+        media_info_data = {
             'date': current_date,
-            'html_content': media_info_html
+            'media_info': media_info_html,
+            'media_id': media.file_id
         }
-        media_info_id = await db.store_media_info_in_db(media_info)
+        media_info_id = await db.store_media_info_in_db(media_info_data)
 
         # Upload the media info to Telegraph
         response = telegraph.post(
@@ -2383,42 +2394,32 @@ async def mediainfo_handler(client, message):
             author_url="https://t.me/Sunrises24BotUpdates",
             text=media_info_html
         )
-        telegraph_url = f"https://telegra.ph/{response['path']}"
+        link = f"https://graph.org/{response['path']}"
 
-        # Prepare message with links
+        # Prepare the final message with the Telegraph link
         message_text = (
             f"SUNRISES 24 BOT UPDATES\n"
             f"MediaInfo X\n"
             f"{current_date} by [SUNRISES 24 BOT UPDATES](https://t.me/Sunrises24BotUpdates)\n\n"
-            f"[View Info on Telegraph]({telegraph_url})\n"
+            f"[View Info on Telegraph]({link})\n"
             f"Rights designed by Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ"
         )
 
-        # Reply with media info and link
         await message.reply_text(message_text)
-
     except Exception as e:
         await message.reply_text(f"Error: {e}")
-
     finally:
-        # Clean up acknowledgment message
+        # Clean up the acknowledgment message
         await processing_message.delete()
 
-        # Clean up downloaded file
-        if os.path.exists(file_path):
+        # Clean up downloaded files
+        if 'file_path' in locals() and os.path.exists(file_path):
             os.remove(file_path)
 
-# Function to get media info using mediainfo command
-def get_mediainfo(file_path):
-    process = subprocess.Popen(
-        ["mediainfo", file_path, "--Output=HTML"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"Error getting media info: {stderr.decode().strip()}")
-    return stdout.decode().strip()
+
+        
+
+
 
 
 
