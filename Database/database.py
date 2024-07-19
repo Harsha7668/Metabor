@@ -258,7 +258,7 @@ class Database:
 
      # Function to store media info in MongoDB
     async def store_media_info_in_db(self, media_info):
-        result = await collection.insert_one(media_info)
+        result = await self.media_info_col.insert_one(media_info)
         return result.inserted_id
     
 # Initialize the database instance
