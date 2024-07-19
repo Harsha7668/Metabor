@@ -45,9 +45,8 @@ Exᴘʟᴏʀᴇ sɪᴍᴘʟɪᴄɪᴛʏ! 💥
 joined_channel_1 = {}
 joined_channel_2 = {}
 
-
 @Client.on_message(filters.command("start"))
-async def start(bot, msg):
+async def start(bot, msg: Message):
     user_id = msg.chat.id
     username = msg.from_user.username or "Unknown"
 
@@ -145,6 +144,7 @@ async def handle_private_message(bot, msg: Message):
     # Check membership for group channel
     if FSUB_GROUP and not await check_membership(bot, msg, FSUB_GROUP, joined_channel_2, "Please join my Group before using me.", f"https://t.me/{FSUB_GROUP}"):
         return
+
     
 
                           
