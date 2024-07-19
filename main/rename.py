@@ -2358,7 +2358,6 @@ async def callback_query_handler(client: Client, query):
 
 """
 
-
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
     if len(msg.command) < 2:
@@ -2392,7 +2391,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             file_data = {
                 'title': info_dict['title'],
-                'thumbnail': info_dict.get('thumbnail')
+                'thumbnail': info_dict.get('thumbnail')  # No default thumbnail path
             }
             await db.save_file_data(msg.from_user.id, file_data)
 
@@ -2427,7 +2426,6 @@ async def callback_query_handler(client: Client, query):
     quality = selected_format.get('format_note', 'Unknown')
     file_size = selected_format.get('filesize', 0)
     file_name = f"{video_title} - {quality}.mkv"
-    thumbnail_url = selection['thumbnail']
 
     sts = await query.message.reply_text(f"🚀 Downloading {quality} - {humanbytes(file_size)}... ⚡")
 
@@ -2446,8 +2444,9 @@ async def callback_query_handler(client: Client, query):
 
         if not os.path.exists(file_name):
             return await safe_edit_message(sts, "Error: Download failed. File not found.")
-
-        file_thumb = thumbnail_url if thumbnail_url else None
+        
+        # No thumbnail downloading
+        file_thumb = None
         
         if file_size >= FILE_SIZE_LIMIT:
             await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
@@ -2469,7 +2468,7 @@ async def callback_query_handler(client: Client, query):
                     await query.message.reply_document(
                         document=file,
                         caption=caption,
-                        thumb=file_thumb,  # Ensure this is either None or a valid URL
+                        thumb=file_thumb,  # No thumbnail
                         progress=progress_message,
                         progress_args=("💠 Upload Started... ⚡", sts, time.time())
                     )
