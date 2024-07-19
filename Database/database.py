@@ -328,7 +328,7 @@ class Database:
     """
 
     async def add_user(user_id: int, username: str):
-        """Add or update a user in the database."""
+           #Add or update a user in the database.
         users_collection.update_one(
             {"user_id": user_id},
             {"$set": {
