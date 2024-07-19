@@ -3,7 +3,7 @@
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 import subprocess
 import os
-import time, datetime
+import time
 import shutil
 import zipfile
 import tarfile
@@ -26,11 +26,12 @@ from googleapiclient.http import MediaFileUpload
 from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, get_files_in_folder, drive_service
 from googleapiclient.errors import HttpError
 from Database.database import db
-import psutil
+import datetime
 from datetime import timedelta
+import psutil
 
 # Global variables
-START_TIME = datetime.now()
+START_TIME = datetime.datetime.now()
 
 merge_state = {}
 
@@ -2815,10 +2816,9 @@ async def unban_user(bot, msg):
         await msg.reply_text(f"An error occurred: {e}")
 
 
-
 @Client.on_message(filters.command("stats"))
 async def stats_command(_, msg):
-    uptime = datetime.now() - START_TIME
+    uptime = datetime.datetime.now() - START_TIME
     uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
 
     total_space = psutil.disk_usage('/').total / (1024 ** 3)
@@ -2849,7 +2849,7 @@ async def stats_command(_, msg):
 @Client.on_callback_query(filters.regex("^refresh_stats$"))
 async def refresh_stats_callback(_, callback_query):
     # Refresh stats
-    uptime = datetime.now() - START_TIME
+    uptime = datetime.datetime.now() - START_TIME
     uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
 
     total_space = psutil.disk_usage('/').total / (1024 ** 3)
@@ -2874,7 +2874,6 @@ async def refresh_stats_callback(_, callback_query):
             [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")]
         ]
     ))
-
 
 
 
