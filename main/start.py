@@ -38,13 +38,11 @@ Exᴘʟᴏʀᴇ sɪᴍᴘʟɪᴄɪᴛʏ! 💥
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 
-
-# Use dictionaries to track channel membership
 joined_channel_1 = {}
 joined_channel_2 = {}
 
 @Client.on_message(filters.command("start"))
-async def start(bot, msg: Message):
+async def start(bot: Client, msg: Message):
     user_id = msg.chat.id
     username = msg.from_user.username or "Unknown"
 
@@ -56,41 +54,13 @@ async def start(bot, msg: Message):
 
     # Check for channel 1 (updates channel) membership
     if FSUB_UPDATES:
-        try:
-            user = await bot.get_chat_member(FSUB_UPDATES, user_id)
-            if user.status == "kicked":
-                await msg.reply_text("Sorry, you are **banned** from using this bot.")
-                return
-        except UserNotParticipant:
-            await msg.reply_text(
-                text="**Please join my updates channel before using me.**",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton(text="Join Updates Channel", url=f"https://t.me/{FSUB_UPDATES}")]
-                ])
-            )
-            joined_channel_1[user_id] = False
+        if not await check_membership(bot, msg, FSUB_UPDATES, joined_channel_1, "Please join my updates channel before using me.", f"https://t.me/{FSUB_UPDATES}"):
             return
-        else:
-            joined_channel_1[user_id] = True
 
     # Check for channel 2 (group) membership
     if FSUB_GROUP:
-        try:
-            user = await bot.get_chat_member(FSUB_GROUP, user_id)
-            if user.status == "kicked":
-                await msg.reply_text("Sorry, you are **banned** from using this bot.")
-                return
-        except UserNotParticipant:
-            await msg.reply_text(
-                text="**Please join my group before using me.**",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton(text="JOIN GROUP", url=f"https://t.me/{FSUB_GROUP}")]
-                ])
-            )
-            joined_channel_2[user_id] = False
+        if not await check_membership(bot, msg, FSUB_GROUP, joined_channel_2, "Please join my group before using me.", f"https://t.me/{FSUB_GROUP}"):
             return
-        else:
-            joined_channel_2[user_id] = True
 
     # Add or update user in the database
     try:
@@ -99,7 +69,7 @@ async def start(bot, msg: Message):
         print(f"An error occurred while adding user to the database: {e}")
 
     # Send start message with photo
-    start_text = START_TEXT.format(msg.from_user.first_name) if hasattr(msg, "message_id") else START_TEXT
+    start_text = START_TEXT.format(name=msg.from_user.first_name)
     await bot.send_photo(
         chat_id=user_id,
         photo=SUNRISES_PIC,
@@ -111,7 +81,7 @@ async def start(bot, msg: Message):
              InlineKeyboardButton("About 🧑🏻‍💻", callback_data="about")],
             [InlineKeyboardButton("Support ❤️‍🔥", url="https://t.me/Sunrises24botSupport")]
         ]),
-        reply_to_message_id=getattr(msg, "message_id", None)
+        reply_to_message_id=msg.message_id
     )
 
     # Log user details (only for the first interaction if needed)
@@ -124,32 +94,58 @@ async def start(bot, msg: Message):
         try:
             await bot.send_message(LOG_CHANNEL_ID, log_message)
         except PyMongoError as e:
-            print(f"An error occurred while sending log message: {e}") 
+            print(f"An error occurred while sending log message: {e}")
 
-
-
-async def check_membership(bot, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
+async def check_membership(bot: Client, msg: Message, fsub: str, joined_channel_dict: dict, prompt_text: str, join_url: str) -> bool:
     user_id = msg.chat.id
-    if user_id in joined_channel_dict and not joined_channel_dict[user_id]:
-        await msg.reply_text(
-            text=prompt_text,
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(text="Join Now", url=join_url)]
-            ])
-        )
-        return False
+    if user_id in joined_channel_dict:
+        if not joined_channel_dict[user_id]:
+            await msg.reply_text(
+                text=prompt_text,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton(text="Join Now", url=join_url)]
+                ])
+            )
+            return False
+    else:
+        # Check membership status if not already tracked
+        try:
+            user = await bot.get_chat_member(fsub, user_id)
+            if user.status in ["kicked", "left"]:
+                await msg.reply_text(
+                    text=prompt_text,
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton(text="Join Now", url=join_url)]
+                    ])
+                )
+                joined_channel_dict[user_id] = False
+                return False
+            else:
+                joined_channel_dict[user_id] = True
+        except UserNotParticipant:
+            await msg.reply_text(
+                text=prompt_text,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton(text="Join Now", url=join_url)]
+                ])
+            )
+            joined_channel_dict[user_id] = False
+            return False
+        except Exception as e:
+            print(f"An error occurred while checking membership: {e}")
+            return False
     return True
 
 @Client.on_message(filters.private & ~filters.command("start"))
-async def handle_private_message(bot, msg: Message):
+async def handle_private_message(bot: Client, msg: Message):
     user_id = msg.chat.id
     
     # Check membership for updates channel
-    if FSUB_UPDATES and not await check_membership(bot, msg, FSUB_UPDATES, joined_channel_1, "Please join my first updates channel before using me.", f"https://t.me/{FSUB_UPDATES}"):
+    if FSUB_UPDATES and not await check_membership(bot, msg, FSUB_UPDATES, joined_channel_1, "Please join my updates channel before using me.", f"https://t.me/{FSUB_UPDATES}"):
         return
     
     # Check membership for group channel
-    if FSUB_GROUP and not await check_membership(bot, msg, FSUB_GROUP, joined_channel_2, "Please join my Group before using me.", f"https://t.me/{FSUB_GROUP}"):
+    if FSUB_GROUP and not await check_membership(bot, msg, FSUB_GROUP, joined_channel_2, "Please join my group before using me.", f"https://t.me/{FSUB_GROUP}"):
         return
 
     
