@@ -42,6 +42,81 @@ joined_channel_1 = {}
 joined_channel_2 = {}
 
 
+@Client.on_message(filters.command("start"))
+async def start(bot, msg):
+    user_id = msg.chat.id
+    username = msg.from_user.username or "Unknown"
+
+    # Check for channel 1 (updates channel) membership
+    if FSUB_UPDATES:
+        try:
+            user = await bot.get_chat_member(FSUB_UPDATES, user_id)
+            if user.status == "kicked":
+                await msg.reply_text("Sorry, you are **banned**.")
+                return
+        except UserNotParticipant:
+            await msg.reply_text(
+                text="**Please join my first updates channel before using me.**",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton(text="Join Updates Channel", url=f"https://t.me/{FSUB_UPDATES}")]
+                ])
+            )
+            joined_channel_1[user_id] = False
+            return
+        else:
+            joined_channel_1[user_id] = True
+
+    # Check for channel 2 (group) membership
+    if FSUB_GROUP:
+        try:
+            user = await bot.get_chat_member(FSUB_GROUP, user_id)
+            if user.status == "kicked":
+                await msg.reply_text("Sorry, you are **banned**.")
+                return
+        except UserNotParticipant:
+            await msg.reply_text(
+                text="**Please join my Group before using me.**",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton(text="JOIN GROUP", url=f"https://t.me/{FSUB_GROUP}")]
+                ])
+            )
+            joined_channel_2[user_id] = False
+            return
+        else:
+            joined_channel_2[user_id] = True
+
+    # Add user to database
+    try:
+        await db.add_user(user_id, username)
+    except PyMongoError as e:
+        print(f"An error occurred while adding user to the database: {e}")
+
+    # Send start message with photo
+    start_text = START_TEXT.format(msg.from_user.first_name) if hasattr(msg, "message_id") else START_TEXT
+    await bot.send_photo(
+        chat_id=user_id,
+        photo=SUNRISES_PIC,
+        caption=start_text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("Developer ❤️", url="https://t.me/Sunrises_24"),
+             InlineKeyboardButton("Updates 📢", url="https://t.me/Sunrises24botupdates")],
+            [InlineKeyboardButton("Help 🌟", callback_data="help"),
+             InlineKeyboardButton("About 🧑🏻‍💻", callback_data="about")],
+            [InlineKeyboardButton("Support ❤️‍🔥", url="https://t.me/Sunrises24botSupport")]
+        ]),
+        reply_to_message_id=getattr(msg, "message_id", None)
+    )
+
+    # Log user details to the log channel
+    log_message = (
+        f"New user joined:\n"
+        f"ID: {user_id}\n"
+        f"Username: {username}"
+    )
+    try:
+        await bot.send_message(LOG_CHANNEL_ID, log_message)
+    except PyMongoError as e:
+        print(f"An error occurred while sending log message: {e}")
 
 async def check_membership(bot, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
     user_id = msg.chat.id
