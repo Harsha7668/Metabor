@@ -2195,9 +2195,7 @@ async def clean_files(bot, msg: Message):
 
 
 from yt_dlp import YoutubeDL
-import os
 
-# Function to handle "/ytdlleech" command
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
     if len(msg.command) < 2:
@@ -2235,8 +2233,11 @@ async def ytdlleech_handler(client: Client, msg: Message):
                 'formats': formats
             }
 
-            # Save video title and URL to the database
-            await db.save_video_data(msg.from_user.id, {'title': info_dict['title'], 'url': url})
+            # Save video title and thumbnail to database
+            await db.save_file_data(msg.from_user.id, {
+                'title': info_dict['title'],
+                'thumbnail': info_dict.get('thumbnail')
+            })
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
@@ -2267,32 +2268,23 @@ async def callback_query_handler(client: Client, query):
 
     ydl_opts = {
         'format': f'{format_id}+bestaudio/best',  # Ensure video and audio are merged
-        'outtmpl': f"{video_title}.mkv",  # Adjust the output file name to use MKV
+        'outtmpl': f"{video_title}.mkv",  # Save to a temporary location
         'quiet': True,
         'noplaylist': True,
-        'progress_hooks': [await progress_hook(status_message=sts)],  # Correctly call progress_hook
+        'progress_hooks': [await progress_hook(status_message=sts)],  # Await the progress hook correctly
         'merge_output_format': 'mkv'  # Ensure the output is in MKV format
     }
-    download_path = f"{video_title}.mkv"
-    file_thumb = None
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        if thumbnail_url:
-            file_thumb = await db.get_thumbnail(user_id)
-            if not file_thumb:
-                thumbnail_path = f"{video_title}_thumbnail.jpg"
-                ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
-                with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
-                    ydl_thumb.download([thumbnail_url])
-                file_thumb = thumbnail_path
-                await db.save_thumbnail(user_id, file_thumb)
-
+        # Get thumbnail from database if needed
+        file_thumb = await db.get_thumbnail(user_id)
+        
         if file_size >= FILE_SIZE_LIMIT:
             await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
-            file_link = await upload_to_google_drive(download_path, f"{video_title}.mkv", sts)
+            file_link = await upload_to_google_drive(f"{video_title}.mkv", f"{video_title}.mkv", sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
                 f"**File successfully uploaded to Google Drive!**\n\n"
@@ -2305,7 +2297,7 @@ async def callback_query_handler(client: Client, query):
             await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
             caption = f"**Uploaded Document 📄**: {video_title}.mkv\n\n🌟 Size: {humanbytes(file_size)}"
             await query.message.reply_document(
-                document=open(download_path, 'rb'),
+                document=open(f"{video_title}.mkv", 'rb'),
                 caption=caption,
                 thumb=file_thumb,
                 progress=progress_message,
@@ -2316,13 +2308,13 @@ async def callback_query_handler(client: Client, query):
         await safe_edit_message(sts, f"Error: {e}")
 
     finally:
-        if os.path.exists(download_path):
-            os.remove(download_path)
+        # Clean up temporary files
+        if os.path.exists(f"{video_title}.mkv"):
+            os.remove(f"{video_title}.mkv")
         if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
         await sts.delete()
-        await query.message.delete()
-
+        await query.message.delete()  # Delete the original message after processing
 
 
 
