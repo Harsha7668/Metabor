@@ -42,21 +42,24 @@ CHANGE_INDEX_ENABLED = True
 MERGE_ENABLED = True
 EXTRACT_ENABLED = True
 
-@Client.on_message(filters.command("bsettings") & filters.chat(ADMIN))
-async def bot_settings_command(_, msg):
-    toggles = await db.get_toggle_settings(msg.from_user.id)
 
-    metadata_status = "✅ Enabled" if toggles.get('metadata', False) else "❌ Disabled"
-    photo_attach_status = "✅ Enabled" if toggles.get('photo_attach', False) else "❌ Disabled"
-    mirror_status = "✅ Enabled" if toggles.get('mirror', False) else "❌ Disabled"
-    rename_status = "✅ Enabled" if toggles.get('rename', False) else "❌ Disabled"
-    removealltags_status = "✅ Enabled" if toggles.get('removealltags', False) else "❌ Disabled"
-    change_index_status = "✅ Enabled" if toggles.get('change_index', False) else "❌ Disabled"
-    merge_video_status = "✅ Enabled" if toggles.get('merge', False) else "❌ Disabled"
+
+@Client.on_message(filters.command("bsettings"))
+async def bot_settings_command(client, msg):
+    toggles = await db.get_toggle_settings(msg.from_user.id)
+    await display_bot_settings_inline(msg, toggles)
+
+async def display_bot_settings_inline(msg, toggles):
+    metadata_status = "✅ Enabled" if toggles.get("METADATA_ENABLED", False) else "❌ Disabled"
+    photo_attach_status = "✅ Enabled" if toggles.get("PHOTO_ATTACH_ENABLED", False) else "❌ Disabled"
+    mirror_status = "✅ Enabled" if toggles.get("MIRROR_ENABLED", False) else "❌ Disabled"
+    rename_status = "✅ Enabled" if toggles.get("RENAME_ENABLED", False) else "❌ Disabled"
+    removealltags_status = "✅ Enabled" if toggles.get("REMOVETAGS_ENABLED", False) else "❌ Disabled"
+    change_index_status = "✅ Enabled" if toggles.get("CHANGE_INDEX_ENABLED", False) else "❌ Disabled"
+    merge_video_status = "✅ Enabled" if toggles.get("MERGE_ENABLED", False) else "❌ Disabled"
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
             [InlineKeyboardButton(f"{rename_status} Change Rename 📝", callback_data="toggle_rename")],
             [InlineKeyboardButton(f"{removealltags_status} Remove All Tags 📛", callback_data="toggle_removealltags")],
             [InlineKeyboardButton(f"{metadata_status} Change Metadata ☄️", callback_data="toggle_metadata")],
@@ -64,13 +67,84 @@ async def bot_settings_command(_, msg):
             [InlineKeyboardButton(f"{merge_video_status} Merge Video 🎞️", callback_data="toggle_merge_video")],
             [InlineKeyboardButton(f"{photo_attach_status} Attach Photo 🖼️", callback_data="toggle_photo_attach")],
             [InlineKeyboardButton(f"{mirror_status} Mirror 💽", callback_data="toggle_mirror")],
-            [InlineKeyboardButton("Close ❌", callback_data="del")],
-            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")]
+            [InlineKeyboardButton("Close ❌", callback_data="del")]
         ]
     )
 
     await msg.reply_text("Use inline buttons to manage your settings:", reply_markup=keyboard)
 
+async def update_settings_message(msg, toggles):
+    metadata_status = "✅ Enabled" if toggles.get("METADATA_ENABLED", False) else "❌ Disabled"
+    photo_attach_status = "✅ Enabled" if toggles.get("PHOTO_ATTACH_ENABLED", False) else "❌ Disabled"
+    mirror_status = "✅ Enabled" if toggles.get("MIRROR_ENABLED", False) else "❌ Disabled"
+    rename_status = "✅ Enabled" if toggles.get("RENAME_ENABLED", False) else "❌ Disabled"
+    removealltags_status = "✅ Enabled" if toggles.get("REMOVETAGS_ENABLED", False) else "❌ Disabled"
+    change_index_status = "✅ Enabled" if toggles.get("CHANGE_INDEX_ENABLED", False) else "❌ Disabled"
+    merge_video_status = "✅ Enabled" if toggles.get("MERGE_ENABLED", False) else "❌ Disabled"
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(f"{rename_status} Change Rename 📝", callback_data="toggle_rename")],
+            [InlineKeyboardButton(f"{removealltags_status} Remove All Tags 📛", callback_data="toggle_removealltags")],
+            [InlineKeyboardButton(f"{metadata_status} Change Metadata ☄️", callback_data="toggle_metadata")],
+            [InlineKeyboardButton(f"{change_index_status} Change Index ♻️", callback_data="toggle_change_index")],
+            [InlineKeyboardButton(f"{merge_video_status} Merge Video 🎞️", callback_data="toggle_merge_video")],
+            [InlineKeyboardButton(f"{photo_attach_status} Attach Photo 🖼️", callback_data="toggle_photo_attach")],
+            [InlineKeyboardButton(f"{mirror_status} Mirror 💽", callback_data="toggle_mirror")],
+            [InlineKeyboardButton("Close ❌", callback_data="del")]
+        ]
+    )
+
+    await msg.edit_text("Use inline buttons to manage your settings:", reply_markup=keyboard)
+
+@Client.on_callback_query(filters.regex("^toggle_rename$"))
+async def toggle_rename_callback(client, callback_query):
+    toggles = await db.get_toggle_settings(callback_query.from_user.id)
+    toggles["RENAME_ENABLED"] = not toggles.get("RENAME_ENABLED", False)
+    await db.save_toggle_settings(callback_query.from_user.id, toggles)
+    await update_settings_message(callback_query.message, toggles)
+
+@Client.on_callback_query(filters.regex("^toggle_removealltags$"))
+async def toggle_removealltags_callback(client, callback_query):
+    toggles = await db.get_toggle_settings(callback_query.from_user.id)
+    toggles["REMOVETAGS_ENABLED"] = not toggles.get("REMOVETAGS_ENABLED", False)
+    await db.save_toggle_settings(callback_query.from_user.id, toggles)
+    await update_settings_message(callback_query.message, toggles)
+
+@Client.on_callback_query(filters.regex("^toggle_metadata$"))
+async def toggle_metadata_callback(client, callback_query):
+    toggles = await db.get_toggle_settings(callback_query.from_user.id)
+    toggles["METADATA_ENABLED"] = not toggles.get("METADATA_ENABLED", False)
+    await db.save_toggle_settings(callback_query.from_user.id, toggles)
+    await update_settings_message(callback_query.message, toggles)
+
+@Client.on_callback_query(filters.regex("^toggle_photo_attach$"))
+async def toggle_photo_attach_callback(client, callback_query):
+    toggles = await db.get_toggle_settings(callback_query.from_user.id)
+    toggles["PHOTO_ATTACH_ENABLED"] = not toggles.get("PHOTO_ATTACH_ENABLED", False)
+    await db.save_toggle_settings(callback_query.from_user.id, toggles)
+    await update_settings_message(callback_query.message, toggles)
+
+@Client.on_callback_query(filters.regex("^toggle_mirror$"))
+async def toggle_multitask_callback(client, callback_query):
+    toggles = await db.get_toggle_settings(callback_query.from_user.id)
+    toggles["MIRROR_ENABLED"] = not toggles.get("MIRROR_ENABLED", False)
+    await db.save_toggle_settings(callback_query.from_user.id, toggles)
+    await update_settings_message(callback_query.message, toggles)
+
+@Client.on_callback_query(filters.regex("^toggle_change_index$"))
+async def toggle_change_index_callback(client, callback_query):
+    toggles = await db.get_toggle_settings(callback_query.from_user.id)
+    toggles["CHANGE_INDEX_ENABLED"] = not toggles.get("CHANGE_INDEX_ENABLED", False)
+    await db.save_toggle_settings(callback_query.from_user.id, toggles)
+    await update_settings_message(callback_query.message, toggles)
+
+@Client.on_callback_query(filters.regex("^toggle_merge_video$"))
+async def toggle_merge_video_callback(client, callback_query):
+    toggles = await db.get_toggle_settings(callback_query.from_user.id)
+    toggles["MERGE_ENABLED"] = not toggles.get("MERGE_ENABLED", False)
+    await db.save_toggle_settings(callback_query.from_user.id, toggles)
+    await update_settings_message(callback_query.message, tooggles)
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 @Client.on_callback_query(filters.regex("del"))
@@ -79,100 +153,12 @@ async def closed(bot, msg):
         await msg.message.delete()
     except:
         return
-
-# Callback query handlers
-@Client.on_callback_query(filters.regex("^toggle_rename$"))
-async def toggle_rename_callback(_, callback_query):
-    user_id = callback_query.from_user.id
-    toggles = await db.get_toggle_settings(user_id)
-    toggles['rename'] = not toggles.get('rename', False)
-    await db.save_toggle_settings(user_id, toggles)
-    await update_settings_message(callback_query.message)
-
-@Client.on_callback_query(filters.regex("^toggle_removealltags$"))
-async def toggle_removealltags_callback(_, callback_query):
-    user_id = callback_query.from_user.id
-    toggles = await db.get_toggle_settings(user_id)
-    toggles['removealltags'] = not toggles.get('removealltags', False)
-    await db.save_toggle_settings(user_id, toggles)
-    await update_settings_message(callback_query.message)
-
-@Client.on_callback_query(filters.regex("^toggle_metadata$"))
-async def toggle_metadata_callback(_, callback_query):
-    user_id = callback_query.from_user.id
-    toggles = await db.get_toggle_settings(user_id)
-    toggles['metadata'] = not toggles.get('metadata', False)
-    await db.save_toggle_settings(user_id, toggles)
-    await update_settings_message(callback_query.message)
-
-@Client.on_callback_query(filters.regex("^toggle_photo_attach$"))
-async def toggle_photo_attach_callback(_, callback_query):
-    user_id = callback_query.from_user.id
-    toggles = await db.get_toggle_settings(user_id)
-    toggles['photo_attach'] = not toggles.get('photo_attach', False)
-    await db.save_toggle_settings(user_id, toggles)
-    await update_settings_message(callback_query.message)
-
-@Client.on_callback_query(filters.regex("^toggle_mirror$"))
-async def toggle_mirror_callback(_, callback_query):
-    user_id = callback_query.from_user.id
-    toggles = await db.get_toggle_settings(user_id)
-    toggles['mirror'] = not toggles.get('mirror', False)
-    await db.save_toggle_settings(user_id, toggles)
-    await update_settings_message(callback_query.message)
-
-@Client.on_callback_query(filters.regex("^toggle_change_index$"))
-async def toggle_change_index_callback(_, callback_query):
-    user_id = callback_query.from_user.id
-    toggles = await db.get_toggle_settings(user_id)
-    toggles['change_index'] = not toggles.get('change_index', False)
-    await db.save_toggle_settings(user_id, toggles)
-    await update_settings_message(callback_query.message)
-
-@Client.on_callback_query(filters.regex("^toggle_merge_video$"))
-async def toggle_merge_video_callback(_, callback_query):
-    user_id = callback_query.from_user.id
-    toggles = await db.get_toggle_settings(user_id)
-    toggles['merge'] = not toggles.get('merge', False)
-    await db.save_toggle_settings(user_id, toggles)
-    await update_settings_message(callback_query.message)
-
-
     
 # Callback query handler for the "sunrises24_bot_updates" button
 @Client.on_callback_query(filters.regex("^sunrises24_bot_updates$"))
 async def sunrises24_bot_updates_callback(_, callback_query):
     await callback_query.answer("MADE BY @SUNRISES24BOTUPDATES ❤️", show_alert=True)    
 
-
-async def update_settings_message(message):
-    user_id = message.from_user.id
-    toggles = await db.get_toggle_settings(user_id)
-
-    metadata_status = "✅ Enabled" if toggles.get("metadata", False) else "❌ Disabled"
-    photo_attach_status = "✅ Enabled" if toggles.get("photo_attach", False) else "❌ Disabled"
-    mirror_status = "✅ Enabled" if toggles.get("mirror", False) else "❌ Disabled"
-    rename_status = "✅ Enabled" if toggles.get("rename", False) else "❌ Disabled"
-    removealltags_status = "✅ Enabled" if toggles.get("removealltags", False) else "❌ Disabled"
-    change_index_status = "✅ Enabled" if toggles.get("change_index", False) else "❌ Disabled"
-    merge_video_status = "✅ Enabled" if toggles.get("merge", False) else "❌ Disabled"
-
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
-            [InlineKeyboardButton(f"{rename_status} Change Rename 📝", callback_data="toggle_rename")],
-            [InlineKeyboardButton(f"{removealltags_status} Remove All Tags 📛", callback_data="toggle_removealltags")],
-            [InlineKeyboardButton(f"{metadata_status} Change Metadata ☄️", callback_data="toggle_metadata")],
-            [InlineKeyboardButton(f"{change_index_status} Change Index ♻️", callback_data="toggle_change_index")],
-            [InlineKeyboardButton(f"{merge_video_status} Merge Video 🎞️", callback_data="toggle_merge_video")],
-            [InlineKeyboardButton(f"{photo_attach_status} Attach Photo 🖼️", callback_data="toggle_photo_attach")],
-            [InlineKeyboardButton(f"{mirror_status} Mirror 💽", callback_data="toggle_mirror")],
-            [InlineKeyboardButton("Close ❌", callback_data="del")],
-            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")]
-        ]
-    )
-
-    await message.edit_text("Use inline buttons to manage your settings:", reply_markup=keyboard)
 
 
 @Client.on_callback_query(filters.regex("^set_sample_video_duration_"))
