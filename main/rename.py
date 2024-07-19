@@ -2872,6 +2872,17 @@ async def refresh_stats_callback(_, callback_query):
     ))
 
 
+@Client.on_message(filters.private & filters.command("clear"))
+async def clear_database_handler(client: Client, msg: Message):
+    # Check if the user is an admin
+    if msg.from_user.id not in ADMIN:
+        return await msg.reply_text("You do not have permission to use this command.")
+
+    try:
+        await db.clear_all()
+        await msg.reply_text("Database cleared successfully.✅")
+    except Exception as e:
+        await msg.reply_text(f"Error clearing database: {e}")
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
