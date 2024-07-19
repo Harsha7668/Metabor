@@ -2260,6 +2260,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
 
+
 # Callback query handler
 @Client.on_callback_query(filters.regex(r"^\d+$"))
 async def callback_query_handler(client: Client, query):
@@ -2303,7 +2304,7 @@ async def callback_query_handler(client: Client, query):
                 ydl.download([url])
 
             if thumbnail_url:
-                thumbnail_path = f"thumbnail_{msg.from_user.id}.jpg"
+                thumbnail_path = f"thumbnail_{video_title}.jpg"
                 ydl_opts_thumbnail = {'outtmpl': thumbnail_path}
                 with YoutubeDL(ydl_opts_thumbnail) as ydl_thumb:
                     ydl_thumb.download([thumbnail_url])
@@ -2349,8 +2350,6 @@ async def callback_query_handler(client: Client, query):
 
     except Exception as e:
         await query.answer(f"An error occurred: {e}")
-
-
         
 
 import datetime
