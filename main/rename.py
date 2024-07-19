@@ -2374,7 +2374,6 @@ async def progress_hook(status_message):
     return hook
 
 
-
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
     if len(msg.command) < 2:
@@ -2410,7 +2409,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
                 'title': info_dict['title'],
                 'thumbnail': info_dict.get('thumbnail')  # No default thumbnail path
             }
-            await db.file_data_col.update_one({"user_id": msg.from_user.id}, {"$set": file_data}, upsert=True)
+            await db.save_file_data(msg.from_user.id, file_data)
 
             user_quality_selection = {
                 'url': url,
@@ -2418,7 +2417,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
                 'thumbnail': info_dict.get('thumbnail'),
                 'formats': formats
             }
-            await db.user_quality_selection_col.update_one({"user_id": msg.from_user.id}, {"$set": user_quality_selection}, upsert=True)
+            await db.save_user_quality_selection(msg.from_user.id, user_quality_selection)
 
     except Exception as e:
         await msg.reply_text(f"Error: {e}")
@@ -2428,15 +2427,13 @@ async def callback_query_handler(client: Client, query):
     user_id = query.from_user.id
     format_id = query.data
 
-    selection = await db.user_quality_selection_col.find_one({"user_id": user_id})
+    selection = await db.get_user_quality_selection(user_id)
     if not selection:
         return await query.answer("No download in progress.")
 
     url = selection['url']
     video_title = selection['title']
     formats = selection['formats']
-    thumbnail_url = selection.get('thumbnail')
-    file_name = f"{video_title}.mkv"
 
     selected_format = next((f for f in formats if f['format_id'] == format_id), None)
     if not selected_format:
@@ -2444,6 +2441,9 @@ async def callback_query_handler(client: Client, query):
 
     quality = selected_format.get('format_note', 'Unknown')
     file_size = selected_format.get('filesize', 0)
+    file_name = f"{video_title} - {quality}.mkv"
+    thumbnail_url = selection['thumbnail']
+    thumbnail_file = "thumbnail.jpg"
 
     sts = await query.message.reply_text(f"🚀 Downloading {quality} - {humanbytes(file_size)}... ⚡")
 
@@ -2462,9 +2462,6 @@ async def callback_query_handler(client: Client, query):
 
         if not os.path.exists(file_name):
             return await safe_edit_message(sts, "Error: Download failed. File not found.")
-
-        # Fetch thumbnail from the database
-        file_thumb = await db.get_thumbnail(user_id)
 
         if file_size >= FILE_SIZE_LIMIT:
             await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
@@ -2486,7 +2483,7 @@ async def callback_query_handler(client: Client, query):
                     await query.message.reply_document(
                         document=file,
                         caption=caption,
-                        thumb=file_thumb,
+                        thumb=thumbnail_url,  # Use the YouTube thumbnail URL directly
                         progress=progress_message,
                         progress_args=("💠 Upload Started... ⚡", sts, time.time())
                     )
@@ -2500,10 +2497,9 @@ async def callback_query_handler(client: Client, query):
     finally:
         if os.path.exists(file_name):
             os.remove(file_name)
-        if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
         await sts.delete()
         await query.message.delete()
+
 
 
 from html_telegraph_poster import TelegraphPoster
@@ -2872,17 +2868,18 @@ async def refresh_stats_callback(_, callback_query):
     ))
 
 
-@Client.on_message(filters.private & filters.command("clear"))
+@Client.on_message(filters.command("clear") & filters.private)
 async def clear_database_handler(client: Client, msg: Message):
-    # Check if the user is an admin
-    if msg.from_user.id not in ADMIN:
+    user_id = msg.from_user.id
+    if user_id not in ADMIN:
         return await msg.reply_text("You do not have permission to use this command.")
 
     try:
-        await db.clear_all()
-        await msg.reply_text("Database cleared successfully.✅")
+        await db.clear_database()
+        await msg.reply_text("Database has been cleared.✅")
     except Exception as e:
-        await msg.reply_text(f"Error clearing database: {e}")
+        await msg.reply_text(f"An error occurred: {e}")
+
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
