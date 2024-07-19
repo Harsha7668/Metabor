@@ -2333,7 +2333,6 @@ async def callback_query_handler(client: Client, query):
 
 
 
-
 import datetime
 import os
 import subprocess
@@ -2342,6 +2341,8 @@ from html_telegraph_poster import TelegraphPoster
 # Initialize Telegraph
 telegraph = TelegraphPoster(use_api=True)
 telegraph.create_api_token("MediaInfoBot")
+
+
 
 # Command handler for /mediainfo
 @Client.on_message(filters.command("mediainfo") & filters.private)
@@ -2379,7 +2380,12 @@ async def mediainfo_handler(client, message):
         )
 
         # Store media info in MongoDB
-        media_info_id = await db.store_media_info_in_db(media.file_name, current_date, media_info_html)
+        media_info = {
+            'title': media.file_name,
+            'date': current_date,
+            'html_content': media_info_html
+        }
+        media_info_id = await db.store_media_info_in_db(media_info)
 
         # Upload the media info to Telegraph
         response = telegraph.post(
@@ -2424,6 +2430,7 @@ def get_mediainfo(file_path):
     if process.returncode != 0:
         raise Exception(f"Error getting media info: {stderr.decode().strip()}")
     return stdout.decode().strip()
+
 
 
 
