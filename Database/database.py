@@ -1,6 +1,7 @@
 import motor.motor_asyncio
 from config import DATABASE_NAME, DATABASE_URI
 from pymongo import MongoClient
+from pymongo.errors import PyMongoError
 
 class Database:
     def __init__(self, uri, database_name):
