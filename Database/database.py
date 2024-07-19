@@ -384,21 +384,6 @@ class Database:
             print(f"An error occurred while retrieving user membership: {e}")
             raise
 
-    """
-
-    async def add_user(user_id: int, username: str):
-           #Add or update a user in the database.
-        users_collection.update_one(
-            {"user_id": user_id},
-            {"$set": {
-                "username": username,
-                "joined_updates_channel": False,
-                "joined_group_channel": False
-             }},
-             upsert=True
-        )
-  """
-    
     
         
     async def count_users(self):
@@ -415,21 +400,6 @@ class Database:
         except PyMongoError as e:
             print(f"An error occurred while counting banned users: {e}")
             raise
-"""
-    async def ban_user(self, user_id):
-        try:
-            # Add user to banned list
-            await self.banned_col.update_one(
-                {"user_id": user_id},
-                {"$set": {"banned": True}},
-                upsert=True
-            )
-            # Remove user from active users collection
-            await self.users_col.delete_one({"user_id": user_id})
-        except PyMongoError as e:
-            print(f"An error occurred while banning user: {e}")
-            raise
-"""  
 
     
     async def get_user(self, user_id):
