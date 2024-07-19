@@ -299,18 +299,40 @@ class Database:
             print(f"An error occurred while retrieving stats: {e}")
             return {}
 
-    async def add_user(self, user_id, username):
-        try:
-            # Add or update user information
-            await self.users_col.update_one(
-                {"user_id": user_id},
-                {"$set": {"username": username}},
-                upsert=True
-            )
-        except PyMongoError as e:
-            print(f"An error occurred while adding user: {e}")
-            raise
-            
+ 
+
+    async def update_user_membership(user_id: int, joined_updates_channel: bool, joined_group_channel: bool):
+        """Update the user's membership status in the database."""
+        users_collection.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "joined_updates_channel": joined_updates_channel,
+                "joined_group_channel": joined_group_channel
+            }},
+            upsert=True
+         )
+
+    async def get_user_membership(user_id: int):
+        """Fetch the user's membership status from the database."""
+        user = users_collection.find_one({"user_id": user_id})
+        if user:
+            return user.get('joined_updates_channel', False), user.get('joined_group_channel', False)
+        return False, False
+
+    async def add_user(user_id: int, username: str):
+        """Add or update a user in the database."""
+        users_collection.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "username": username,
+                "joined_updates_channel": False,
+                "joined_group_channel": False
+             }},
+             upsert=True
+        )
+
+
+    
     async def count_users(self):
         try:
             return await self.users_col.count_documents({})
