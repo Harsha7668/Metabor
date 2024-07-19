@@ -302,7 +302,7 @@ async def ban_user(bot, msg):
     try:
         user_id = int(msg.text.split()[1])
         await db.ban_user(user_id)
-        await bot.kick_chat_member(chat_id=msg.chat.id, user_id)  # Optionally remove user from chat
+        await bot.kick_chat_member(chat_id=msg.chat.id, user_id=user_id)  # Optionally remove user from chat
         await msg.reply_text(f"User {user_id} has been banned.")
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
@@ -312,7 +312,7 @@ async def unban_user(bot, msg):
     try:
         user_id = int(msg.text.split()[1])
         await db.unban_user(user_id)
-        await bot.unban_chat_member(chat_id=msg.chat.id, user_id)  # Optionally restore user to chat
+        await bot.unban_chat_member(chat_id=msg.chat.id, user_id=user_id)  # Optionally restore user to chat
         await msg.reply_text(f"User {user_id} has been unbanned.")
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
