@@ -36,7 +36,9 @@ class Database:
             return user.get('settings', default_settings)
         return default_settings
        
-        
+
+    
+            
     async def save_sample_video_settings(self, user_id, sample_video_duration, screenshots):
         await self.users_col.update_one(
             {'id': user_id}, 
@@ -362,8 +364,31 @@ class Database:
             print(f"An error occurred while adding/updating user: {e}")
             raise
 
+    async def ban_user(self, user_id: int):         
+        try:        
+            await self.banned_col.update_one(
+                {"user_id": user_id},
+                {"$set": {"banned": True}},
+                upsert=True
+            )        
+            await self.users_col.delete_one({"user_id": user_id})
+        
+        # Notify the banned user
+            banned_user = await self.get_banned_user(user_id)
+            if banned_user:
+                await self.bot.send_message(user_id, "Sorry, you are banned. Contact the admin for more information.")
+            
+        # Notify log channel about the ban
+            log_message = (
+                f"🚫 **User Banned**\n"
+                f"🆔 **ID**: {user_id}"
+            )
+            await notify_log_channel(self.bot, log_message)
+        except PyMongoError as e:
+            print(f"An error occurred while banning user: {e}")
+            raise
     
-    
+        
     async def count_users(self):
         try:
             return await self.users_col.count_documents({})
@@ -394,31 +419,7 @@ class Database:
             raise
 """
 
-    async def ban_user(self, user_id: int):         
-        try:
-        # Add user to banned list
-            await self.banned_col.update_one(
-                {"user_id": user_id},
-                {"$set": {"banned": True}},
-                upsert=True
-            )
-        # Remove user from active users collection
-            await self.users_col.delete_one({"user_id": user_id})
-        
-        # Notify the banned user
-            banned_user = await self.get_banned_user(user_id)
-            if banned_user:
-                await self.bot.send_message(user_id, "Sorry, you are banned. Contact the admin for more information.")
-            
-        # Notify log channel about the ban
-            log_message = (
-                f"🚫 **User Banned**\n"
-                f"🆔 **ID**: {user_id}"
-            )
-            await notify_log_channel(self.bot, log_message)
-        except PyMongoError as e:
-            print(f"An error occurred while banning user: {e}")
-            raise
+    
 
     
 
