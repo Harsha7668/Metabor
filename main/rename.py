@@ -42,37 +42,28 @@ CHANGE_INDEX_ENABLED = True
 MERGE_ENABLED = True
 EXTRACT_ENABLED = True
 
-
-
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-# Command handler to start the interaction (only in admin)
 @Client.on_message(filters.command("bsettings") & filters.chat(ADMIN))
 async def bot_settings_command(_, msg):
-    await display_bot_settings_inline(msg)
+    toggles = await db.get_toggle_settings(msg.from_user.id)
 
+    metadata_status = "✅ Enabled" if toggles.get('metadata', False) else "❌ Disabled"
+    photo_attach_status = "✅ Enabled" if toggles.get('photo_attach', False) else "❌ Disabled"
+    mirror_status = "✅ Enabled" if toggles.get('mirror', False) else "❌ Disabled"
+    rename_status = "✅ Enabled" if toggles.get('rename', False) else "❌ Disabled"
+    removealltags_status = "✅ Enabled" if toggles.get('removealltags', False) else "❌ Disabled"
+    change_index_status = "✅ Enabled" if toggles.get('change_index', False) else "❌ Disabled"
+    merge_video_status = "✅ Enabled" if toggles.get('merge', False) else "❌ Disabled"
 
-# Inline function to display user settings with inline buttons
-async def display_bot_settings_inline(msg):
-    global METADATA_ENABLED, PHOTO_ATTACH_ENABLED, MIRROR_ENABLED, RENAME_ENABLED, REMOVETAGS_ENABLED, CHANGE_INDEX_ENABLED
-
-    metadata_status = "✅ Enabled" if METADATA_ENABLED else "❌ Disabled"
-    photo_attach_status = "✅ Enabled" if PHOTO_ATTACH_ENABLED else "❌ Disabled"
-    mirror_status = "✅ Enabled" if MIRROR_ENABLED else "❌ Disabled"
-    rename_status = "✅ Enabled" if RENAME_ENABLED else "❌ Disabled"
-    removealltags_status = "✅ Enabled" if REMOVETAGS_ENABLED else "❌ Disabled"
-    change_index_status = "✅ Enabled" if CHANGE_INDEX_ENABLED else "❌ Disabled"
-    merge_video_status = "✅ Enabled" if MERGE_ENABLED else "❌ Disabled"    
-    
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],            
+            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
             [InlineKeyboardButton(f"{rename_status} Change Rename 📝", callback_data="toggle_rename")],
             [InlineKeyboardButton(f"{removealltags_status} Remove All Tags 📛", callback_data="toggle_removealltags")],
-            [InlineKeyboardButton(f"{metadata_status} Change Metadata ☄️", callback_data="toggle_metadata")],            
+            [InlineKeyboardButton(f"{metadata_status} Change Metadata ☄️", callback_data="toggle_metadata")],
             [InlineKeyboardButton(f"{change_index_status} Change Index ♻️", callback_data="toggle_change_index")],
             [InlineKeyboardButton(f"{merge_video_status} Merge Video 🎞️", callback_data="toggle_merge_video")],
-            [InlineKeyboardButton(f"{photo_attach_status} Attach Photo 🖼️", callback_data="toggle_photo_attach")],                        
-            [InlineKeyboardButton(f"{mirror_status} Mirror 💽", callback_data="toggle_mirror")],            
+            [InlineKeyboardButton(f"{photo_attach_status} Attach Photo 🖼️", callback_data="toggle_photo_attach")],
+            [InlineKeyboardButton(f"{mirror_status} Mirror 💽", callback_data="toggle_mirror")],
             [InlineKeyboardButton("Close ❌", callback_data="del")],
             [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")]
         ]
@@ -90,57 +81,63 @@ async def closed(bot, msg):
         return
 
 # Callback query handlers
-
 @Client.on_callback_query(filters.regex("^toggle_rename$"))
 async def toggle_rename_callback(_, callback_query):
-    global RENAME_ENABLED
-
-    RENAME_ENABLED = not RENAME_ENABLED
+    user_id = callback_query.from_user.id
+    toggles = await db.get_toggle_settings(user_id)
+    toggles['rename'] = not toggles.get('rename', False)
+    await db.save_toggle_settings(user_id, toggles)
     await update_settings_message(callback_query.message)
 
 @Client.on_callback_query(filters.regex("^toggle_removealltags$"))
 async def toggle_removealltags_callback(_, callback_query):
-    global REMOVETAGS_ENABLED
-
-    REMOVETAGS_ENABLED = not REMOVETAGS_ENABLED
+    user_id = callback_query.from_user.id
+    toggles = await db.get_toggle_settings(user_id)
+    toggles['removealltags'] = not toggles.get('removealltags', False)
+    await db.save_toggle_settings(user_id, toggles)
     await update_settings_message(callback_query.message)
 
 @Client.on_callback_query(filters.regex("^toggle_metadata$"))
 async def toggle_metadata_callback(_, callback_query):
-    global METADATA_ENABLED
-
-    METADATA_ENABLED = not METADATA_ENABLED
+    user_id = callback_query.from_user.id
+    toggles = await db.get_toggle_settings(user_id)
+    toggles['metadata'] = not toggles.get('metadata', False)
+    await db.save_toggle_settings(user_id, toggles)
     await update_settings_message(callback_query.message)
-
 
 @Client.on_callback_query(filters.regex("^toggle_photo_attach$"))
 async def toggle_photo_attach_callback(_, callback_query):
-    global PHOTO_ATTACH_ENABLED
-
-    PHOTO_ATTACH_ENABLED = not PHOTO_ATTACH_ENABLED
+    user_id = callback_query.from_user.id
+    toggles = await db.get_toggle_settings(user_id)
+    toggles['photo_attach'] = not toggles.get('photo_attach', False)
+    await db.save_toggle_settings(user_id, toggles)
     await update_settings_message(callback_query.message)
 
-
 @Client.on_callback_query(filters.regex("^toggle_mirror$"))
-async def toggle_multitask_callback(_, callback_query):
-    global MIRROR_ENABLED
-
-    MIRROR_ENABLED = not MIRROR_ENABLED
+async def toggle_mirror_callback(_, callback_query):
+    user_id = callback_query.from_user.id
+    toggles = await db.get_toggle_settings(user_id)
+    toggles['mirror'] = not toggles.get('mirror', False)
+    await db.save_toggle_settings(user_id, toggles)
     await update_settings_message(callback_query.message)
 
 @Client.on_callback_query(filters.regex("^toggle_change_index$"))
 async def toggle_change_index_callback(_, callback_query):
-    global CHANGE_INDEX_ENABLED
-
-    CHANGE_INDEX_ENABLED = not CHANGE_INDEX_ENABLED
+    user_id = callback_query.from_user.id
+    toggles = await db.get_toggle_settings(user_id)
+    toggles['change_index'] = not toggles.get('change_index', False)
+    await db.save_toggle_settings(user_id, toggles)
     await update_settings_message(callback_query.message)
 
 @Client.on_callback_query(filters.regex("^toggle_merge_video$"))
 async def toggle_merge_video_callback(_, callback_query):
-    global MERGE_ENABLED
-
-    MERGE_ENABLED = not MERGE_ENABLED
+    user_id = callback_query.from_user.id
+    toggles = await db.get_toggle_settings(user_id)
+    toggles['merge'] = not toggles.get('merge', False)
+    await db.save_toggle_settings(user_id, toggles)
     await update_settings_message(callback_query.message)
+
+
     
 # Callback query handler for the "sunrises24_bot_updates" button
 @Client.on_callback_query(filters.regex("^sunrises24_bot_updates$"))
@@ -149,37 +146,33 @@ async def sunrises24_bot_updates_callback(_, callback_query):
 
 
 async def update_settings_message(message):
-    global METADATA_ENABLED, PHOTO_ATTACH_ENABLED, MIRROR_ENABLED, RENAME_ENABLED, REMOVETAGS_ENABLED, CHANGE_INDEX_ENABLED
+    user_id = message.from_user.id
+    toggles = await db.get_toggle_settings(user_id)
 
-    metadata_status = "✅ Enabled" if METADATA_ENABLED else "❌ Disabled"
-    photo_attach_status = "✅ Enabled" if PHOTO_ATTACH_ENABLED else "❌ Disabled"
-    mirror_status = "✅ Enabled" if MIRROR_ENABLED else "❌ Disabled"
-    rename_status = "✅ Enabled" if RENAME_ENABLED else "❌ Disabled"
-    removealltags_status = "✅ Enabled" if REMOVETAGS_ENABLED else "❌ Disabled"
-    change_index_status = "✅ Enabled" if CHANGE_INDEX_ENABLED else "❌ Disabled"
-    merge_video_status = "✅ Enabled" if MERGE_ENABLED else "❌ Disabled"    
-      
+    metadata_status = "✅ Enabled" if toggles.get("metadata", False) else "❌ Disabled"
+    photo_attach_status = "✅ Enabled" if toggles.get("photo_attach", False) else "❌ Disabled"
+    mirror_status = "✅ Enabled" if toggles.get("mirror", False) else "❌ Disabled"
+    rename_status = "✅ Enabled" if toggles.get("rename", False) else "❌ Disabled"
+    removealltags_status = "✅ Enabled" if toggles.get("removealltags", False) else "❌ Disabled"
+    change_index_status = "✅ Enabled" if toggles.get("change_index", False) else "❌ Disabled"
+    merge_video_status = "✅ Enabled" if toggles.get("merge", False) else "❌ Disabled"
+
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],            
+            [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
             [InlineKeyboardButton(f"{rename_status} Change Rename 📝", callback_data="toggle_rename")],
             [InlineKeyboardButton(f"{removealltags_status} Remove All Tags 📛", callback_data="toggle_removealltags")],
-            [InlineKeyboardButton(f"{metadata_status} Change Metadata ☄️", callback_data="toggle_metadata")],            
+            [InlineKeyboardButton(f"{metadata_status} Change Metadata ☄️", callback_data="toggle_metadata")],
             [InlineKeyboardButton(f"{change_index_status} Change Index ♻️", callback_data="toggle_change_index")],
             [InlineKeyboardButton(f"{merge_video_status} Merge Video 🎞️", callback_data="toggle_merge_video")],
-            [InlineKeyboardButton(f"{photo_attach_status} Attach Photo 🖼️", callback_data="toggle_photo_attach")],                        
-            [InlineKeyboardButton(f"{multitask_status} Mirror 💽", callback_data="toggle_mirror")],            
+            [InlineKeyboardButton(f"{photo_attach_status} Attach Photo 🖼️", callback_data="toggle_photo_attach")],
+            [InlineKeyboardButton(f"{mirror_status} Mirror 💽", callback_data="toggle_mirror")],
             [InlineKeyboardButton("Close ❌", callback_data="del")],
             [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")]
         ]
     )
 
     await message.edit_text("Use inline buttons to manage your settings:", reply_markup=keyboard)
-
-
-
-
-from Database.database import db
 
 
 @Client.on_callback_query(filters.regex("^set_sample_video_duration_"))
