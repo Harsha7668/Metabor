@@ -16,7 +16,6 @@ asyncio==3.4.3
 yt_dlp
 html_telegraph_poster
 lxml_html_clean
-flask
 motor
 pymongo
 datetime
