@@ -393,8 +393,8 @@ class Database:
             print(f"An error occurred while banning user: {e}")
             raise
 """
-    async def ban_user(self, user_id: int):
-          #Ban a user and remove them from the active users collection.
+
+    async def ban_user(self, user_id: int):         
         try:
         # Add user to banned list
             await self.banned_col.update_one(
