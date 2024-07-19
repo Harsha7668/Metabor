@@ -2770,7 +2770,78 @@ async def apply_watermark(bot, msg):
         os.remove(file_thumb)
     await sts.delete()
 
+import psutil
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from datetime import datetime, timedelta
 
+# Global variables
+START_TIME = datetime.now()
+
+@Client.on_message(filters.command("stats"))
+async def stats_command(_, msg):
+    uptime = datetime.now() - START_TIME
+    uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
+
+    total_space = psutil.disk_usage('/').total / (1024 ** 3)
+    used_space = psutil.disk_usage('/').used / (1024 ** 3)
+    free_space = psutil.disk_usage('/').free / (1024 ** 3)
+
+    cpu_usage = psutil.cpu_percent()
+    ram_usage = psutil.virtual_memory().percent
+
+    stats_message = (
+        f"╔════❰ sᴇʀᴠᴇʀ sᴛᴀᴛs  ❱═❍⊱❁۪۪\n"
+        f"║╭━━━━━━━━━━━━━━━➣\n"
+        f"║┣⪼ ᴜᴩᴛɪᴍᴇ: {uptime_str}\n"
+        f"║┣⪼ ᴛᴏᴛᴀʟ sᴘᴀᴄᴇ: {total_space:.2f} Gb\n"
+        f"║┣⪼ ᴜsᴇᴅ: {used_space:.2f} Gb ({used_space / total_space * 100:.1f}%)\n"
+        f"║┣⪼ ꜰʀᴇᴇ: {free_space:.2f} Gb\n"
+        f"║┣⪼ ᴄᴘᴜ: {cpu_usage:.1f}%\n"
+        f"║┣⪼ ʀᴀᴍ: {ram_usage:.1f}%\n"
+        f"║╰━━━━━━━━━━━━━━━➣\n"
+        f"╚══════════════════❍⊱❁۪۪"
+    )
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton("Refresh 🔄", callback_data="refresh_stats")]
+        ]
+    )
+
+    await msg.reply_text(stats_message, reply_markup=keyboard)
+
+@Client.on_callback_query(filters.regex("^refresh_stats$"))
+async def refresh_stats_callback(_, callback_query):
+    # Refresh stats
+    uptime = datetime.now() - START_TIME
+    uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
+
+    total_space = psutil.disk_usage('/').total / (1024 ** 3)
+    used_space = psutil.disk_usage('/').used / (1024 ** 3)
+    free_space = psutil.disk_usage('/').free / (1024 ** 3)
+
+    cpu_usage = psutil.cpu_percent()
+    ram_usage = psutil.virtual_memory().percent
+
+    stats_message = (
+        f"╔════❰ sᴇʀᴠᴇʀ sᴛᴀᴛs  ❱═❍⊱❁۪۪\n"
+        f"║╭━━━━━━━━━━━━━━━➣\n"
+        f"║┣⪼ ᴜᴩᴛɪᴍᴇ: {uptime_str}\n"
+        f"║┣⪼ ᴛᴏᴛᴀʟ sᴘᴀᴄᴇ: {total_space:.2f} Gb\n"
+        f"║┣⪼ ᴜsᴇᴅ: {used_space:.2f} Gb ({used_space / total_space * 100:.1f}%)\n"
+        f"║┣⪼ ꜰʀᴇᴇ: {free_space:.2f} Gb\n"
+        f"║┣⪼ ᴄᴘᴜ: {cpu_usage:.1f}%\n"
+        f"║┣⪼ ʀᴀᴍ: {ram_usage:.1f}%\n"
+        f"║╰━━━━━━━━━━━━━━━➣\n"
+        f"╚══════════════════❍⊱❁۪۪"
+    )
+
+    await callback_query.message.edit_text(stats_message, reply_markup=InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton("Refresh 🔄", callback_data="refresh_stats")]
+        ]
+    ))
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
