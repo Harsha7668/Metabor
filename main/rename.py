@@ -2343,8 +2343,6 @@ from pyrogram import Client, filters
 telegraph = TelegraphPoster(use_api=True)
 telegraph.create_api_token("MediaInfoBot")
 
-# Initialize your Database instance
-db = Database(uri="your_mongodb_uri", database_name="your_database_name")
 
 # Command handler for /mediainfo
 @Client.on_message(filters.command("mediainfo") & filters.private)
