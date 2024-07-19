@@ -115,9 +115,9 @@ async def start(bot, msg: Message):
     # Log user details (only for the first interaction if needed)
     if user_id not in joined_channel_1:
         log_message = (
-            f"User joined:\n"
-            f"ID: {user_id}\n"
-            f"Username: {username}"
+            f"💬User joined:\n"
+            f"🆔ID: {user_id}\n"
+            f"👤Username: {username}"
         )
         try:
             await bot.send_message(LOG_CHANNEL_ID, log_message)
