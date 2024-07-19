@@ -260,6 +260,17 @@ class Database:
     async def store_media_info_in_db(self, media_info):
         result = await self.media_info_col.insert_one(media_info)
         return result.inserted_id
+
+    async def save_file_data(user_id, file_data):
+        await self.files_col.update_one(
+            {'id': user_id},
+            {'$set': file_data},
+            upsert=True
+        )
+
+    async def get_file_data(user_id):
+    file_data = await self.files_col.find_one({'id': user_id})
+    return file_data
     
 # Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)    
