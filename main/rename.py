@@ -2192,146 +2192,6 @@ async def clean_files(bot, msg: Message):
         await msg.reply_text(f"An unexpected error occurred: {e}")
 
 
-from yt_dlp import YoutubeDL
-
-# Function to handle progress updates
-async def progress_hook(status_message):
-    async def hook(d):
-        if d['status'] == 'downloading':
-            current_progress = d.get('_percent_str', '0%')
-            current_size = humanbytes(d.get('total_bytes', 0))
-            await safe_edit_message(status_message, f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
-        elif d['status'] == 'finished':
-            await safe_edit_message(status_message, "Download finished. 🚀")
-    return hook
-
-# Function to safely edit messages
-async def safe_edit_message(message, new_text):
-    try:
-        if message.text != new_text:
-            await message.edit_text(new_text)
-    except Exception as e:
-        print(f"Error editing message: {e}")
-
-
-# Function to handle "/ytdlleech" command
-@Client.on_message(filters.private & filters.command("ytdlleech"))
-async def ytdlleech_handler(client: Client, message: Message):
-    if len(message.command) < 2:
-        return await message.reply_text("Please provide a YouTube link.")
-
-    command_text = message.text.split(" ", 1)[1]
-    url = command_text.strip()
-
-    ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',  # Example of format specification
-        'merge_output_format': 'mkv',  # Set output format to MKV
-        'quiet': True,
-        'noplaylist': True
-    }
-
-    try:
-        with YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=False)
-            formats = info_dict.get('formats', [])
-
-            buttons = [
-                InlineKeyboardButton(
-                    f"{f.get('format_note', 'Unknown')} - {f.get('filesize_str', 'Unknown')}", 
-                    callback_data=f"{f['format_id']}"
-                )
-                for f in formats if f.get('filesize') is not None
-            ]
-            buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
-
-            # Display quality selection buttons
-            await message.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
-
-            # Store user's quality selection in database
-            await db.save_user_quality_selection(message.from_user.id, {
-                'url': url,
-                'title': info_dict['title'],
-                'formats': formats
-            })
-
-    except Exception as e:
-        await message.reply_text(f"Error: {e}")
-
-# Callback query handler for quality selection
-@Client.on_callback_query(filters.regex(r"^\d+$"))
-async def callback_query_handler(client: Client, query):
-    user_id = query.from_user.id
-    format_id = query.data
-
-    try:
-        # Retrieve user's quality selection from the database
-        selection_data = await db.get_user_quality_selection(user_id)
-        if not selection_data:
-            return await query.answer("No download in progress.")
-
-        url = selection_data['url']
-        video_title = selection_data['title']
-        formats = selection_data['formats']
-
-        selected_format = next((f for f in formats if f['format_id'] == format_id), None)
-        if not selected_format:
-            return await query.answer("Invalid format selection.")
-
-        quality = selected_format.get('format_note', 'Unknown')
-        file_size = selected_format.get('filesize', 0)
-
-        # Notify user about download initiation
-        sts = await query.message.reply_text(f"🚀 Downloading {quality} - {file_size}... ⚡")
-
-        ydl_opts = {
-            'format': format_id,  # Use selected format
-            'outtmpl': f"{video_title}.mkv",  # Output file name
-            'quiet': True,
-            'noplaylist': True,
-            'progress_hooks': [create_task(progress_hook(sts))]  # Progress hook for async progress updates
-        }
-        download_path = f"{video_title}.mkv"
-
-        try:
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-
-            # Handle upload to Google Drive or Telegram based on file size
-            if file_size >= FILE_SIZE_LIMIT:
-                await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
-                file_link = await upload_to_google_drive(download_path, f"{video_title}.mkv", sts)
-                button = [[InlineKeyboardButton("☁️ Google Drive Link ☁️", url=f"{file_link}")]]
-                await query.message.reply_text(
-                    f"**File successfully uploaded to Google Drive!**\n\n"
-                    f"**Google Drive Link**: [View File]({file_link})\n\n"
-                    f"**Uploaded File**: {video_title}.mkv\n"
-                    f"**Size**: {file_size}",
-                    reply_markup=InlineKeyboardMarkup(button)
-                )
-            else:
-                await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
-                caption = f"**Uploaded Document 📄**: {video_title}.mkv\n\n🌟 Size: {file_size}"
-                await query.message.reply_document(
-                    document=open(download_path, 'rb'),
-                    caption=caption,
-                    thumb=file_thumb,
-                    progress=progress_message,
-                    progress_args=("💠 Upload Started... ⚡", sts, time.time())
-                )
-
-        except Exception as e:
-            await safe_edit_message(sts, f"Error: {e}")
-
-        finally:
-            if os.path.exists(download_path):
-                os.remove(download_path)
-            await sts.delete()
-            await query.message.delete()
-
-    except Exception as e:
-        await query.answer(f"An error occurred: {e}")
-
-
 
 import datetime
 import os
@@ -2342,7 +2202,6 @@ from pyrogram import Client, filters
 # Initialize Telegraph
 telegraph = TelegraphPoster(use_api=True)
 telegraph.create_api_token("MediaInfoBot")
-
 
 # Command handler for /mediainfo
 @Client.on_message(filters.command("mediainfo") & filters.private)
@@ -2365,7 +2224,7 @@ async def mediainfo_handler(client, message):
             raise ValueError("No valid media found in the replied message.")
 
         # Get media info using mediainfo command
-        media_info_html, media_info_summary = get_mediainfo(file_path)
+        media_info_html = get_mediainfo(file_path)
 
         # Get current date
         current_date = datetime.datetime.now().strftime("%B %d, %Y")
@@ -2396,17 +2255,16 @@ async def mediainfo_handler(client, message):
         )
         telegraph_url = f"https://telegra.ph/{response['path']}"
 
-        # Prepare message with summary and links
+        # Prepare message with links
         message_text = (
-            f"**SUNRISES 24 BOT UPDATES**\n"
-            f"**MediaInfo X**\n"
+            f"SUNRISES 24 BOT UPDATES\n"
+            f"MediaInfo X\n"
             f"{current_date} by [SUNRISES 24 BOT UPDATES](https://t.me/Sunrises24BotUpdates)\n\n"
-            f"{media_info_summary}\n\n"
-            f"[View Detailed Info on Telegraph]({telegraph_url})\n"
+            f"[View Info on Telegraph]({telegraph_url})\n"
             f"Rights designed by Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ"
         )
 
-        # Reply with media info summary and link
+        # Reply with media info and link
         await message.reply_text(message_text)
 
     except Exception as e:
@@ -2430,46 +2288,7 @@ def get_mediainfo(file_path):
     stdout, stderr = process.communicate()
     if process.returncode != 0:
         raise Exception(f"Error getting media info: {stderr.decode().strip()}")
-    media_info_html = stdout.decode().strip()
-
-    process_summary = subprocess.Popen(
-        ["mediainfo", file_path, "--Output=JSON"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    stdout_summary, stderr_summary = process_summary.communicate()
-    if process_summary.returncode != 0:
-        raise Exception(f"Error getting media info summary: {stderr_summary.decode().strip()}")
-    media_info_json = stdout_summary.decode().strip()
-    
-    media_info_summary = parse_media_info_summary(media_info_json)
-
-    return media_info_html, media_info_summary
-
-def parse_media_info_summary(media_info_json):
-    import json
-    info = json.loads(media_info_json)
-    tracks = info.get("media", {}).get("track", [])
-    summary = ""
-    for track in tracks:
-        if track.get("@type") == "General":
-            summary += f"**File Name:** {track.get('CompleteName', 'N/A')}\n"
-            summary += f"**File Size:** {track.get('FileSize/String', 'N/A')}\n"
-            summary += f"**Duration:** {track.get('Duration/String', 'N/A')}\n"
-            summary += f"**Overall Bit Rate:** {track.get('OverallBitRate/String', 'N/A')}\n\n"
-        elif track.get("@type") == "Video":
-            summary += f"**Video:**\n"
-            summary += f"**Format:** {track.get('Format', 'N/A')}\n"
-            summary += f"**Codec ID:** {track.get('CodecID', 'N/A')}\n"
-            summary += f"**Width:** {track.get('Width', 'N/A')}\n"
-            summary += f"**Height:** {track.get('Height', 'N/A')}\n"
-            summary += f"**Frame Rate:** {track.get('FrameRate', 'N/A')}\n\n"
-        elif track.get("@type") == "Audio":
-            summary += f"**Audio:**\n"
-            summary += f"**Format:** {track.get('Format', 'N/A')}\n"
-            summary += f"**Channels:** {track.get('Channel(s)', 'N/A')}\n"
-            summary += f"**Sampling Rate:** {track.get('SamplingRate/String', 'N/A')}\n\n"
-    return summary.strip()
+    return stdout.decode().strip()
 
 
 
