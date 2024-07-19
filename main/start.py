@@ -41,13 +41,8 @@ Exᴘʟᴏʀᴇ sɪᴍᴘʟɪᴄɪᴛʏ! 💥
 joined_channel_1 = {}
 joined_channel_2 = {}
 
-async def notify_log_channel(message: str):
-    """Send notification to the log channel."""
-    try:
-        await bot.send_message(LOG_CHANNEL_ID, message)
-    except PyMongoError as e:
-        print(f"An error occurred while sending log message: {e}")
-        
+
+
 
 @Client.on_message(filters.command("start"))
 async def start(bot: Client, msg: Message):
@@ -128,7 +123,9 @@ async def start(bot: Client, msg: Message):
             f"**Joined Updates Channel**: {joined_channel_1}\n"
             f"**Joined Group Channel**: {joined_channel_2}"
         )
-        await notify_log_channel(bot, log_message)
+        await bot.send_message(LOG_CHANNEL_ID, log_message)
+        except PyMongoError as e:
+            print(f"An error occurred while sending log message: {e}")
     
     # Add or update the user in the database
     await db.add_user(user_id, username)
