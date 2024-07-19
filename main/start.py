@@ -46,12 +46,18 @@ async def start(bot, msg: Message):
     user_id = msg.chat.id
     username = msg.from_user.username or "Unknown"
 
+    # Check if the user is banned
+    banned_user = await db.get_banned_user(user_id)
+    if banned_user:
+        await msg.reply_text("Sorry, you are **banned** from using this bot.")
+        return
+
     # Check for channel 1 (updates channel) membership
     if FSUB_UPDATES:
         try:
             user = await bot.get_chat_member(FSUB_UPDATES, user_id)
             if user.status == "kicked":
-                await msg.reply_text("Sorry, you are **banned**.")
+                await msg.reply_text("Sorry, you are **banned** from using this bot.")
                 return
         except UserNotParticipant:
             await msg.reply_text(
@@ -70,7 +76,7 @@ async def start(bot, msg: Message):
         try:
             user = await bot.get_chat_member(FSUB_GROUP, user_id)
             if user.status == "kicked":
-                await msg.reply_text("Sorry, you are **banned**.")
+                await msg.reply_text("Sorry, you are **banned** from using this bot.")
                 return
         except UserNotParticipant:
             await msg.reply_text(
@@ -84,7 +90,7 @@ async def start(bot, msg: Message):
         else:
             joined_channel_2[user_id] = True
 
-    # Add user to database
+    # Add or update user in the database
     try:
         await db.add_user(user_id, username)
     except PyMongoError as e:
@@ -106,16 +112,18 @@ async def start(bot, msg: Message):
         reply_to_message_id=getattr(msg, "message_id", None)
     )
 
-    # Log user details to the log channel
-    log_message = (
-        f"New user joined:\n"
-        f"ID: {user_id}\n"
-        f"Username: {username}"
-    )
-    try:
-        await bot.send_message(LOG_CHANNEL_ID, log_message)
-    except PyMongoError as e:
-        print(f"An error occurred while sending log message: {e}")
+    # Log user details (only for the first interaction if needed)
+    if user_id not in joined_channel_1:
+        log_message = (
+            f"User joined:\n"
+            f"ID: {user_id}\n"
+            f"Username: {username}"
+        )
+        try:
+            await bot.send_message(LOG_CHANNEL_ID, log_message)
+        except PyMongoError as e:
+            print(f"An error occurred while sending log message: {e}")
+
 
 async def check_membership(bot, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
     user_id = msg.chat.id
