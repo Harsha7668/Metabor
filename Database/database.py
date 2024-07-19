@@ -340,7 +340,7 @@ class Database:
         )
   """
     async def add_user(self, user_id: int, username: str):
-        """Add or update a user in the database."""
+          #Add or update a user in the database
         try:
             await self.users_col.update_one(
                 {"user_id": user_id},
@@ -394,7 +394,7 @@ class Database:
             raise
 """
     async def ban_user(self, user_id: int):
-        """Ban a user and remove them from the active users collection."""
+          #Ban a user and remove them from the active users collection.
         try:
         # Add user to banned list
             await self.banned_col.update_one(
