@@ -250,7 +250,7 @@ class Database:
             upsert=True
         )
 
-    async def get_user_quality_selection(self, user_id):
+    async def user_quality_selection(self, user_id):
         user = await self.db.users.find_one({'id': user_id})
         if user:
             return user.get('settings', {}).get('quality_selection')
