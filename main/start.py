@@ -81,7 +81,7 @@ async def start(bot: Client, msg: Message):
              InlineKeyboardButton("About 🧑🏻‍💻", callback_data="about")],
             [InlineKeyboardButton("Support ❤️‍🔥", url="https://t.me/Sunrises24botSupport")]
         ]),
-        reply_to_message_id=msg.message_id
+        reply_to_message_id=msg.message_id if msg.reply_to_message else None
     )
 
     # Log user details (only for the first interaction if needed)
@@ -147,6 +147,7 @@ async def handle_private_message(bot: Client, msg: Message):
     # Check membership for group channel
     if FSUB_GROUP and not await check_membership(bot, msg, FSUB_GROUP, joined_channel_2, "Please join my group before using me.", f"https://t.me/{FSUB_GROUP}"):
         return
+
 
     
 
