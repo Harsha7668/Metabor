@@ -2338,7 +2338,6 @@ telegraph = TelegraphPoster(use_api=True)
 telegraph.create_api_token("MediaInfoBot")
 
 
-
 # Function to extract media information using mediainfo command
 def get_mediainfo(file_path):
     process = subprocess.Popen(
@@ -2373,14 +2372,10 @@ async def mediainfo_handler(client: Client, message: Message):
         # Get media info
         media_info_html = get_mediainfo(file_path)
 
-        # Get the current date
-        current_date = datetime.datetime.now().strftime("%B %d, %Y")
-
-        # Prepare the media info with additional details
+        # Remove date from the media info
         media_info_html = (
             f"<strong>SUNRISES 24 BOT UPDATES</strong><br>"
             f"<strong>MediaInfo X</strong><br>"
-            f"<p>{current_date} by <a href='https://t.me/Sunrises24BotUpdates'>SUNRISES 24 BOT UPDATES</a></p>"
             f"{media_info_html}"
             f"<p>Rights Designed By Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ</p>"
         )
@@ -2392,7 +2387,6 @@ async def mediainfo_handler(client: Client, message: Message):
 
         # Store media info in MongoDB
         media_info_data = {
-            'date': current_date,
             'media_info': media_info_html,
             'media_id': media.file_id
         }
@@ -2410,13 +2404,14 @@ async def mediainfo_handler(client: Client, message: Message):
         # Prepare the final message with the Telegraph link
         message_text = (
             f"SUNRISES 24 BOT UPDATES\n"
-            f"MediaInfo X\n"
-            f"{current_date} by [SUNRISES 24 BOT UPDATES](https://t.me/Sunrises24BotUpdates)\n\n"
+            f"MediaInfo X\n\n"
             f"[View Info on Telegraph]({link})\n"
             f"Rights designed by Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ"
         )
 
-        await message.reply_text(message_text)
+        # Send HTML file and Telegraph link
+        await message.reply_document(document=html_file_path, caption=message_text)
+
     except Exception as e:
         await message.reply_text(f"Error: {e}")
     finally:
@@ -2428,9 +2423,6 @@ async def mediainfo_handler(client: Client, message: Message):
             os.remove(file_path)
         if 'html_file_path' in locals() and os.path.exists(html_file_path):
             os.remove(html_file_path)
-
-
-
         
 
 
