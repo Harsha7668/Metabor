@@ -9,6 +9,7 @@ class Database:
         self.users_col = self.db.users  # Collection for storing user settings
         self.files_col = self.db.files  # Collection for storing file-related settings (thumbnails, etc.)
         self.media_info_col = self.db.media_info  # Collection for storing media info
+        self.stats_col = self.db.stats  # Collection for storing server stats
     
     async def update_user_settings(self, user_id, settings):
         await self.users_col.update_one({'id': user_id}, {'$set': {'settings': settings}}, upsert=True)
@@ -284,6 +285,40 @@ class Database:
     async def get_file_data(user_id):
         file_data = await self.files_col.find_one({'id': user_id})
         return file_data
+
+    async def save_stats(self, stats):
+        try:
+            await self.stats_col.update_one(
+                {'_id': 'server_stats'},
+                {'$set': stats},
+                upsert=True
+            )
+        except Exception:
+            pass
+
+    async def get_stats(self):
+        try:
+            stats = await self.stats_col.find_one({'_id': 'server_stats'})
+            if stats:
+                return stats
+            return {}
+        except Exception:
+            return {}
+
+    async def get_user_count(self):
+        try:
+            count = await self.users_col.count_documents({})
+            return count
+        except Exception:
+            return 0
+
+
+    async def get_blocked_user_count(self):
+        try:
+            count = await self.users_col.count_documents({'blocked': True})
+            return count
+        except Exception:
+            return 0
     
 # Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)    
