@@ -2241,7 +2241,7 @@ async def ytdlleech_handler(client: Client, msg: Message):
 
             file_data = {
                 'title': info_dict['title'],
-                'thumbnail': info_dict.get('thumbnail')
+                'thumbnail': info_dict.get('thumbnail')  # No default thumbnail path
             }
             await db.save_file_data(msg.from_user.id, file_data)
 
@@ -2275,12 +2275,13 @@ async def callback_query_handler(client: Client, query):
 
     quality = selected_format.get('format_note', 'Unknown')
     file_size = selected_format.get('filesize', 0)
+    file_name = f"{video_title} - {quality}.mkv"
 
     sts = await query.message.reply_text(f"🚀 Downloading {quality} - {humanbytes(file_size)}... ⚡")
 
     ydl_opts = {
         'format': f'{format_id}+bestaudio/best',
-        'outtmpl': f"{video_title}.mkv",
+        'outtmpl': file_name,
         'quiet': True,
         'noplaylist': True,
         'progress_hooks': [await progress_hook(status_message=sts)],
@@ -2291,43 +2292,45 @@ async def callback_query_handler(client: Client, query):
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        if not os.path.exists(f"{video_title}.mkv"):
+        if not os.path.exists(file_name):
             return await safe_edit_message(sts, "Error: Download failed. File not found.")
 
         file_thumb = await db.get_thumbnail(user_id)
+        if not file_thumb:
+            file_thumb = None
         
         if file_size >= FILE_SIZE_LIMIT:
             await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
-            file_link = await upload_to_google_drive(f"{video_title}.mkv", f"{video_title}.mkv", sts)
+            file_link = await upload_to_google_drive(file_name, file_name, sts)
             button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
             await query.message.reply_text(
                 f"**File successfully uploaded to Google Drive!**\n\n"
                 f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {video_title}.mkv\n"
+                f"**Uploaded File**: {file_name}\n"
                 f"**Size**: {humanbytes(file_size)}",
                 reply_markup=InlineKeyboardMarkup(button)
             )
         else:
             await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
-            caption = f"**Uploaded Document 📄**: {video_title}.mkv\n\n🌟 Size: {humanbytes(file_size)}"
-            await query.message.reply_document(
-                document=open(f"{video_title}.mkv", 'rb'),
-                caption=caption,
-                thumb=file_thumb,
-                progress=progress_message,
-                progress_args=("💠 Upload Started... ⚡", sts, time.time())
-            )
+            caption = f"**Uploaded Document 📄**: {file_name}\n\n🌟 Size: {humanbytes(file_size)}"
+            with open(file_name, 'rb') as file:
+                await query.message.reply_document(
+                    document=file,
+                    caption=caption,
+                    thumb=file_thumb,
+                    progress=progress_message,
+                    progress_args=("💠 Upload Started... ⚡", sts, time.time())
+                )
 
     except Exception as e:
         await safe_edit_message(sts, f"Error: {e}")
 
     finally:
-        if os.path.exists(f"{video_title}.mkv"):
-            os.remove(f"{video_title}.mkv")
-        if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
+        if os.path.exists(file_name):
+            os.remove(file_name)
         await sts.delete()
         await query.message.delete()
+
 
 
 
