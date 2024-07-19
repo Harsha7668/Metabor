@@ -144,7 +144,7 @@ async def toggle_merge_video_callback(client, callback_query):
     toggles = await db.get_toggle_settings(callback_query.from_user.id)
     toggles["MERGE_ENABLED"] = not toggles.get("MERGE_ENABLED", False)
     await db.save_toggle_settings(callback_query.from_user.id, toggles)
-    await update_settings_message(callback_query.message, tooggles)
+    await update_settings_message(callback_query.message, toggles)
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 @Client.on_callback_query(filters.regex("del"))
