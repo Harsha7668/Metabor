@@ -124,6 +124,7 @@ async def start(bot: Client, msg: Message):
         )
         await notify_log_channel(log_message)
 
+
 async def check_membership(bot: Client, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
     user_id = msg.chat.id
     if not joined_channel_dict[user_id]:
