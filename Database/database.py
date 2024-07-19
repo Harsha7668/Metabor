@@ -257,13 +257,8 @@ class Database:
         return None
 
      # Function to store media info in MongoDB
-    async def store_media_info_in_db(title, date, html_content):
-        media_info_data = {
-            'title': title,
-            'date': date,
-            'html_content': html_content
-        }
-        result = await collection.insert_one(media_info_data)
+    async def store_media_info_in_db(self, media_info):
+        result = await collection.insert_one(media_info)
         return result.inserted_id
     
 # Initialize the database instance
