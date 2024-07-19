@@ -2791,21 +2791,18 @@ async def stats_command(_, msg):
     ram_usage = psutil.virtual_memory().percent
 
     stats_message = (
-        f"╔════❰ sᴇʀᴠᴇʀ sᴛᴀᴛs  ❱═❍⊱❁۪۪\n"
-        f"║╭━━━━━━━━━━━━━━━➣\n"
-        f"║┣⪼ ᴜᴩᴛɪᴍᴇ: {uptime_str}\n"
-        f"║┣⪼ ᴛᴏᴛᴀʟ sᴘᴀᴄᴇ: {total_space:.2f} Gb\n"
-        f"║┣⪼ ᴜsᴇᴅ: {used_space:.2f} Gb ({used_space / total_space * 100:.1f}%)\n"
-        f"║┣⪼ ꜰʀᴇᴇ: {free_space:.2f} Gb\n"
-        f"║┣⪼ ᴄᴘᴜ: {cpu_usage:.1f}%\n"
-        f"║┣⪼ ʀᴀᴍ: {ram_usage:.1f}%\n"
-        f"║╰━━━━━━━━━━━━━━━➣\n"
-        f"╚══════════════════❍⊱❁۪۪"
+        f"📊 **Server Stats** 📊\n\n"
+        f"⏳ **Uptime:** `{uptime_str}`\n"
+        f"💾 **Total Space:** `{total_space:.2f} GB`\n"
+        f"📂 **Used Space:** `{used_space:.2f} GB` ({used_space / total_space * 100:.1f}%)\n"
+        f"📁 **Free Space:** `{free_space:.2f} GB`\n"
+        f"⚙️ **CPU Usage:** `{cpu_usage:.1f}%`\n"
+        f"💻 **RAM Usage:** `{ram_usage:.1f}%`\n"
     )
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton("Refresh 🔄", callback_data="refresh_stats")]
+            [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")]
         ]
     )
 
@@ -2825,23 +2822,32 @@ async def refresh_stats_callback(_, callback_query):
     ram_usage = psutil.virtual_memory().percent
 
     stats_message = (
-        f"╔════❰ sᴇʀᴠᴇʀ sᴛᴀᴛs  ❱═❍⊱❁۪۪\n"
-        f"║╭━━━━━━━━━━━━━━━➣\n"
-        f"║┣⪼ ᴜᴩᴛɪᴍᴇ: {uptime_str}\n"
-        f"║┣⪼ ᴛᴏᴛᴀʟ sᴘᴀᴄᴇ: {total_space:.2f} Gb\n"
-        f"║┣⪼ ᴜsᴇᴅ: {used_space:.2f} Gb ({used_space / total_space * 100:.1f}%)\n"
-        f"║┣⪼ ꜰʀᴇᴇ: {free_space:.2f} Gb\n"
-        f"║┣⪼ ᴄᴘᴜ: {cpu_usage:.1f}%\n"
-        f"║┣⪼ ʀᴀᴍ: {ram_usage:.1f}%\n"
-        f"║╰━━━━━━━━━━━━━━━➣\n"
-        f"╚══════════════════❍⊱❁۪۪"
+        f"📊 **Server Stats** 📊\n\n"
+        f"⏳ **Uptime:** `{uptime_str}`\n"
+        f"💾 **Total Space:** `{total_space:.2f} GB`\n"
+        f"📂 **Used Space:** `{used_space:.2f} GB` ({used_space / total_space * 100:.1f}%)\n"
+        f"📁 **Free Space:** `{free_space:.2f} GB`\n"
+        f"⚙️ **CPU Usage:** `{cpu_usage:.1f}%`\n"
+        f"💻 **RAM Usage:** `{ram_usage:.1f}%`\n"
     )
 
     await callback_query.message.edit_text(stats_message, reply_markup=InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton("Refresh 🔄", callback_data="refresh_stats")]
+            [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")]
         ]
     ))
+
+
+
+@Client.on_message(filters.command("users") & filters.user(ADMIN))
+async def users_command(client, msg: Message):
+    total_users, blocked_users = await db.get_users_count()
+    await msg.reply_text(
+        f"Total Users: {total_users}\nBlocked Users: {blocked_users}"
+    )
+
+
+
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
