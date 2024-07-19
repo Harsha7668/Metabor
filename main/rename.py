@@ -2333,7 +2333,6 @@ telegraph = TelegraphPoster(use_api=True)
 telegraph.create_api_token("MediaInfoBot")
 
 
-
 # Function to extract media information using mediainfo command
 def get_mediainfo(file_path):
     process = subprocess.Popen(
@@ -2345,9 +2344,6 @@ def get_mediainfo(file_path):
     if process.returncode != 0:
         raise Exception(f"Error getting media info: {stderr.decode().strip()}")
     return stdout.decode().strip()
-
-
-
 
 @Client.on_message(filters.command("mediainfo") & filters.private)
 async def mediainfo_handler(client: Client, message: Message):
@@ -2374,7 +2370,7 @@ async def mediainfo_handler(client: Client, message: Message):
         # Get the current date
         current_date = datetime.datetime.now().strftime("%B %d, %Y")
 
-        # Prepare the media info with additional details using allowed tags
+        # Prepare the media info with additional details
         media_info_html = (
             f"<strong>SUNRISES 24 BOT UPDATES</strong><br>"
             f"<strong>MediaInfo X</strong><br>"
@@ -2382,6 +2378,11 @@ async def mediainfo_handler(client: Client, message: Message):
             f"{media_info_html}"
             f"<p>Rights Designed By Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ</p>"
         )
+
+        # Save the media info to an HTML file
+        html_file_path = f"media_info_{media.file_id}.html"
+        with open(html_file_path, "w") as file:
+            file.write(media_info_html)
 
         # Store media info in MongoDB
         media_info_data = {
@@ -2416,9 +2417,12 @@ async def mediainfo_handler(client: Client, message: Message):
         # Clean up the acknowledgment message
         await processing_message.delete()
 
-        # Clean up downloaded files
+        # Clean up downloaded files and HTML file
         if 'file_path' in locals() and os.path.exists(file_path):
             os.remove(file_path)
+        if 'html_file_path' in locals() and os.path.exists(html_file_path):
+            os.remove(html_file_path)
+
 
 
         
