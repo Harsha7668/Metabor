@@ -1,5 +1,5 @@
 import motor.motor_asyncio
-from config import DATABASE_NAME, DATABASE_URI
+from config import DATABASE_NAME, DATABASE_URI, LOG_CHANNEL_ID
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 
@@ -33,9 +33,10 @@ class Database:
                 f"🆔 **ID**: {user_id}\n"
                 f"👤 **Username**: {username}"
             )
-            await notify_log_channel(self.bot, log_message)
+            try:
+            await bot.send_message(LOG_CHANNEL_ID, log_message)
         except PyMongoError as e:
-            print(f"An error occurred while adding/updating user: {e}")
+            print(f"An error occurred while sending log message: {e}")        
             raise
 
     async def ban_user(self, user_id: int):
@@ -57,9 +58,11 @@ class Database:
                 f"🚫 **User Banned**\n"
                 f"🆔 **ID**: {user_id}"
             )
-            await notify_log_channel(self.bot, log_message)
+            try:
+            await bot.send_message(LOG_CHANNEL_ID, log_message)
         except PyMongoError as e:
-            print(f"An error occurred while banning user: {e}")
+            print(f"An error occurred while sending log message: {e}")
+
             raise
 
     async def unban_user(self, user_id):
