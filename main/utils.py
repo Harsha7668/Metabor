@@ -6,7 +6,8 @@ from Database.database import db
 from pyrogram import Client, filters
 
 
-PROGRESS_BAR_TEMPLATE = """
+
+PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
 │
 ├<b>{5}</b>
@@ -21,66 +22,38 @@ PROGRESS_BAR_TEMPLATE = """
 │
 ╰─────────────────⍟"""
 
-async def start_task(chat_id, message_id, task_id):
-    start_time = time.time()
-    await db.create_task(task_id, chat_id, message_id)
-    # You may need to initialize the task with some initial progress
-    await update_task_progress(task_id, 0, 100)  # Example progress
-
-# Example usage:
-task_list = [
-    ('task1', (50, 100)),
-    ('task2', (75, 100)),
-]
-
-await progress_message(task_list)
-async def update_task_progress(task_id, current, total):
-    task = await db.get_task(task_id)
-    if not task:
-        return
-
+async def progress_message(current, total, ud_type, message, start):
     now = time.time()
-    diff = now - task['start_time'].timestamp()
-    percentage = current * 100 / total if total else 0
-    speed = humanbytes(current / diff) + "/s"
-    elapsed_time_ms = round(diff * 1000)
-    time_to_completion_ms = round((total - current) / (current / diff)) * 1000 if current else 0
-    estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+    diff = now - start
+    if round(diff % 5.00) == 0 or current == total:
+        percentage = current * 100 / total
+        speed = humanbytes(current / diff) + "/s"
+        elapsed_time_ms = round(diff * 1000)
+        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
+        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
 
-    elapsed_time = TimeFormatter(elapsed_time_ms)
-    estimated_total_time = TimeFormatter(estimated_total_time_ms)
+        elapsed_time = TimeFormatter(elapsed_time_ms)
+        estimated_total_time = TimeFormatter(estimated_total_time_ms)
 
-    progress = "{0}{1}".format(
-        ''.join(["■" for _ in range(math.floor(percentage / 5))]),
-        ''.join(["□" for _ in range(20 - math.floor(percentage / 5))])
-    )
-
-    text = f"{PROGRESS_BAR_TEMPLATE.format(round(percentage, 2), humanbytes(current), humanbytes(total), speed, estimated_total_time if estimated_total_time != '' else '0 s', progress)}\n\n/Cancel_{task_id}"
-
-    try:
-        await app.edit_message_text(
-            chat_id=task['chat_id'],
-            message_id=task['message_id'],
-            text=text,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Refresh Status", callback_data=f"refresh_{task_id}")]])
+        progress = "{0}{1}".format(
+            ''.join(["■" for _ in range(math.floor(percentage / 5))]),
+            ''.join(["□" for _ in range(20 - math.floor(percentage / 5))])
         )
-        await db.update_task(task_id, current, total)  # Update the task in the database
-    except Exception as e:
-        print(f"Error editing message: {e}")
 
-async def progress_message(task_list):
-    for task_id, (current, total) in task_list:
-        await update_task_progress(task_id, current, total)
-
-@Client.on_callback_query()
-async def handle_callback(client, callback_query):
-    data = callback_query.data
-    if data.startswith("refresh_"):
-        task_id = data.split("_")[1]
-        task = await db.get_task(task_id)
-        if task:
-            await update_task_progress(task_id, task['current'], task['total'])
-        await callback_query.answer()  # Acknowledge the callback
+        try:
+            await message.edit(
+                text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
+                    round(percentage, 2),
+                    humanbytes(current),
+                    humanbytes(total),
+                    speed,
+                    estimated_total_time if estimated_total_time != '' else '0 s',
+                    progress
+                ),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+            )
+        except Exception as e:
+            print(f"Error editing message: {e}")
 
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(milliseconds, 1000)
@@ -105,7 +78,70 @@ def humanbytes(size):
         n += 1
     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
+@Client.on_callback_query()
+async def handle_callback(client, callback_query):
+    data = callback_query.data
+    if data.startswith("refresh_"):
+        task_id = data.split("_")[1]
+        task = await db.get_task(task_id)
+        if task:
+            await update_task_progress(task_id, task['current'], task['total'])
+        await callback_query.answer()  # Acknowledge the callback
+    elif data.startswith("cancel_"):
+        task_id = data.split("_")[1]
+        await cancel_task(task_id)
+        await callback_query.answer()  # Acknowledge the callback
 
+async def start_task(chat_id, message_id, task_id, total):
+    start_time = time.time()
+    await db.create_task(task_id, chat_id, message_id, total)
+    await progress_message(0, total, "🚀 Download Started... ⚡️", await app.send_message(chat_id, "Task started"), start_time)
+
+async def update_task_progress(task_id, current, total):
+    task = await db.get_task(task_id)
+    if not task:
+        return
+
+    now = time.time()
+    diff = now - task['start_time'].timestamp()
+    percentage = current * 100 / total if total else 0
+    speed = humanbytes(current / diff) + "/s"
+    elapsed_time_ms = round(diff * 1000)
+    time_to_completion_ms = round((total - current) / (current / diff)) * 1000 if current else 0
+    estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+
+    elapsed_time = TimeFormatter(elapsed_time_ms)
+    estimated_total_time = TimeFormatter(estimated_total_time_ms)
+
+    progress = "{0}{1}".format(
+        ''.join(["■" for _ in range(math.floor(percentage / 5))]),
+        ''.join(["□" for _ in range(20 - math.floor(percentage / 5))])
+    )
+
+    text = f"{PROGRESS_BAR.format(round(percentage, 2), humanbytes(current), humanbytes(total), speed, estimated_total_time if estimated_total_time != '' else '0 s', progress)}\n\n/Cancel_{task_id}"
+
+    try:
+        await app.edit_message_text(
+            chat_id=task['chat_id'],
+            message_id=task['message_id'],
+            text=text,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Refresh Status", callback_data=f"refresh_{task_id}"),
+                                               InlineKeyboardButton("Cancel", callback_data=f"cancel_{task_id}")]])
+        )
+        await db.update_task(task_id, current, total)  # Update the task in the database
+    except Exception as e:
+        print(f"Error editing message: {e}")
+
+async def cancel_task(task_id):
+    task = await db.get_task(task_id)
+    if task:
+        await app.edit_message_text(
+            chat_id=task['chat_id'],
+            message_id=task['message_id'],
+            text="🚨 Task Cancelled 🚨",
+            reply_markup=None
+        )
+        await db.delete_task(task_id)  # Remove the task from the database
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def convert(seconds):
