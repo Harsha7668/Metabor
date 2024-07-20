@@ -13,10 +13,9 @@ from pyrogram.types import Document, Video
 from pyrogram import Client, filters
 from pyrogram.enums import MessageMediaType
 from pyrogram.errors import MessageNotModified
-from config import DOWNLOAD_LOCATION1, CAPTION
 from main.utils import progress_message, humanbytes
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup,CallbackQuery
-from config import AUTH_USERS, ADMIN, DOWNLOAD_LOCATION
+from config import AUTH_USERS, ADMIN
 from main.utils import heroku_restart, upload_files, download_media
 import aiohttp
 from pyrogram.errors import RPCError, FloodWait
@@ -30,6 +29,13 @@ import datetime
 from datetime import timedelta
 import psutil
 from pymongo.errors import PyMongoError
+from yt_dlp import YoutubeDL
+from html_telegraph_poster import TelegraphPoster
+
+# Initialize Telegraph
+telegraph = TelegraphPoster(use_api=True)
+telegraph.create_api_token("MediaInfoBot")
+
 
 # Global variables
 START_TIME = datetime.datetime.now()
@@ -2196,7 +2202,7 @@ async def clean_files(bot, msg: Message):
 
 
 
-from yt_dlp import YoutubeDL
+
 
 async def progress_hook(status_message):
     async def hook(d):
@@ -2339,12 +2345,6 @@ async def callback_query_handler(client: Client, query):
         await query.message.delete()
 
 
-from html_telegraph_poster import TelegraphPoster
-
-# Initialize Telegraph
-telegraph = TelegraphPoster(use_api=True)
-telegraph.create_api_token("MediaInfoBot")
-
 
 # Function to extract media information using mediainfo command
 def get_mediainfo(file_path):
@@ -2476,10 +2476,6 @@ async def get_mod_apk(bot, msg: Message):
 
     await sts.delete()
 
-
-
-from pyrogram.errors import FloodWait
-from pymongo.errors import PyMongoError
 
 @Client.on_message(filters.command("ban") & filters.user(ADMIN))
 async def ban_user(bot, msg: Message):
