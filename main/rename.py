@@ -2657,13 +2657,12 @@ async def edit_watermark(media_file: str, outfile: str, watermark_text: str):
     start_time = 10  # First 10 seconds
     middle_start_time = half_duration - 5  # 5 seconds before the halfway point
     middle_end_time = half_duration + 5  # 5 seconds after the halfway point
-    end_time = duration - 5  # Last 5 seconds
+    
 
     cmd = [
         'ffmpeg', '-hide_banner', '-ignore_unknown', '-i', media_file, '-vf',
         f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='between(t,0,{start_time})',"  # Start of the video
-        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='between(t,{middle_start_time},{middle_end_time})',"  # Middle of the video
-        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='gte(t,{end_time})'",  # End of the video
+        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='between(t,{middle_start_time},{middle_end_time})',"  # Middle of the video       
         '-c:a', 'copy', outfile, '-y'
     ]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
