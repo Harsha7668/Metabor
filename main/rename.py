@@ -16,11 +16,11 @@ from pyrogram.errors import MessageNotModified
 from main.utils import progress_message, humanbytes
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup,CallbackQuery
 from config import AUTH_USERS, ADMIN
-from main.utils import heroku_restart, upload_files, download_media
+from main.utils import heroku_restart, upload_files, download_media, progress_hook
 import aiohttp
 from pyrogram.errors import RPCError, FloodWait
 import asyncio
-from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file, get_mediainfo
+from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file, extract_audio_stream, extract_subtitle_stream, extract_video_stream, extract_audios_from_file, extract_subtitles_from_file, extract_video_from_file, get_mediainfo
 from googleapiclient.http import MediaFileUpload
 from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, get_files_in_folder
 from googleapiclient.errors import HttpError
@@ -1788,7 +1788,7 @@ async def clone_file(bot, msg: Message):
         await sts.edit(f"Error: {e}")
 
 
-
+#safe edit message 
 async def safe_edit_message(message, new_text):
     try:
         if message.text != new_text:
@@ -1796,7 +1796,8 @@ async def safe_edit_message(message, new_text):
     except Exception as e:
         print(f"Failed to edit message: {e}")
 
-@Client.on_message(filters.private & filters.command("extractaudios"))
+#extract audio command 
+@Client.on_message(filters.command("extractaudios") & filters.chat(GROUP))
 async def extract_audios(bot, msg):
     global EXTRACT_ENABLED
     
@@ -1854,34 +1855,9 @@ async def extract_audios(bot, msg):
         for file, _ in extracted_files:
             os.remove(file)
 
-def extract_audio_stream(input_path, output_path, stream_index):
-    command = [
-        'ffmpeg',
-        '-i', input_path,
-        '-map', f'0:{stream_index}',
-        '-c', 'copy',
-        output_path,
-        '-y'
-    ]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
 
-def extract_audios_from_file(input_path):
-    video_streams_data = ffmpeg.probe(input_path)
-    audios = [stream for stream in video_streams_data.get("streams") if stream.get("codec_type") == "audio"]
-
-    extracted_files = []
-    for audio in audios:
-        codec_name = audio.get('codec_name', 'aac')
-        output_file = os.path.join(os.path.dirname(input_path), f"{audio['index']}.{codec_name}")
-        extract_audio_stream(input_path, output_file, audio['index'])
-        extracted_files.append((output_file, audio))
-
-    return extracted_files
-
-@Client.on_message(filters.private & filters.command("extractsubtitles"))
+#extract subtitles command 
+@Client.on_message(filters.command("extractsubtitles") & filters.chat(GROUP))
 async def extract_subtitles(bot, msg):
     global EXTRACT_ENABLED
     
@@ -1939,35 +1915,8 @@ async def extract_subtitles(bot, msg):
         for file, _ in extracted_files:
             os.remove(file)
 
-def extract_subtitle_stream(input_path, output_path, stream_index):
-    command = [
-        'ffmpeg',
-        '-i', input_path,
-        '-map', f'0:{stream_index}',
-        '-c', 'copy',
-        output_path,
-        '-y'
-    ]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
-
-def extract_subtitles_from_file(input_path):
-    video_streams_data = ffmpeg.probe(input_path)
-    subtitles = [stream for stream in video_streams_data.get("streams") if stream.get("codec_type") == "subtitle"]
-
-    extracted_files = []
-    for subtitle in subtitles:
-        output_file = os.path.join(os.path.dirname(input_path), f"{subtitle['index']}.{subtitle['codec_type']}.srt")
-        extract_subtitle_stream(input_path, output_file, subtitle['index'])
-        extracted_files.append((output_file, subtitle))
-
-    return extracted_files
-
-
-    
-@Client.on_message(filters.private & filters.command("extractvideo"))
+##extract video command 
+@Client.on_message(filters.command("extractvideo") & filters.chat(GROUP))
 async def extract_video(bot, msg: Message):
     global EXTRACT_ENABLED
     
@@ -2023,65 +1972,6 @@ async def extract_video(bot, msg: Message):
         os.remove(downloaded)
         if os.path.exists(output_file):
             os.remove(output_file)
-
-def extract_video_stream(input_path, output_path, stream_index, codec_name):
-    temp_output = f"{output_path}.{codec_name}"  # Temporary output file
-    command = [
-        'ffmpeg',
-        '-i', input_path,
-        '-map', f'0:{stream_index}',
-        '-c', 'copy',
-        temp_output,
-        '-y'
-    ]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
-
-    # Convert to .mkv or .mp4
-    mkv_output = f"{output_path}.mkv"
-    mp4_output = f"{output_path}.mp4"
-    command_mkv = [
-        'ffmpeg',
-        '-i', temp_output,
-        '-c', 'copy',
-        mkv_output,
-        '-y'
-    ]
-    command_mp4 = [
-        'ffmpeg',
-        '-i', temp_output,
-        '-c', 'copy',
-        mp4_output,
-        '-y'
-    ]
-
-    process_mkv = subprocess.Popen(command_mkv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout_mkv, stderr_mkv = process_mkv.communicate()
-    process_mp4 = subprocess.Popen(command_mp4, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout_mp4, stderr_mp4 = process_mp4.communicate()
-
-    if process_mkv.returncode != 0 and process_mp4.returncode != 0:
-        raise Exception(f"FFmpeg error during conversion: {stderr_mkv.decode('utf-8')} {stderr_mp4.decode('utf-8')}")
-
-    os.remove(temp_output)  # Remove temporary file
-    return mkv_output if process_mkv.returncode == 0 else mp4_output
-
-def extract_video_from_file(input_path):
-    video_streams_data = ffmpeg.probe(input_path)
-    video_streams = [stream for stream in video_streams_data.get("streams") if stream.get("codec_type") == "video"]
-
-    if not video_streams:
-        return None
-
-    video_stream = video_streams[0]  # Assuming we extract the first video stream found
-    codec_name = video_stream['codec_name']
-    output_file = os.path.join(os.path.dirname(input_path), f"{video_stream['index']}")
-    output_file = extract_video_stream(input_path, output_file, video_stream['index'], codec_name)
-
-    return output_file
-
 
 # Command handler for /list
 @Client.on_message(filters.private & filters.command("list"))
@@ -2199,21 +2089,6 @@ async def clean_files(bot, msg: Message):
         await msg.reply_text(f"An error occurred: {error}")
     except Exception as e:
         await msg.reply_text(f"An unexpected error occurred: {e}")
-
-
-
-
-
-async def progress_hook(status_message):
-    async def hook(d):
-        if d['status'] == 'downloading':
-            current_progress = d.get('_percent_str', '0%')
-            current_size = humanbytes(d.get('total_bytes', 0))
-            await safe_edit_message(status_message, f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
-        elif d['status'] == 'finished':
-            await safe_edit_message(status_message, "Download finished. 🚀")
-    return hook
-
 
 
 
@@ -2345,19 +2220,6 @@ async def callback_query_handler(client: Client, query):
         await query.message.delete()
 
 
-
-# Function to extract media information using mediainfo command
-def get_mediainfo(file_path):
-    process = subprocess.Popen(
-        ["mediainfo", file_path, "--Output=HTML"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"Error getting media info: {stderr.decode().strip()}")
-    return stdout.decode().strip()
-
 @Client.on_message(filters.command("mediainfo") & filters.private)
 async def mediainfo_handler(client: Client, message: Message):
     if not message.reply_to_message or (not message.reply_to_message.document and not message.reply_to_message.video):
@@ -2432,9 +2294,6 @@ async def mediainfo_handler(client: Client, message: Message):
         if 'html_file_path' in locals() and os.path.exists(html_file_path):
             os.remove(html_file_path)
         
-
-
-
 
 # Function to handle "/getmodapk" command
 @Client.on_message(filters.private & filters.command("getmodapk"))
@@ -2694,7 +2553,6 @@ Hᴇʀᴇ Is Tʜᴇ Hᴇʟᴘ Fᴏʀ Mʏ Cᴏᴍᴍᴀɴᴅs.
     
    """
     await msg.reply_text(help_text)
-
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
