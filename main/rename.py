@@ -2658,7 +2658,7 @@ async def apply_watermark(bot, msg):
         await safe_edit_message(sts, f"Error downloading media: {e}")
         return
 
-    output_file = os.path.join(DOWNLOAD_LOCATION, output_filename)
+    output_file = os.path.join(DOWNLOAD_LOCATION1, output_filename)
 
     await safe_edit_message(sts, "💠 Adding watermark... ⚡")
     try:
