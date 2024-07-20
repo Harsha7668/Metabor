@@ -6,9 +6,6 @@ from Database.database import db
 from pyrogram import Client, filters
 
 
-import time
-import math
-from pyrogram import InlineKeyboardMarkup, InlineKeyboardButton
 
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
