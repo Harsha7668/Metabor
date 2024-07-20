@@ -17,34 +17,46 @@ class Database:
         self.file_data_col = self.db['file_data']       
         self.tasks_col = self.db['tasks']  # Collection for storing tasks
 
-    async def create_task(self, task_id, chat_id, message_id):
-        task = {
-            'task_id': task_id,
-            'chat_id': chat_id,
-            'message_id': message_id,
-            'start_time': datetime.utcnow(),
-            'current': 0,
-            'total': 0,
-            'status': 'Started'  # Or any other initial status
+    async def start_task(message_id, task_info):
+    # Add task to the database
+        task_id = await db.create_task(message_id, task_info)
+    
+    # Create an asyncio task
+        task = asyncio.create_task(example_task(message_id))
+    
+    # Update the database with the task object
+        await db.tasks_col.update_one(
+            {"message_id": message_id},
+            {"$set": {"task": task_id}}  # Storing the task ID or reference
+        )
+    
+        return task_id
+
+
+    
+
+
+    async def create_task(self, message_id, task_info, status="pending"):
+        """Insert a new task into the database."""
+        task_document = {
+            "message_id": message_id,
+            "task_info": task_info,  # Dictionary containing information about the task
+            "status": status,        # e.g., "pending", "in_progress", "completed", "cancelled"
+            "created_at": datetime.utcnow()
         }
-        await self.tasks_col.insert_one(task)
+        result = await self.tasks_col.insert_one(task_document)
+        return result.inserted_id
 
-    async def update_task(self, task_id, current, total):
-        update = {
-            'current': current,
-            'total': total,
-            'status': 'In Progress' if current < total else 'Completed'
-        }
-        await self.tasks_col.update_one({'task_id': task_id}, {'$set': update})
+    async def update_task_status(self, message_id, status):
+        """Update the status of a task."""
+        await self.tasks_col.update_one(
+            {"message_id": message_id},
+            {"$set": {"status": status}}
+        )
 
-    async def get_task(self, task_id):
-        task = await self.tasks_col.find_one({'task_id': task_id})
-        return task
-
-    async def cancel_task(self, task_id):
-        await self.tasks_col.update_one({'task_id': task_id}, {'$set': {'status': 'Cancelled'}})
-
-
+    async def get_task(self, message_id):
+        """Retrieve a task by its message ID."""
+        return await self.tasks_col.find_one({"message_id": message_id})
 
 
     async def add_user(self, user_id: int, username: str):
