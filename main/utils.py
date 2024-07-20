@@ -6,9 +6,9 @@ from Database.database import db
 from pyrogram import Client, filters
 
 
-# Define the progress bar template
 import time
 import math
+from pyrogram import InlineKeyboardMarkup, InlineKeyboardButton
 
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
@@ -48,7 +48,7 @@ def TimeFormatter(milliseconds: int) -> str:
           ((str(milliseconds) + "ms, ") if milliseconds else "")
     return tmp[:-2]
 
-def progress_message(current, total, ud_type, start):
+def generate_progress_message(current, total, ud_type, start):
     now = time.time()
     diff = now - start
     percentage = current * 100 / total
@@ -73,6 +73,21 @@ def progress_message(current, total, ud_type, start):
         estimated_total_time if estimated_total_time != '' else '0 s',
         progress
     )
+
+async def progress_message(current, total, ud_type, message, start):
+    now = time.time()
+    diff = now - start
+    if round(diff % 5.00) == 0 or current == total:
+        progress_text = generate_progress_message(current, total, ud_type, start)
+        try:
+            await message.edit(
+                text=f"{ud_type}\n\n" + progress_text,
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+            )
+        except Exception as e:
+            print(f"Error editing message: {e}")
+
+
 
 class ProgressManager:
     def __init__(self):
