@@ -48,7 +48,7 @@ def TimeFormatter(milliseconds: int) -> str:
           ((str(milliseconds) + "ms, ") if milliseconds else "")
     return tmp[:-2]
 
-def generate_progress_message(current, total, ud_type, start):
+def progress_message(current, total, ud_type, start):
     now = time.time()
     diff = now - start
     percentage = current * 100 / total
@@ -90,7 +90,7 @@ class ProgressManager:
         if task_id in self.tasks:
             task = self.tasks[task_id]
             task['current'] = current
-            return generate_progress_message(
+            return progress_message(
                 task['current'], task['total'], task['ud_type'], task['start']
             )
         return None
@@ -103,7 +103,7 @@ class ProgressManager:
 
     def list_progress(self):
         return {
-            task_id: generate_progress_message(
+            task_id: progress_message(
                 task['current'], task['total'], task['ud_type'], task['start']
             )
             for task_id, task in self.tasks.items()
