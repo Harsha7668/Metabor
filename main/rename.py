@@ -2727,6 +2727,94 @@ async def apply_watermark(bot, msg):
         os.remove(file_thumb)
     await sts.delete()
 
+@Client.on_message(filters.command("upload_token") & filters.private)
+async def upload_token(bot, msg: Message):
+    if not msg.reply_to_message or not msg.reply_to_message.document:
+        await msg.reply_text("Please reply to a `token.pickle` file to upload it.")
+        return
+
+    file_name = msg.reply_to_message.document.file_name
+    if file_name != "token.pickle":
+        await msg.reply_text("The file must be named `token.pickle`.")
+        return
+
+    user_id = msg.from_user.id
+
+    # Download the file
+    file_path = await msg.reply_to_message.download()
+    with open(file_path, "rb") as f:
+        token_data = f.read()
+
+    # Store the token in the database
+    await db.add_token(user_id, token_data)
+
+    await msg.reply_text(f"`token.pickle` has been successfully uploaded and stored for user {user_id}.")
+
+
+@Client.on_message(filters.command("list_tokens") & filters.user(ADMIN))
+async def list_tokens(bot, msg: Message):
+    token_count = await db.count_tokens()
+    if token_count == 0:
+        await msg.reply_text("No token files found.")
+        return
+
+    cursor = db.tokens_col.find({})
+    users = await cursor.to_list(length=100)
+    user_list = "\n".join([str(user['user_id']) for user in users])
+    await msg.reply_text(f"Users with uploaded tokens:\n{user_list}")
+
+    
+@Client.on_message(filters.command("delete_token") & filters.user(ADMIN))
+async def delete_token(bot, msg: Message):
+    try:
+        user_id = int(msg.text.split()[1])
+        
+        # Delete the token from the database
+        await db.delete_token(user_id)
+        
+        await msg.reply_text(f"`token.pickle` for user {user_id} has been deleted.")
+    except (IndexError, ValueError):
+        await msg.reply_text("Please provide a valid user ID.")
+
+
+@Client.on_message(filters.command("broadcast") & filters.user(ADMIN))
+async def broadcast(bot, msg: Message):
+    if not msg.reply_to_message:
+        await msg.reply_text("Please reply to a message to broadcast it.")
+        return
+
+    broadcast_message = msg.reply_to_message
+
+    # Fetch all user IDs
+    user_ids = await db.get_all_user_ids()
+
+    sent_count = 0
+    failed_count = 0
+    log_entries = []
+
+    for user_id in user_ids:
+        try:
+            await broadcast_message.copy(chat_id=user_id)
+            sent_count += 1
+            log_entries.append(f"Sent to {user_id}")
+        except Exception as e:
+            failed_count += 1
+            log_entries.append(f"Failed to send to {user_id}: {e}")
+
+        await asyncio.sleep(0.5)  # To avoid hitting rate limits
+
+    # Write log entries to a text file
+    log_content = "\n".join(log_entries)
+    with open("broadcast_log.txt", "w") as log_file:
+        log_file.write(log_content)
+
+    # Send summary to admin
+    await msg.reply_text(f"Broadcast completed: {sent_count} sent, {failed_count} failed.")
+    await msg.reply_document('broadcast_log.txt')
+
+# Register the command handler
+app.add_handler(Client.on_message(filters.command("broadcast") & filters.user(ADMIN), broadcast))
+
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
