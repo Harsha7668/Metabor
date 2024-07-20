@@ -394,7 +394,7 @@ class Database:
         await self.user_quality_selection_col.drop()
         await self.file_data_col.drop()
 
-   async def add_token(self, user_id: int, token_data: bytes):
+    async def add_token(self, user_id: int, token_data: bytes):
         try:
             await self.tokens_col.update_one(
                 {"user_id": user_id},
