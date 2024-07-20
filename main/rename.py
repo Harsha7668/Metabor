@@ -2513,7 +2513,7 @@ async def unban_user(bot, msg: Message):
         await asyncio.sleep(e.x)
         await msg.reply_text(f"Flood wait error: Please try again later.")
     except Exception as e:
-        await msg.reply_text(f"An error occurred:
+        await msg.reply_text(f"An error occurred: {e}")
 
 @Client.on_message(filters.command("users") & filters.user(ADMIN))
 async def count_users(bot, msg):
