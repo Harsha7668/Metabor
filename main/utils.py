@@ -7,14 +7,6 @@ from pyrogram import Client, filters
 
 
 
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-import time
-import math
-import asyncio
-
-# Define admin user IDs here
-ADMIN = [123456789, 987654321]  # Replace with actual admin user IDs
 
 # Dictionary to keep track of ongoing processes
 processes = {}
