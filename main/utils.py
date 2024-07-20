@@ -99,16 +99,19 @@ class ProgressManager:
         }
 
     def update_task(self, task_id, current):
-    task = self.tasks.get(task_id)
-    if task:
-        total = task['total']
-        ud_type = task['type']
-        start = task['start']
-        message = task['message']
+        task = self.tasks.get(task_id)
+        if task:
+            total = task['total']
+            ud_type = task['type']
+            start = task['start']
+            message = task['message']
         
         # Ensure all required arguments are passed
-        return progress_message(current, total, ud_type, message, start)
+            return progress_message(current, total, ud_type, message, start)
 
+
+    
+ 
     def cancel_task(self, task_id):
         if task_id in self.tasks:
             del self.tasks[task_id]
