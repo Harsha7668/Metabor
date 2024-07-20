@@ -15,49 +15,7 @@ class Database:
         self.banned_col = self.db["banned_users"]
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']       
-        self.tasks_col = self.db['tasks']  # Collection for storing tasks
-
-    async def start_task(message_id, task_info):
-    # Add task to the database
-        task_id = await db.create_task(message_id, task_info)
-    
-    # Create an asyncio task
-        task = asyncio.create_task(example_task(message_id))
-    
-    # Update the database with the task object
-        await db.tasks_col.update_one(
-            {"message_id": message_id},
-            {"$set": {"task": task_id}}  # Storing the task ID or reference
-        )
-    
-        return task_id
-
-
-    
-
-
-    async def create_task(self, message_id, task_info, status="pending"):
-        """Insert a new task into the database."""
-        task_document = {
-            "message_id": message_id,
-            "task_info": task_info,  # Dictionary containing information about the task
-            "status": status,        # e.g., "pending", "in_progress", "completed", "cancelled"
-            "created_at": datetime.utcnow()
-        }
-        result = await self.tasks_col.insert_one(task_document)
-        return result.inserted_id
-
-    async def update_task_status(self, message_id, status):
-        """Update the status of a task."""
-        await self.tasks_col.update_one(
-            {"message_id": message_id},
-            {"$set": {"status": status}}
-        )
-
-    async def get_task(self, message_id):
-        """Retrieve a task by its message ID."""
-        return await self.tasks_col.find_one({"message_id": message_id})
-
+        
 
     async def add_user(self, user_id: int, username: str):
         try:
