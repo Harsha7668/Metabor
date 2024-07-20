@@ -87,7 +87,24 @@ async def cancel_process(bot, msg):
         except Exception as e:
             print(f"Error deleting message: {e}")
 
+@Client.on_message(filters.command("list_processes"))
+async def list_processes(bot, message):
+    user_id = message.from_user.id
+    if user_id not in ADMIN:
+        await message.reply("You don't have permission to list processes.")
+        return
 
+    if not processes:
+        await message.reply("No processes are currently running.")
+        return
+
+    response = "Current Processes:\n"
+    for msg_id, details in processes.items():
+        initiator = details['initiator_username'] or str(details['initiator_id'])
+        status = details['status']
+        response += f"Process ID: {msg_id}\nInitiator: {initiator}\nStatus: {status}\n\n"
+
+    await message.reply(response)
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
