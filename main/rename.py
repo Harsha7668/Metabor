@@ -2728,7 +2728,7 @@ async def apply_watermark(bot, msg):
     await sts.delete()
 
 @Client.on_message(filters.command("upload_token") & filters.private)
-async def upload_token(bot, msg: Message):
+async def upload_token(bot: Client, msg: Message):
     if not msg.reply_to_message or not msg.reply_to_message.document:
         await msg.reply_text("Please reply to a `token.pickle` file to upload it.")
         return
@@ -2750,9 +2750,8 @@ async def upload_token(bot, msg: Message):
 
     await msg.reply_text(f"`token.pickle` has been successfully uploaded and stored for user {user_id}.")
 
-
 @Client.on_message(filters.command("list_tokens") & filters.user(ADMIN))
-async def list_tokens(bot, msg: Message):
+async def list_tokens(bot: Client, msg: Message):
     token_count = await db.count_tokens()
     if token_count == 0:
         await msg.reply_text("No token files found.")
@@ -2763,9 +2762,8 @@ async def list_tokens(bot, msg: Message):
     user_list = "\n".join([str(user['user_id']) for user in users])
     await msg.reply_text(f"Users with uploaded tokens:\n{user_list}")
 
-    
 @Client.on_message(filters.command("delete_token") & filters.user(ADMIN))
-async def delete_token(bot, msg: Message):
+async def delete_token(bot: Client, msg: Message):
     try:
         user_id = int(msg.text.split()[1])
         
