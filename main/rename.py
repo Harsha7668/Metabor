@@ -2092,6 +2092,17 @@ async def clean_files(bot, msg: Message):
 
 
 
+#Downloading Progress Hook For YouTube In logs work process 
+async def progress_hook(status_message):
+    async def hook(d):
+        if d['status'] == 'downloading':
+            current_progress = d.get('_percent_str', '0%')
+            current_size = humanbytes(d.get('total_bytes', 0))
+            await safe_edit_message(status_message, f"🚀 Downloading... ⚡\nProgress: {current_progress}\nSize: {current_size}")
+        elif d['status'] == 'finished':
+            await safe_edit_message(status_message, "Download finished. 🚀")
+    return hook
+    
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
     if len(msg.command) < 2:
