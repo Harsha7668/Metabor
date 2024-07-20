@@ -15,9 +15,9 @@ class Database:
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
             
-        
+    
+
     async def add_user(self, user_id: int, username: str):
-        # Add or update a user in the database
         try:
             await self.users_col.update_one(
                 {"user_id": user_id},
@@ -28,17 +28,6 @@ class Database:
                 }},
                 upsert=True
             )
-            # Notify log channel about the new user addition
-            log_message = (
-                f"💬 **User Added/Updated**\n"
-                f"🆔 **ID**: {user_id}\n"
-                f"👤 **Username**: {username}"
-            )
-        try:
-            await bot.send_message(LOG_CHANNEL_ID, log_message)
-        except PyMongoError as e:
-            print(f"An error occurred while sending log message: {e}")        
-            raise
         except PyMongoError as e:
             print(f"An error occurred while updating the user: {e}")
             raise
@@ -55,21 +44,17 @@ class Database:
             # Notify the banned user
             banned_user = await self.get_banned_user(user_id)
             if banned_user:
-                await self.bot.send_message(user_id, "Sorry, you are banned. Contact the admin for more information.")
-            
-            # Notify log channel about the ban
-            log_message = (
-                f"🚫 **User Banned**\n"
-                f"🆔 **ID**: {user_id}"
-            )
-        try:
-            await bot.send_message(LOG_CHANNEL_ID, log_message)
-        except PyMongoError as e:
-            print(f"An error occurred while sending log message: {e}")        
-            raise
+                try:
+                    await self.bot.send_message(user_id, "Sorry, you are banned. Contact the admin for more information.")
+                except Exception as e:
+                    print(f"An error occurred while notifying the user: {e}")
+                    raise
         except PyMongoError as e:
             print(f"An error occurred while banning the user: {e}")
             raise
+            
+    async def add_user(self, user_id: int, username: str):
+        # 
 
     async def unban_user(self, user_id):
         try:
