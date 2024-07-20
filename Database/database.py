@@ -33,16 +33,16 @@ class Database:
 
       
  
-     async def ban_user(self, user_id: int):
-         try:
-             await self.banned_col.update_one(
-                 {"user_id": user_id},
-                 {"$set": {"banned": True}},
-                 upsert=True
-             )
-         except PyMongoError as e:
-             print(f"An error occurred while banning the user: {e}")
-             raise    
+    async def ban_user(self, user_id: int):
+        try:
+            await self.banned_col.update_one(
+                {"user_id": user_id},
+                {"$set": {"banned": True}},
+                upsert=True
+            )
+        except PyMongoError as e:
+            print(f"An error occurred while banning the user: {e}")
+            raise    
 
     async def unban_user(self, user_id: int):
         try:
