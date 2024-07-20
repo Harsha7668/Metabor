@@ -2755,31 +2755,6 @@ async def apply_watermark(bot, msg):
 
 
 
-@Client.on_message(filters.command("users") & filters.user(ADMIN))  # Replace with your admin user ID
-async def count_users(bot, msg):
-    try:
-        total_users = await db.count_users()
-        banned_users = await db.count_banned_users()
-
-        response = (
-            f"**User Statistics:**\n"
-            f"Total Active Users: {total_users}\n"
-            f"Banned Users: {banned_users}"
-        )
-        await msg.reply_text(response)
-    except PyMongoError as e:
-        await msg.reply_text(f"An error occurred while counting users: {e}")
-"""
-@Client.on_message(filters.command("ban") & filters.user(ADMIN))  # Replace with your admin user ID
-async def ban_user(bot, msg):
-    try:
-        user_id = int(msg.text.split()[1])
-        await db.ban_user(user_id)
-        # Ban user from the chat
-        await bot.ban_chat_member(chat_id=msg.chat.id, user_id=user_id)
-        await msg.reply_text(f"User {user_id} has been banned.")
-    except Exception as e:
-        await msg.reply_text(f"An error occurred: {e}")
 
 @Client.on_message(filters.command("unban") & filters.user(ADMIN))  # Replace with your admin user ID
 async def unban_user(bot, msg):
@@ -2791,7 +2766,6 @@ async def unban_user(bot, msg):
         await msg.reply_text(f"User {user_id} has been unbanned.")
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
-"""
 
 @Client.on_message(filters.command("users") & filters.user(ADMIN))
 async def count_users(bot, msg):
