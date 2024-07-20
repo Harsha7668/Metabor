@@ -2,9 +2,7 @@ import math, time
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
 import os
-from config import *
-from pyrogram import Client, filters
-from Database.database import db
+
 
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
@@ -21,12 +19,8 @@ PROGRESS_BAR = """
 │
 ╰─────────────────⍟"""
 
-
-
-# Dictionary to track active uploads
-active_uploads = {}
-
-async def progress_message(current, total, ud_type, message, start, user_id):
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+async def progress_message(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
     if round(diff % 5.00) == 0 or current == total:
@@ -46,8 +40,6 @@ async def progress_message(current, total, ud_type, message, start, user_id):
         tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
 
         try:
-            # Store user_id to track the request
-            active_uploads[message.message_id] = user_id
             await message.edit(
                 text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
                     round(percentage, 2),
@@ -57,31 +49,10 @@ async def progress_message(current, total, ud_type, message, start, user_id):
                     estimated_total_time if estimated_total_time != '' else '0 s',
                     progress
                 ),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Cancel ❌", callback_data=f"cancel_{message.message_id}")]])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
             )
         except Exception as e:
             print(f"Error editing message: {e}")
-
-@Client.on_callback_query(filters.regex(r"cancel_(\d+)"))
-async def handle_cancel(bot, msg):
-    message_id = int(msg.data.split("_")[1])
-    request_user_id = msg.from_user.id
-
-    # Check if the request user is either an admin or the user who initiated the upload
-    if request_user_id in ADMIN_IDS or request_user_id == active_uploads.get(message_id):
-        try:
-            await msg.message.delete()
-            # Remove from active_uploads after cancel
-            active_uploads.pop(message_id, None)
-        except Exception as e:
-            print(f"Error deleting message: {e}")
-    else:
-        await msg.answer("You do not have permission to cancel this upload.")
-
-
-
-
-
 
 
 
@@ -120,7 +91,6 @@ def convert(seconds):
     minutes = seconds // 60
     seconds %= 60
     return "%d:%02d:%02d" % (hour, minutes, seconds)
-
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Define heroku_restart function
