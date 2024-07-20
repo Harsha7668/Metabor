@@ -2488,6 +2488,7 @@ async def unban_user(bot, msg):
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
 
+"""
 @Client.on_message(filters.command("users") & filters.user(ADMIN))
 async def count_users(bot, msg):
     try:
@@ -2502,7 +2503,57 @@ async def count_users(bot, msg):
         await msg.reply_text(response)
     except PyMongoError as e:
         await msg.reply_text(f"An error occurred while counting users: {e}")
+"""
 
+
+@Client.on_message(filters.command("users") & filters.user(ADMIN))
+async def count_users(bot: Client, msg: Message):
+    user_id = msg.chat.id
+
+    # Fetch user membership status from the database
+    user_membership = await db.get_user(user_id)
+    
+    if user_membership:
+        joined_channel_1 = user_membership.get("joined_updates_channel", False)
+        joined_channel_2 = user_membership.get("joined_group_channel", False)
+    else:
+        joined_channel_1 = False
+        joined_channel_2 = False
+
+    # Check for updates channel membership
+    if FSUB_UPDATES and not joined_channel_1:
+        await msg.reply_text(
+            text="**Please join my updates channel before using this command.**",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton(text="Join Updates Channel", url=f"https://t.me/{FSUB_UPDATES}")]
+            ])
+        )
+        return
+
+    # Check for group channel membership
+    if FSUB_GROUP and not joined_channel_2:
+        await msg.reply_text(
+            text="**Please join my group before using this command.**",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton(text="JOIN GROUP", url=f"https://t.me/{FSUB_GROUP}")]
+            ])
+        )
+        return
+
+    # Process the command if membership checks are passed
+    try:
+        total_users = await db.count_users()
+        banned_users = await db.count_banned_users()
+
+        response = (
+            f"**User Statistics:**\n"
+            f"Total Active Users: {total_users}\n"
+            f"Banned Users: {banned_users}"
+        )
+        await msg.reply_text(response)
+    except PyMongoError as e:
+        await msg.reply_text(f"An error occurred while counting users: {e}")
+        
 @Client.on_message(filters.command("ban") & filters.user(ADMIN))
 async def ban_user(bot, msg):
     try:
