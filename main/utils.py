@@ -2,7 +2,7 @@ import math, time
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
 import os
-from Database.database import db
+
 from pyrogram import Client, filters
 
 
@@ -22,17 +22,52 @@ PROGRESS_BAR = """
 │
 ╰─────────────────⍟"""
 
-def humanbytes(size):
-    if not size:
-        return ""
-    power = 2**10
-    n = 0
-    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
-    while size > power:
-        size /= power
-        n += 1
-    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+async def progress_message(current, total, ud_type, message, start):
+    now = time.time()
+    diff = now - start
+    if round(diff % 5.00) == 0 or current == total:
+        percentage = current * 100 / total
+        speed = humanbytes(current / diff) + "/s"
+        elapsed_time_ms = round(diff * 1000)
+        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
+        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
 
+        elapsed_time = TimeFormatter(elapsed_time_ms)
+        estimated_total_time = TimeFormatter(estimated_total_time_ms)
+
+        progress = "{0}{1}".format(
+            ''.join(["■" for i in range(math.floor(percentage / 5))]),
+            ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
+        )
+        tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
+
+        try:
+            await message.edit(
+                text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
+                    round(percentage, 2),
+                    humanbytes(current),
+                    humanbytes(total),
+                    speed,
+                    estimated_total_time if estimated_total_time != '' else '0 s',
+                    progress
+                ),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Cʟᴏꜱᴇ ❌", callback_data="del")]])
+            )
+        except Exception as e:
+            print(f"Error editing message: {e}")
+
+
+
+@Client.on_callback_query(filters.regex("del"))
+async def closed(bot, msg):
+    try:
+        await msg.message.delete()
+    except:
+        return
+
+
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(milliseconds, 1000)
     minutes, seconds = divmod(seconds, 60)
@@ -45,102 +80,28 @@ def TimeFormatter(milliseconds: int) -> str:
           ((str(milliseconds) + "ms, ") if milliseconds else "")
     return tmp[:-2]
 
-def generate_progress_message(current, total, ud_type, start):
-    now = time.time()
-    diff = now - start
-    percentage = current * 100 / total
-    speed = humanbytes(current / diff) + "/s"
-    elapsed_time_ms = round(diff * 1000)
-    time_to_completion_ms = round((total - current) / (current / diff)) * 1000
-    estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
-
-    elapsed_time = TimeFormatter(elapsed_time_ms)
-    estimated_total_time = TimeFormatter(estimated_total_time_ms)
-
-    progress = "{0}{1}".format(
-        ''.join(["■" for i in range(math.floor(percentage / 5))]),
-        ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
-    )
-
-    return PROGRESS_BAR.format(
-        round(percentage, 2),
-        humanbytes(current),
-        humanbytes(total),
-        speed,
-        estimated_total_time if estimated_total_time != '' else '0 s',
-        progress
-    )
-
-async def progress_message(current, total, ud_type, message, start):
-    now = time.time()
-    diff = now - start
-    if round(diff % 5.00) == 0 or current == total:
-        progress_text = generate_progress_message(current, total, ud_type, start)
-        try:
-            await message.edit(
-                text=f"{ud_type}\n\n" + progress_text,
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
-            )
-        except Exception as e:
-            print(f"Error editing message: {e}")
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+def humanbytes(size):
+    if not size:
+        return ""
+    power = 2**10
+    n = 0
+    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+    while size > power:
+        size /= power
+        n += 1
+    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
 
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+def convert(seconds):
+    seconds = seconds % (24 * 3600)
+    hour = seconds // 3600
+    seconds %= 3600
+    minutes = seconds // 60
+    seconds %= 60
+    return "%d:%02d:%02d" % (hour, minutes, seconds)
 
-class ProgressManager:
-    def __init__(self):
-        self.tasks = {}
-
-    def start_task(self, task_id, total, ud_type):
-        self.tasks[task_id] = {
-            'current': 0,
-            'total': total,
-            'ud_type': ud_type,
-            'start': time.time()
-        }
-
-    def update_task(self, task_id, current):
-        task = self.tasks.get(task_id)
-        if task:
-            total = task['total']
-            ud_type = task['type']
-            start = task['start']
-            message = task['message']
-        
-        # Ensure all required arguments are passed
-            return progress_message(current, total, ud_type, message, start)
-
-
-    
- 
-    def cancel_task(self, task_id):
-        if task_id in self.tasks:
-            del self.tasks[task_id]
-            return f"Task {task_id} cancelled."
-        return "Task not found."
-
-    def list_progress(self):
-        return {
-            task_id: progress_message(
-                task['current'], task['total'], task['ud_type'], task['start']
-            )
-            for task_id, task in self.tasks.items()
-        }
-
-# Example usage
-progress_manager = ProgressManager()
-progress_manager.start_task('task1', 83.33 * 1024 * 1024, 'Task 1')
-progress_manager.start_task('task2', 100 * 1024 * 1024, 'Task 2')
-
-# Simulate updating tasks
-time.sleep(1)
-print(progress_manager.update_task('task1', 14.0 * 1024 * 1024))
-print(progress_manager.update_task('task2', 50.0 * 1024 * 1024))
-
-# List all progress
-print(progress_manager.list_progress())
-
-# Cancel a task
-print(progress_manager.cancel_task('task1'))
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Define heroku_restart function
