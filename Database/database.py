@@ -425,7 +425,15 @@ class Database:
         except PyMongoError as e:
             print(f"An error occurred while counting tokens: {e}")
             raise
-
+            
+    async def get_all_user_ids(self):
+        try:
+            cursor = self.users_col.find({}, {"user_id": 1})
+            user_ids = await cursor.to_list(length=10000)
+            return [user['user_id'] for user in user_ids]
+        except PyMongoError as e:
+            print(f"An error occurred while retrieving all user IDs: {e}")
+            raise
 # Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)    
 
