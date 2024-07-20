@@ -116,12 +116,6 @@ from googleapiclient.http import MediaFileUpload
 import re
 from googleapiclient.errors import HttpError
 import threading, asyncio
-from pymongo import MongoClient
-
-# MongoDB setup
-mongo_client = MongoClient("your_mongo_uri")
-db = mongo_client["your_database_name"]
-user_tokens_col = db["user_tokens"]
 
 # Use a lock to ensure only one clone operation runs at a time
 clone_lock = asyncio.Lock()
