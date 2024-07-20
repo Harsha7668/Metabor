@@ -2209,156 +2209,7 @@ async def progress_hook(status_message):
     return hook
 
 
-"""
 
-def download_thumbnail(thumbnail_url, file_name):
-    try:
-        response = requests.get(thumbnail_url)
-        if response.status_code == 200:
-            with open(file_name, 'wb') as f:
-                f.write(response.content)
-            return True
-        else:
-            return False
-    except Exception as e:
-        print(f"Error downloading thumbnail: {e}")
-        return False
-
-@Client.on_message(filters.private & filters.command("ytdlleech"))
-async def ytdlleech_handler(client: Client, msg: Message):
-    if len(msg.command) < 2:
-        return await msg.reply_text("Please provide a YouTube link.")
-
-    command_text = msg.text.split(" ", 1)[1]
-    url = command_text.strip()
-
-    ydl_opts = {
-        'quiet': True,
-        'skip_download': True,
-        'force_generic_extractor': True,
-        'noplaylist': True,
-        'merge_output_format': 'mkv'
-    }
-
-    try:
-        with YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=False)
-            formats = info_dict.get('formats', [])
-
-            buttons = [
-                InlineKeyboardButton(
-                    f"{f.get('format_note', 'Unknown')} - {humanbytes(f.get('filesize'))}",
-                    callback_data=f"{f['format_id']}"
-                )
-                for f in formats if f.get('filesize') is not None
-            ]
-            buttons = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
-            await msg.reply_text("Choose quality:", reply_markup=InlineKeyboardMarkup(buttons))
-
-            file_data = {
-                'title': info_dict['title'],
-                'thumbnail': info_dict.get('thumbnail')  # No default thumbnail path
-            }
-            await db.save_file_data(msg.from_user.id, file_data)
-
-            user_quality_selection = {
-                'url': url,
-                'title': info_dict['title'],
-                'thumbnail': info_dict.get('thumbnail'),
-                'formats': formats
-            }
-            await db.save_user_quality_selection(msg.from_user.id, user_quality_selection)
-
-    except Exception as e:
-        await msg.reply_text(f"Error: {e}")
-
-@Client.on_callback_query(filters.regex(r"^\d+$"))
-async def callback_query_handler(client: Client, query):
-    user_id = query.from_user.id
-    format_id = query.data
-
-    selection = await db.get_user_quality_selection(user_id)
-    if not selection:
-        return await query.answer("No download in progress.")
-
-    url = selection['url']
-    video_title = selection['title']
-    formats = selection['formats']
-
-    selected_format = next((f for f in formats if f['format_id'] == format_id), None)
-    if not selected_format:
-        return await query.answer("Invalid format selection.")
-
-    quality = selected_format.get('format_note', 'Unknown')
-    file_size = selected_format.get('filesize', 0)
-    file_name = f"{video_title} - {quality}.mkv"
-    thumbnail_url = selection['thumbnail']
-    thumbnail_file = "thumbnail.jpg"
-
-    sts = await query.message.reply_text(f"🚀 Downloading {quality} - {humanbytes(file_size)}... ⚡")
-
-    ydl_opts = {
-        'format': f'{format_id}+bestaudio/best',
-        'outtmpl': file_name,
-        'quiet': True,
-        'noplaylist': True,
-        'progress_hooks': [await progress_hook(status_message=sts)],
-        'merge_output_format': 'mkv'
-    }
-
-    try:
-        with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-
-        if not os.path.exists(file_name):
-            return await safe_edit_message(sts, "Error: Download failed. File not found.")
-
-        # Download thumbnail
-        if thumbnail_url and download_thumbnail(thumbnail_url, thumbnail_file):
-            file_thumb = thumbnail_file
-        else:
-            file_thumb = None
-        
-        if file_size >= FILE_SIZE_LIMIT:
-            await safe_edit_message(sts, "💠 Uploading to Google Drive... ⚡")
-            file_link = await upload_to_google_drive(file_name, file_name, sts)
-            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-            await query.message.reply_text(
-                f"**File successfully uploaded to Google Drive!**\n\n"
-                f"**Google Drive Link**: [View File]({file_link})\n\n"
-                f"**Uploaded File**: {file_name}\n"
-                f"**Size**: {humanbytes(file_size)}",
-                reply_markup=InlineKeyboardMarkup(button)
-            )
-        else:
-            await safe_edit_message(sts, "💠 Uploading to Telegram... ⚡")
-            caption = f"**Uploaded Document 📄**: {file_name}\n\n🌟 Size: {humanbytes(file_size)}"
-            
-            try:
-                with open(file_name, 'rb') as file:
-                    await query.message.reply_document(
-                        document=file,
-                        caption=caption,
-                        thumb=file_thumb,
-                        progress=progress_message,
-                        progress_args=("💠 Upload Started... ⚡", sts, time.time())
-                    )
-            except Exception as e:
-                await safe_edit_message(sts, f"Error uploading file: {e}")
-                return
-
-    except Exception as e:
-        await safe_edit_message(sts, f"Error: {e}")
-
-    finally:
-        if os.path.exists(file_name):
-            os.remove(file_name)
-        if os.path.exists(thumbnail_file):
-            os.remove(thumbnail_file)
-        await sts.delete()
-        await query.message.delete()
-
-"""
 
 @Client.on_message(filters.private & filters.command("ytdlleech"))
 async def ytdlleech_handler(client: Client, msg: Message):
@@ -2658,14 +2509,13 @@ async def edit_watermark(media_file: str, outfile: str, watermark_text: str):
     start_time = 10  # First 10 seconds
     middle_start_time = half_duration - 5  # 5 seconds before the halfway point
     middle_end_time = half_duration + 5  # 5 seconds after the halfway point
-    
 
     cmd = [
-    'ffmpeg', '-hide_banner', '-ignore_unknown', '-i', media_file, '-vf',
-    f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='between(t,0,{start_time})',"
-    f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='between(t,{middle_start_time},{middle_end_time})',"
-    '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-c:a', 'copy', outfile, '-y'
-]
+        'ffmpeg', '-hide_banner', '-ignore_unknown', '-i', media_file, '-vf',
+        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='between(t,0,{start_time})',"
+        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='between(t,{middle_start_time},{middle_end_time})',"
+        '-c:v', 'copy', '-c:a', 'copy', outfile, '-y'
+    ]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     if process.returncode != 0:
