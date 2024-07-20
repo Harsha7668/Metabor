@@ -13,7 +13,7 @@ from pyrogram.types import Document, Video
 from pyrogram import Client, filters
 from pyrogram.enums import MessageMediaType
 from pyrogram.errors import MessageNotModified
-from config import DOWNLOAD_LOCATION, CAPTION
+from config import DOWNLOAD_LOCATION1, CAPTION
 from main.utils import progress_message, humanbytes
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup,CallbackQuery
 from config import AUTH_USERS, ADMIN, DOWNLOAD_LOCATION
