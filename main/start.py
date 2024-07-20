@@ -42,15 +42,15 @@ Exᴘʟᴏʀᴇ sɪᴍᴘʟɪᴄɪᴛʏ! 💥
 joined_channel_1 = {}
 joined_channel_2 = {}
 
-
-
-    # ... (Other methods remain unchanged) ...
-
-
 @Client.on_message(filters.command("start"))
 async def start(bot, msg: Message):
     user_id = msg.chat.id
     username = msg.from_user.username or "N/A"
+
+    # Check if user is banned
+    if await db.is_user_banned(user_id):
+        await msg.reply_text("Sorry, you are banned 🚫. Contact admin for more information ℹ️.")
+        return
 
     # Fetch user from the database or add a new user
     user_data = await db.get_user(user_id)
@@ -63,7 +63,7 @@ async def start(bot, msg: Message):
         try:
             user = await bot.get_chat_member(FSUB_UPDATES, user_id)
             if user.status == "kicked":
-                await msg.reply_text("Sorry, you are **banned**.")
+                await msg.reply_text("Sorry, you are banned 🚫. Contact admin for more information ℹ️.")
                 return
         except UserNotParticipant:
             await msg.reply_text(
@@ -82,7 +82,7 @@ async def start(bot, msg: Message):
         try:
             user = await bot.get_chat_member(FSUB_GROUP, user_id)
             if user.status == "kicked":
-                await msg.reply_text("Sorry, you are **banned**.")
+                await msg.reply_text("Sorry, you are banned 🚫. Contact admin for more information ℹ️.")
                 return
         except UserNotParticipant:
             await msg.reply_text(
@@ -135,7 +135,6 @@ async def start(bot, msg: Message):
     except Exception as e:
         print(f"An error occurred while sending log message: {e}")
 
-
 async def check_membership(bot, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
     user_id = msg.chat.id
     if user_id in joined_channel_dict and not joined_channel_dict[user_id]:
@@ -151,6 +150,11 @@ async def check_membership(bot, msg: Message, fsub, joined_channel_dict, prompt_
 @Client.on_message(filters.private & ~filters.command("start"))
 async def handle_private_message(bot, msg: Message):
     user_id = msg.chat.id
+
+    # Check if user is banned
+    if await db.is_user_banned(user_id):
+        await msg.reply_text("Sorry, you are banned 🚫. Contact admin for more information ℹ️.")
+        return
     
     # Check membership for updates channel
     if FSUB_UPDATES and not await check_membership(bot, msg, FSUB_UPDATES, joined_channel_1, "Please join my first updates channel before using me.", f"https://t.me/{FSUB_UPDATES}"):
