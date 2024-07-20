@@ -5,27 +5,37 @@ import os
 from Database.database import db
 from pyrogram import Client, filters
 
-progress_list = {}  # Dictionary to store progress information for each task
 
+# Define the progress bar template
+PROGRESS_BAR_TEMPLATE = """
+╭───[•PROGRESS BAR•]───⍟
+│
+├{progress}
+│
+├📁PROCESS : {current} | {total}
+│
+├🚀PERCENT : {percentage}%
+│
+├⚡SPEED : {speed}
+│
+├⏱️ETA : {eta}
+│
+╰─────────────────⍟
+"""
 
+# Convert bytes to human-readable format
+def humanbytes(size):
+    if not size:
+        return ""
+    power = 2**10
+    n = 0
+    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+    while size > power:
+        size /= power
+        n += 1
+    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
-# Progress Bar Format
-PROGRESS_BAR = """
-╭───[**•PROGRESS BAR•**]───⍟
-│
-├<b>{5}</b>
-│
-├<b>📁**PROCESS** : {1} | {2}</b>
-│
-├<b>🚀**PERCENT** : {0}%</b>
-│
-├<b>⚡**SPEED** : {3}</b>
-│
-├<b>⏱️**ETA** : {4}</b>
-│
-╰─────────────────⍟"""
-
-# Helper Functions
+# Format elapsed and remaining time
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(milliseconds, 1000)
     minutes, seconds = divmod(seconds, 60)
@@ -38,77 +48,34 @@ def TimeFormatter(milliseconds: int) -> str:
           ((str(milliseconds) + "ms, ") if milliseconds else "")
     return tmp[:-2]
 
-def humanbytes(size):
-    if not size:
-        return ""
-    power = 2**10
-    n = 0
-    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
-    while size > power:
-        size /= power
-        n += 1
-    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
+# Generate the progress message
+def generate_progress_message(current, total, speed, eta):
+    percentage = round(current * 100 / total, 2)
+    progress_bar = ''.join(["■" for _ in range(int(percentage / 5))]) + ''.join(["□" for _ in range(20 - int(percentage / 5))])
+    formatted_current = humanbytes(current)
+    formatted_total = humanbytes(total)
+    
+    return PROGRESS_BAR_TEMPLATE.format(
+        progress=progress_bar,
+        current=formatted_current,
+        total=formatted_total,
+        percentage=percentage,
+        speed=speed,
+        eta=eta
+    )
 
-# Progress Message Function
-async def progress_message(current, total, ud_type, message, start, tasks):
-    now = time.time()
-    diff = now - start
-    if round(diff % 5.00) == 0 or current == total:
-        percentage = current * 100 / total
-        speed = humanbytes(current / diff) + "/s"
-        elapsed_time_ms = round(diff * 1000)
-        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
-        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+# Example usage of the progress bar
+current = 14.0 * 2**20  # 14 MB in bytes
+total = 83.33 * 2**20   # 83.33 MB in bytes
+speed = "1.36 MB/s"
+eta = "1m, 1s, 268ms"
 
-        elapsed_time = TimeFormatter(elapsed_time_ms)
-        estimated_total_time = TimeFormatter(estimated_total_time_ms)
+progress_message = generate_progress_message(current, total, speed, eta)
+print("🚀 Download Started... ⚡️\n")
+print(progress_message)
+print("\n/Cancel_user_id")
 
-        progress = "{0}{1}".format(
-            ''.join(["■" for i in range(math.floor(percentage / 5))]),
-            ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
-        )
 
-        progress_message = f"""
-🚀 Download Started... ⚡️
-
-{progress}
-Progress: {round(percentage, 2)}%
-{humanbytes(current)} of {humanbytes(total)}
-Speed: {speed}
-ETA: {estimated_total_time if estimated_total_time != '' else '0 s'}
-
-"""
-        task_list = '\n'.join([f"{i+1}. {task['real_name']} ({task['user_id']})" for i, task in enumerate(tasks)])
-        
-        complete_message = progress_message + '\n' + task_list + f"\n\nPending Tasks: {len(tasks)}\n\nNote: To remove your task from queue use /clear2 <queue number>"
-        
-        try:
-            await message.edit(
-                text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
-                    round(percentage, 2),
-                    humanbytes(current),
-                    humanbytes(total),
-                    speed,
-                    estimated_total_time if estimated_total_time != '' else '0 s',
-                    progress
-                ),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
-            )
-        except Exception as e:
-            print(f"Error editing message: {e}")
-
-# Example of using the function
-# async def example_usage(message, user_id, tasks, current, total, speed, eta, progress_percent):
-#     await progress_message(current, total, user_id, message, time.time(), tasks)
-
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-def convert(seconds):
-    seconds = seconds % (24 * 3600)
-    hour = seconds // 3600
-    seconds %= 3600
-    minutes = seconds // 60
-    seconds %= 60
-    return "%d:%02d:%02d" % (hour, minutes, seconds)
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Define heroku_restart function
