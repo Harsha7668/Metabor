@@ -4,7 +4,7 @@ from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 
 class Database:
-    def __init__(self, uri, database_name, bot):
+    def __init__(self, uri, database_name):
         self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
         self.db = self._client[database_name]
         self.users_col = self.db.users  # Collection for storing user settings
@@ -14,46 +14,34 @@ class Database:
         self.banned_col = self.db["banned_users"]
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
-        self.bot = bot 
+         
             
-    
-
     async def add_user(self, user_id: int, username: str):
-        try:
-            await self.users_col.update_one(
-                {"user_id": user_id},
-                {"$set": {
-                    "username": username,
-                    "joined_updates_channel": False,
-                    "joined_group_channel": False
-                }},
-                upsert=True
-            )
-        except PyMongoError as e:
-            print(f"An error occurred while updating the user: {e}")
-            raise
+    try:
+        await self.users_col.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "username": username,
+                "joined_updates_channel": False,
+                "joined_group_channel": False
+            }},
+            upsert=True
+        )
+    except PyMongoError as e:
+        print(f"An error occurred while updating the user: {e}")
+        raise
 
-    async def ban_user(self, user_id: int):
-        try:
-            await self.banned_col.update_one(
-                {"user_id": user_id},
-                {"$set": {"banned": True}},
-                upsert=True
-            )
-            await self.users_col.delete_one({"user_id": user_id})
-
-            # Notify the banned user
-            banned_user = await self.get_banned_user(user_id)
-            if banned_user:
-                try:
-                    await self.bot.send_message(user_id, "Sorry, you are banned. Contact the admin for more information.")
-                except Exception as e:
-                    print(f"An error occurred while notifying the user: {e}")
-                    raise
-        except PyMongoError as e:
-            print(f"An error occurred while banning the user: {e}")
-            raise
-            
+async def ban_user(self, user_id: int):
+    try:
+        await self.banned_col.update_one(
+            {"user_id": user_id},
+            {"$set": {"banned": True}},
+            upsert=True
+        )
+        await self.users_col.delete_one({"user_id": user_id})
+    except PyMongoError as e:
+        print(f"An error occurred while banning the user: {e}")
+        raise  
     
     async def unban_user(self, user_id):
         try:
