@@ -23,6 +23,60 @@ PROGRESS_BAR = """
 
 
 
+# Dictionary to track active uploads
+active_uploads = {}
+
+async def progress_message(current, total, ud_type, message, start, user_id):
+    now = time.time()
+    diff = now - start
+    if round(diff % 5.00) == 0 or current == total:
+        percentage = current * 100 / total
+        speed = humanbytes(current / diff) + "/s"
+        elapsed_time_ms = round(diff * 1000)
+        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
+        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+
+        elapsed_time = TimeFormatter(elapsed_time_ms)
+        estimated_total_time = TimeFormatter(estimated_total_time_ms)
+
+        progress = "{0}{1}".format(
+            ''.join(["■" for i in range(math.floor(percentage / 5))]),
+            ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
+        )
+        tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
+
+        try:
+            # Store user_id to track the request
+            active_uploads[message.message_id] = user_id
+            await message.edit(
+                text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
+                    round(percentage, 2),
+                    humanbytes(current),
+                    humanbytes(total),
+                    speed,
+                    estimated_total_time if estimated_total_time != '' else '0 s',
+                    progress
+                ),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Cancel ❌", callback_data=f"cancel_{message.message_id}")]])
+            )
+        except Exception as e:
+            print(f"Error editing message: {e}")
+
+@Client.on_callback_query(filters.regex(r"cancel_(\d+)"))
+async def handle_cancel(bot, msg):
+    message_id = int(msg.data.split("_")[1])
+    request_user_id = msg.from_user.id
+
+    # Check if the request user is either an admin or the user who initiated the upload
+    if request_user_id in ADMIN_IDS or request_user_id == active_uploads.get(message_id):
+        try:
+            await msg.message.delete()
+            # Remove from active_uploads after cancel
+            active_uploads.pop(message_id, None)
+        except Exception as e:
+            print(f"Error deleting message: {e}")
+    else:
+        await msg.answer("You do not have permission to cancel this upload.")
 
 
 
