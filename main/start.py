@@ -132,9 +132,8 @@ async def start(bot: Client, msg: Message):
     await db.add_user(user_id, username)
 
 
-async def check_membership(bot: Client, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
-    user_id = msg.chat.id
-    if not joined_channel_dict[user_id]:
+async def check_membership(bot: Client, msg: Message, fsub, joined_channel_status, prompt_text, join_url):
+    if not joined_channel_status:
         await msg.reply_text(
             text=prompt_text,
             reply_markup=InlineKeyboardMarkup([
@@ -147,14 +146,14 @@ async def check_membership(bot: Client, msg: Message, fsub, joined_channel_dict,
 @Client.on_message(filters.private & ~filters.command("start"))
 async def handle_private_message(bot: Client, msg: Message):
     user_id = msg.chat.id
-    
+
     # Fetch user membership status from the database
-    joined_channel_1, joined_channe2 = await db.get_user_membership(user_id)
-    
+    joined_channel_1, joined_channel_2 = await db.get_user_membership(user_id)
+
     # Check membership for updates channel
     if FSUB_UPDATES and not await check_membership(bot, msg, FSUB_UPDATES, joined_channel_1, "Please join my updates channel before using me.", f"https://t.me/{FSUB_UPDATES}"):
         return
-    
+
     # Check membership for group channel
     if FSUB_GROUP and not await check_membership(bot, msg, FSUB_GROUP, joined_channel_2, "Please join my group before using me.", f"https://t.me/{FSUB_GROUP}"):
         return
