@@ -1,5 +1,5 @@
 import motor.motor_asyncio
-from config import DATABASE_NAME, DATABASE_URI, LOG_CHANNEL_ID
+from config import DATABASE_NAME, DATABASE_URI
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from datetime import datetime
@@ -15,8 +15,7 @@ class Database:
         self.banned_col = self.db["banned_users"]
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
-        self.db["user_tokens"]  # Collection for user tokens
-
+        
     async def add_user(self, user_id: int, username: str):
         try:
             await self.users_col.update_one(
@@ -384,7 +383,6 @@ class Database:
             return {}
 
 
-    
     async def clear_database(self):
         # Drop all collections
         await self.users_col.drop()
@@ -395,39 +393,7 @@ class Database:
         await self.user_quality_selection_col.drop()
         await self.file_data_col.drop()
 
-    async def add_token(self, user_id: int, token_data: bytes):
-        try:
-            await self.tokens_col.update_one(
-                {"user_id": user_id},
-                {"$set": {"token": token_data}},
-                upsert=True
-            )
-        except PyMongoError as e:
-            print(f"An error occurred while adding the token: {e}")
-            raise
-
-    async def get_token(self, user_id: int):
-        try:
-            return await self.tokens_col.find_one({"user_id": user_id})
-        except PyMongoError as e:
-            print(f"An error occurred while retrieving the token: {e}")
-            raise
-
-    async def delete_token(self, user_id: int):
-        try:
-            await self.tokens_col.delete_one({"user_id": user_id})
-        except PyMongoError as e:
-            print(f"An error occurred while deleting the token: {e}")
-            raise
-
-    async def count_tokens(self):
-        try:
-            return await self.tokens_col.count_documents({})
-        except PyMongoError as e:
-            print(f"An error occurred while counting tokens: {e}")
-            raise
-
-            
+                
     async def get_all_user_ids(self):
         try:
             cursor = self.users_col.find({}, {"user_id": 1})
@@ -436,6 +402,7 @@ class Database:
         except PyMongoError as e:
             print(f"An error occurred while retrieving all user IDs: {e}")
             raise
+            
 # Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)    
 
