@@ -7,23 +7,24 @@ from pyrogram import Client, filters
 
 
 # Define the progress bar template
-PROGRESS_BAR_TEMPLATE = """
-╭───[•PROGRESS BAR•]───⍟
-│
-├{progress}
-│
-├📁PROCESS : {current} | {total}
-│
-├🚀PERCENT : {percentage}%
-│
-├⚡SPEED : {speed}
-│
-├⏱️ETA : {eta}
-│
-╰─────────────────⍟
-"""
+import time
+import math
 
-# Convert bytes to human-readable format
+PROGRESS_BAR = """
+╭───[**•PROGRESS BAR•**]───⍟
+│
+├<b>{5}</b>
+│
+├<b>📁**PROCESS** : {1} | {2}</b>
+│
+├<b>🚀**PERCENT** : {0}%</b>
+│
+├<b>⚡**SPEED** : {3}</b>
+│
+├<b>⏱️**ETA** : {4}</b>
+│
+╰─────────────────⍟"""
+
 def humanbytes(size):
     if not size:
         return ""
@@ -35,7 +36,6 @@ def humanbytes(size):
         n += 1
     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
-# Format elapsed and remaining time
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(milliseconds, 1000)
     minutes, seconds = divmod(seconds, 60)
@@ -48,34 +48,43 @@ def TimeFormatter(milliseconds: int) -> str:
           ((str(milliseconds) + "ms, ") if milliseconds else "")
     return tmp[:-2]
 
-# Generate the progress message
-def generate_progress_message(current, total, speed, eta):
-    percentage = round(current * 100 / total, 2)
-    progress_bar = ''.join(["■" for _ in range(int(percentage / 5))]) + ''.join(["□" for _ in range(20 - int(percentage / 5))])
-    formatted_current = humanbytes(current)
-    formatted_total = humanbytes(total)
-    
-    return PROGRESS_BAR_TEMPLATE.format(
-        progress=progress_bar,
-        current=formatted_current,
-        total=formatted_total,
-        percentage=percentage,
-        speed=speed,
-        eta=eta
+def generate_progress_message(current, total, ud_type, start):
+    now = time.time()
+    diff = now - start
+    percentage = current * 100 / total
+    speed = humanbytes(current / diff) + "/s"
+    elapsed_time_ms = round(diff * 1000)
+    time_to_completion_ms = round((total - current) / (current / diff)) * 1000
+    estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+
+    elapsed_time = TimeFormatter(elapsed_time_ms)
+    estimated_total_time = TimeFormatter(estimated_total_time_ms)
+
+    progress = "{0}{1}".format(
+        ''.join(["■" for i in range(math.floor(percentage / 5))]),
+        ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
     )
 
-# Example usage of the progress bar
-current = 14.0 * 2**20  # 14 MB in bytes
-total = 83.33 * 2**20   # 83.33 MB in bytes
-speed = "1.36 MB/s"
-eta = "1m, 1s, 268ms"
+    return PROGRESS_BAR.format(
+        round(percentage, 2),
+        humanbytes(current),
+        humanbytes(total),
+        speed,
+        estimated_total_time if estimated_total_time != '' else '0 s',
+        progress
+    )
 
-progress_message = generate_progress_message(current, total, speed, eta)
-print("🚀 Download Started... ⚡️\n")
-print(progress_message)
-print("\n/Cancel_user_id")
+# Example tasks
+tasks = [
+    {'current': 14.0 * 1024 * 1024, 'total': 83.33 * 1024 * 1024, 'ud_type': 'Task 1', 'start': time.time() - 60},
+    {'current': 28.0 * 1024 * 1024, 'total': 83.33 * 1024 * 1024, 'ud_type': 'Task 2', 'start': time.time() - 120},
+    {'current': 42.0 * 1024 * 1024, 'total': 83.33 * 1024 * 1024, 'ud_type': 'Task 3', 'start': time.time() - 180}
+]
 
-
+# Generate and print progress for each task
+for task in tasks:
+    progress_message = generate_progress_message(task['current'], task['total'], task['ud_type'], task['start'])
+    print(f"\n{task['ud_type']}\n\n{progress_message}\n/Cancel_user_id")
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Define heroku_restart function
