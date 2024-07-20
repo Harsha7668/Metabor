@@ -1542,7 +1542,7 @@ async def screenshots_command(client, message: Message):
 
     await sts.delete()  # Delete the status message after completion
 
-
+"""
 
 #Sample Video Command
 @Client.on_message(filters.private & filters.command("samplevideo"))
@@ -1608,7 +1608,70 @@ async def sample_video(bot, msg):
     os.remove(input_path)
     os.remove(output_file)
     await sts.delete()
+"""
 
+@Client.on_message(filters.private & filters.command("samplevideo"))
+async def sample_video(bot, msg):
+    user_id = msg.from_user.id
+
+    # Fetch user settings
+    sample_video_duration = await db.get_sample_video_duration(user_id)
+
+    if sample_video_duration is None:
+        return await msg.reply_text("Please set a valid sample video duration using /usersettings.")
+
+    if not msg.reply_to_message:
+        return await msg.reply_text("Please reply to a valid video file or document.")
+
+    media = msg.reply_to_message.video or msg.reply_to_message.document
+    if not media:
+        return await msg.reply_text("Please reply to a valid video file or document.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        input_path = await bot.download_media(media, progress=progress_message, progress_args=("🚀 Downloading media... ⚡️", sts, c_time))
+    except Exception as e:
+        await sts.edit(f"Error downloading media: {e}")
+        return
+
+    output_file = f"sample_video_{sample_video_duration}s.mp4"
+
+    await sts.edit("🚀 Processing sample video... ⚡")
+    try:
+        generate_sample_video(input_path, sample_video_duration, output_file)
+    except Exception as e:
+        await sts.edit(f"Error generating sample video: {e}")
+        os.remove(input_path)
+        return
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{os.path.basename(output_file)}\n\n🌟 Size: {filesize_human}"
+
+    await sts.edit("💠 Uploading sample video to your PM... ⚡")
+    c_time = time.time()
+    try:
+        await bot.send_document(
+            user_id, 
+            document=output_file, 
+            caption=cap, 
+            progress=progress_message, 
+            progress_args=("💠 Upload Started... ⚡️", sts, c_time)
+        )
+        # Save sample video settings to database
+        await db.save_sample_video_settings(user_id, sample_video_duration, "Not set")
+
+        # Send notification about the file upload
+        await msg.reply_text(f"File Sample Video has been uploaded to your PM. Check your PM of the bot ✅ .")
+
+    except Exception as e:
+        await sts.edit(f"Error uploading sample video: {e}")
+        return
+
+    os.remove(input_path)
+    os.remove(output_file)
+    await sts.delete()
 
  # Define restart_app command
 @Client.on_message(filters.command("restart") & filters.chat(AUTH_USERS))
