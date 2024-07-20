@@ -7,14 +7,16 @@ class Database:
     def __init__(self, uri, database_name):
         self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
         self.db = self._client[database_name]
-        self.users_col = self.db.users  # Collection for storing user settings
+        self.users_col = self.db["users"]  # Collection for storing user settings
         self.files_col = self.db.files  # Collection for storing file-related settings (thumbnails, etc.)
         self.media_info_col = self.db.media_info  # Collection for storing media info
         self.stats_col = self.db.stats  # Collection for storing server stats
         self.banned_col = self.db["banned_users"]
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
-         
+
+
+
     async def add_user(self, user_id: int, username: str):
         try:
             await self.users_col.update_one(
@@ -29,30 +31,55 @@ class Database:
         except PyMongoError as e:
             print(f"An error occurred while updating the user: {e}")
             raise
-        
-    
-async def ban_user(self, user_id: int):
-    try:
-        await self.banned_col.update_one(
-            {"user_id": user_id},
-            {"$set": {"banned": True}},
-            upsert=True
-        )
-        await self.users_col.delete_one({"user_id": user_id})
-    except PyMongoError as e:
-        print(f"An error occurred while banning the user: {e}")
-        raise  
-    
-    async def unban_user(self, user_id):
+
+    async def ban_user(self, user_id: int):
         try:
-            # Remove user from banned list
+            await self.banned_col.update_one(
+                {"user_id": user_id},
+                {"$set": {"banned": True}},
+                upsert=True
+            )
+            await self.users_col.delete_one({"user_id": user_id})
+        except PyMongoError as e:
+            print(f"An error occurred while banning the user: {e}")
+            raise  
+
+    async def unban_user(self, user_id: int):
+        try:
             await self.banned_col.delete_one({"user_id": user_id})
-            # Re-add user to active users collection (if needed)
-            # User re-addition logic can be added here if desired
         except PyMongoError as e:
             print(f"An error occurred while unbanning user: {e}")
             raise
+
+    async def count_users(self):
+        try:
+            return await self.users_col.count_documents({})
+        except PyMongoError as e:
+            print(f"An error occurred while counting users: {e}")
+            raise
+
+    async def count_banned_users(self):
+        try:
+            return await self.banned_col.count_documents({})
+        except PyMongoError as e:
+            print(f"An error occurred while counting banned users: {e}")
+            raise
+
+    async def get_user(self, user_id: int):
+        try:
+            return await self.users_col.find_one({"user_id": user_id})
+        except PyMongoError as e:
+            print(f"An error occurred while retrieving user: {e}")
+            raise
+
+    async def get_banned_user(self, user_id: int):
+        try:
+            return await self.banned_col.find_one({"user_id": user_id})
+        except PyMongoError as e:
+            print(f"An error occurred while retrieving banned user: {e}")
+            raise
     
+          
     async def update_user_settings(self, user_id, settings):
         await self.users_col.update_one({'id': user_id}, {'$set': {'settings': settings}}, upsert=True)
         
@@ -365,38 +392,8 @@ async def ban_user(self, user_id: int):
             print(f"An error occurred while retrieving user membership: {e}")
             raise
 
-    
-        
-    async def count_users(self):
-        try:
-            return await self.users_col.count_documents({})
-        except PyMongoError as e:
-            print(f"An error occurred while counting users: {e}")
-            raise
-    
-
-    async def count_banned_users(self):
-        try:
-            return await self.banned_col.count_documents({})
-        except PyMongoError as e:
-            print(f"An error occurred while counting banned users: {e}")
-            raise
 
     
-    async def get_user(self, user_id):
-        try:
-            return await self.users_col.find_one({"user_id": user_id})
-        except PyMongoError as e:
-            print(f"An error occurred while retrieving user: {e}")
-            raise
-
-    async def get_banned_user(self, user_id):
-        try:
-            return await self.banned_col.find_one({"user_id": user_id})
-        except PyMongoError as e:
-            print(f"An error occurred while retrieving banned user: {e}")
-            raise
-     
     async def clear_database(self):
         # Drop all collections
         await self.users_col.drop()
