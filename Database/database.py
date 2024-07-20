@@ -3,7 +3,18 @@ from config import DATABASE_NAME, DATABASE_URI, LOG_CHANNEL_ID
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 
-
+class Database:
+    def __init__(self, uri, database_name):
+        self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
+        self.db = self._client[database_name]
+        self.users_col = self.db.users  # Collection for storing user settings
+        self.files_col = self.db.files  # Collection for storing file-related settings (thumbnails, etc.)
+        self.media_info_col = self.db.media_info  # Collection for storing media info
+        self.stats_col = self.db.stats  # Collection for storing server stats
+        self.banned_col = self.db["banned_users"]
+        self.user_quality_selection_col = self.db['user_quality_selection']
+        self.file_data_col = self.db['file_data']
+            
         
     async def add_user(self, user_id: int, username: str):
         # Add or update a user in the database
