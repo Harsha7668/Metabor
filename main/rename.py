@@ -2661,11 +2661,11 @@ async def edit_watermark(media_file: str, outfile: str, watermark_text: str):
     
 
     cmd = [
-        'ffmpeg', '-hide_banner', '-ignore_unknown', '-i', media_file, '-vf',
-        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='between(t,0,{start_time})',"  # Start of the video
-        f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='between(t,{middle_start_time},{middle_end_time})',"  # Middle of the video       
-        '-c:a', 'copy', outfile, '-y'
-    ]
+    'ffmpeg', '-hide_banner', '-ignore_unknown', '-i', media_file, '-vf',
+    f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='between(t,0,{start_time})',"
+    f"drawtext=text='{watermark_text}':x=(w-tw)/2:y=10:fontsize=15:fontcolor=black:borderw=15:bordercolor=white:enable='between(t,{middle_start_time},{middle_end_time})',"
+    '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-c:a', 'copy', outfile, '-y'
+]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     if process.returncode != 0:
