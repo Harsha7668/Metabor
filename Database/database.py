@@ -4,7 +4,7 @@ from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 
 class Database:
-    def __init__(self, uri, database_name):
+    def __init__(self, uri, database_name, bot):
         self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
         self.db = self._client[database_name]
         self.users_col = self.db.users  # Collection for storing user settings
@@ -14,6 +14,7 @@ class Database:
         self.banned_col = self.db["banned_users"]
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
+        self.bot = bot 
             
     
 
