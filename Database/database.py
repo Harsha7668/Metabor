@@ -398,7 +398,7 @@ class Database:
         try:
             cursor = self.users_col.find({}, {"user_id": 1})
             user_ids = await cursor.to_list(length=10000)
-            return [user['user_id'] for user in user_ids]
+            return [user['user_id'] for user in user_ids if 'user_id' in user]
         except PyMongoError as e:
             print(f"An error occurred while retrieving all user IDs: {e}")
             raise
