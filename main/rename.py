@@ -15,7 +15,7 @@ from pyrogram.enums import MessageMediaType
 from pyrogram.errors import MessageNotModified
 from main.utils import progress_message, humanbytes
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup,CallbackQuery
-from config import AUTH_USERS, ADMIN
+from config import AUTH_USERS, ADMIN, CAPTION
 from main.utils import heroku_restart, upload_files, download_media
 import aiohttp
 from pyrogram.errors import RPCError, FloodWait
