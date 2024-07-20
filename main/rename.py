@@ -2812,8 +2812,7 @@ async def broadcast(bot, msg: Message):
     await msg.reply_text(f"Broadcast completed: {sent_count} sent, {failed_count} failed.")
     await msg.reply_document('broadcast_log.txt')
 
-# Register the command handler
-app.add_handler(Client.on_message(filters.command("broadcast") & filters.user(ADMIN), broadcast))
+
 
 
 if __name__ == '__main__':
