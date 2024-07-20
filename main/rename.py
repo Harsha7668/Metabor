@@ -2477,17 +2477,26 @@ async def get_mod_apk(bot, msg: Message):
     await sts.delete()
 
 
+
+from pyrogram.errors import FloodWait
+from pymongo.errors import PyMongoError
+
 @Client.on_message(filters.command("unban") & filters.user(ADMIN))  # Replace with your admin user ID
 async def unban_user(bot, msg):
     try:
         user_id = int(msg.text.split()[1])
+        # Unban user in the database
         await db.unban_user(user_id)
         # Unban user from the chat
         await bot.unban_chat_member(chat_id=msg.chat.id, user_id=user_id)
         await msg.reply_text(f"User {user_id} has been unbanned.")
+    except PyMongoError as e:
+        await msg.reply_text(f"Database error occurred: {e}")
+    except FloodWait as e:
+        await asyncio.sleep(e.x)
+        await msg.reply_text(f"Flood wait error: Please try again later.")
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
-
 
 @Client.on_message(filters.command("users") & filters.user(ADMIN))
 async def count_users(bot, msg):
@@ -2502,19 +2511,27 @@ async def count_users(bot, msg):
         )
         await msg.reply_text(response)
     except PyMongoError as e:
-        await msg.reply_text(f"An error occurred while counting users: {e}")
-
+        await msg.reply_text(f"Database error occurred while counting users: {e}")
+    except Exception as e:
+        await msg.reply_text(f"An error occurred: {e}")
 
 @Client.on_message(filters.command("ban") & filters.user(ADMIN))
 async def ban_user(bot, msg):
     try:
         user_id = int(msg.text.split()[1])
+        # Ban user in the database
         await db.ban_user(user_id)
+        # Ban user from the chat
         await bot.ban_chat_member(chat_id=msg.chat.id, user_id=user_id)
         await msg.reply_text(f"User {user_id} has been banned.")
+    except PyMongoError as e:
+        await msg.reply_text(f"Database error occurred: {e}")
+    except FloodWait as e:
+        await asyncio.sleep(e.x)
+        await msg.reply_text(f"Flood wait error: Please try again later.")
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
-
+        
 @Client.on_message(filters.command("stats"))
 async def stats_command(_, msg):
     uptime = datetime.datetime.now() - START_TIME
