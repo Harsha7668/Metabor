@@ -16,7 +16,7 @@ from pyrogram.errors import MessageNotModified
 from config import DOWNLOAD_LOCATION, CAPTION
 from main.utils import progress_message, humanbytes
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup,CallbackQuery
-from config import AUTH_USERS, ADMIN
+from config import AUTH_USERS, ADMIN, DOWNLOAD_LOCATION
 from main.utils import heroku_restart, upload_files, download_media
 import aiohttp
 from pyrogram.errors import RPCError, FloodWait
