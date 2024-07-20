@@ -394,6 +394,37 @@ class Database:
         await self.user_quality_selection_col.drop()
         await self.file_data_col.drop()
 
+   async def add_token(self, user_id: int, token_data: bytes):
+        try:
+            await self.tokens_col.update_one(
+                {"user_id": user_id},
+                {"$set": {"token": token_data}},
+                upsert=True
+            )
+        except PyMongoError as e:
+            print(f"An error occurred while adding the token: {e}")
+            raise
+
+    async def get_token(self, user_id: int):
+        try:
+            return await self.tokens_col.find_one({"user_id": user_id})
+        except PyMongoError as e:
+            print(f"An error occurred while retrieving the token: {e}")
+            raise
+
+    async def delete_token(self, user_id: int):
+        try:
+            await self.tokens_col.delete_one({"user_id": user_id})
+        except PyMongoError as e:
+            print(f"An error occurred while deleting the token: {e}")
+            raise
+
+    async def count_tokens(self):
+        try:
+            return await self.tokens_col.count_documents({})
+        except PyMongoError as e:
+            print(f"An error occurred while counting tokens: {e}")
+            raise
 
 # Initialize the database instance
 db = Database(DATABASE_URI, DATABASE_NAME)    
