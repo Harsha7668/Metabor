@@ -38,26 +38,20 @@ Exᴘʟᴏʀᴇ sɪᴍᴘʟɪᴄɪᴛʏ! 💥
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 
+
 joined_channel_1 = {}
 joined_channel_2 = {}
-
-
-
-
 @Client.on_message(filters.command("start"))
 async def start(bot: Client, msg: Message):
     user_id = msg.chat.id
     username = msg.from_user.username or "Unknown"
-
     # Check if the user is banned
     banned_user = await db.get_banned_user(user_id)
     if banned_user:
         await msg.reply_text("Sorry, you are banned. Contact the admin for more information.")
         return
-
     # Fetch user membership status from the database
     joined_channel_1, joined_channel_2 = await db.get_user_membership(user_id)
-
     # Check for channel 1 (updates channel) membership
     if FSUB_UPDATES:
         try:
@@ -77,7 +71,6 @@ async def start(bot: Client, msg: Message):
         else:
             joined_channel_1 = True
             await db.update_user_membership(user_id, joined_channel_1, joined_channel_2)
-
     # Check for channel 2 (group) membership
     if FSUB_GROUP:
         try:
@@ -97,7 +90,7 @@ async def start(bot: Client, msg: Message):
         else:
             joined_channel_2 = True
             await db.update_user_membership(user_id, joined_channel_1, joined_channel_2)
-
+            
     # If the user has joined both required channels, send the start message with photo
     if joined_channel_1 and joined_channel_2:
         start_text = START_TEXT.format(name=msg.from_user.first_name) if hasattr(msg, "message_id") else START_TEXT
@@ -114,12 +107,13 @@ async def start(bot: Client, msg: Message):
             ]),
             reply_to_message_id=getattr(msg, "message_id", None)
         )
-
         # Notify log channel
         log_message = (
             f"💬 **Bot Started**\n"
             f"🆔 **ID**: {user_id}\n"
             f"👤 **Username**: {username}\n"
+            f"**Joined Updates Channel**: {joined_channel_1}\n"
+            f"**Joined Group Channel**: {joined_channel_2}"
             f"**Joined Updates Channel**: @{FSUB_UPDATES} {joined_channel_1}\n"
             f"**Joined Group Channel**: @{FSUB_GROUP} {joined_channel_2}"
         )
@@ -127,15 +121,12 @@ async def start(bot: Client, msg: Message):
             await bot.send_message(LOG_CHANNEL_ID, log_message)
         except PyMongoError as e:
             print(f"An error occurred while sending log message: {e}")
-
     # Add or update the user in the database
     await db.add_user(user_id, username)
-
-
-
-async def check_membership(bot: Client, msg: Message, fsub, joined_channel_status, prompt_text, join_url):
-    print(f"Checking membership for {fsub}: {joined_channel_status}")  # Debug statement
-    if not joined_channel_status:
+    
+async def check_membership(bot: Client, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
+    user_id = msg.chat.id
+    if not joined_channel_dict[user_id]:
         await msg.reply_text(
             text=prompt_text,
             reply_markup=InlineKeyboardMarkup([
@@ -144,18 +135,17 @@ async def check_membership(bot: Client, msg: Message, fsub, joined_channel_statu
         )
         return False
     return True
-
 @Client.on_message(filters.private & ~filters.command("start"))
 async def handle_private_message(bot: Client, msg: Message):
     user_id = msg.chat.id
-
+    
     # Fetch user membership status from the database
-    joined_channel_1, joined_channel_2 = await db.get_user_membership(user_id)
-
+    joined_channel_1, joined_channe2 = await db.get_user_membership(user_id)
+    
     # Check membership for updates channel
     if FSUB_UPDATES and not await check_membership(bot, msg, FSUB_UPDATES, joined_channel_1, "Please join my updates channel before using me.", f"https://t.me/{FSUB_UPDATES}"):
         return
-
+    
     # Check membership for group channel
     if FSUB_GROUP and not await check_membership(bot, msg, FSUB_GROUP, joined_channel_2, "Please join my group before using me.", f"https://t.me/{FSUB_GROUP}"):
         return
