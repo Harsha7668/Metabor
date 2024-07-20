@@ -33,7 +33,7 @@ class Database:
                 f"🆔 **ID**: {user_id}\n"
                 f"👤 **Username**: {username}"
             )
-            try:
+        try:
             await bot.send_message(LOG_CHANNEL_ID, log_message)
         except PyMongoError as e:
             print(f"An error occurred while sending log message: {e}")        
@@ -58,7 +58,7 @@ class Database:
                 f"🚫 **User Banned**\n"
                 f"🆔 **ID**: {user_id}"
             )
-            try:
+        try:
             await bot.send_message(LOG_CHANNEL_ID, log_message)
         except PyMongoError as e:
             print(f"An error occurred while sending log message: {e}")
