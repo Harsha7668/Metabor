@@ -5,17 +5,16 @@ from pymongo.errors import PyMongoError
 from datetime import datetime
 
 class Database:
-    def __init__(self, uri, database_name):
+        def __init__(self, uri, database_name):
         self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
         self.db = self._client[database_name]
-        self.users_col = self.db["users"]  # Collection for storing user settings
-        self.files_col = self.db.files  # Collection for storing file-related settings (thumbnails, etc.)
-        self.media_info_col = self.db.media_info  # Collection for storing media info
-        self.stats_col = self.db.stats  # Collection for storing server stats
+        self.users_col = self.db["users"]
+        self.files_col = self.db.files
+        self.media_info_col = self.db.media_info
+        self.stats_col = self.db.stats
         self.banned_col = self.db["banned_users"]
         self.user_quality_selection_col = self.db['user_quality_selection']
-        self.file_data_col = self.db['file_data']       
-        
+        self.file_data_col = self.db['file_data']
 
     async def add_user(self, user_id: int, username: str):
         try:
@@ -31,6 +30,21 @@ class Database:
         except PyMongoError as e:
             print(f"An error occurred while updating the user: {e}")
             raise
+
+    async def update_user_membership(self, user_id: int, updates_channel: bool, group_channel: bool):
+        try:
+            await self.users_col.update_one(
+                {"user_id": user_id},
+                {"$set": {
+                    "joined_updates_channel": updates_channel,
+                    "joined_group_channel": group_channel
+                }}
+            )
+        except PyMongoError as e:
+            print(f"An error occurred while updating the user membership: {e}")
+            raise
+
+  
 
     async def ban_user(self, user_id: int):
         try:
