@@ -2,9 +2,12 @@ import math, time
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
 import os
+from Database.database import db
+from pyrogram import Client, filters
 
 
-PROGRESS_BAR = """
+
+PROGRESS_BAR_TEMPLATE = """
 ╭───[**•PROGRESS BAR•**]───⍟
 │
 ├<b>{5}</b>
@@ -19,42 +22,54 @@ PROGRESS_BAR = """
 │
 ╰─────────────────⍟"""
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-async def progress_message(current, total, ud_type, message, start):
+async def start_task(chat_id, message_id, task_id):
+    start_time = time.time()
+    await db.create_task(task_id, chat_id, message_id)
+    await progress_message(task_id, 0, 0)  # Initial call
+
+async def progress_message(task_id, current, total):
+    task = await db.get_task(task_id)
+    if not task:
+        return
+
     now = time.time()
-    diff = now - start
-    if round(diff % 5.00) == 0 or current == total:
-        percentage = current * 100 / total
-        speed = humanbytes(current / diff) + "/s"
-        elapsed_time_ms = round(diff * 1000)
-        time_to_completion_ms = round((total - current) / (current / diff)) * 1000
-        estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
+    diff = now - task['start_time'].timestamp()
+    percentage = current * 100 / total if total else 0
+    speed = humanbytes(current / diff) + "/s"
+    elapsed_time_ms = round(diff * 1000)
+    time_to_completion_ms = round((total - current) / (current / diff)) * 1000 if current else 0
+    estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
 
-        elapsed_time = TimeFormatter(elapsed_time_ms)
-        estimated_total_time = TimeFormatter(estimated_total_time_ms)
+    elapsed_time = TimeFormatter(elapsed_time_ms)
+    estimated_total_time = TimeFormatter(estimated_total_time_ms)
 
-        progress = "{0}{1}".format(
-            ''.join(["■" for i in range(math.floor(percentage / 5))]),
-            ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
+    progress = "{0}{1}".format(
+        ''.join(["■" for _ in range(math.floor(percentage / 5))]),
+        ''.join(["□" for _ in range(20 - math.floor(percentage / 5))])
+    )
+
+    text = f"{PROGRESS_BAR_TEMPLATE.format(round(percentage, 2), humanbytes(current), humanbytes(total), speed, estimated_total_time if estimated_total_time != '' else '0 s', progress)}\n\n/Cancel_{task_id}"
+
+    try:
+        await app.edit_message_text(
+            chat_id=task['chat_id'],
+            message_id=task['message_id'],
+            text=text,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Refresh Status", callback_data=f"refresh_{task_id}")]])
         )
-        tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
+        await db.update_task(task_id, current, total)  # Update the task in the database
+    except Exception as e:
+        print(f"Error editing message: {e}")
 
-        try:
-            await message.edit(
-                text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
-                    round(percentage, 2),
-                    humanbytes(current),
-                    humanbytes(total),
-                    speed,
-                    estimated_total_time if estimated_total_time != '' else '0 s',
-                    progress
-                ),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
-            )
-        except Exception as e:
-            print(f"Error editing message: {e}")
-
-
+@Client.on_callback_query()
+async def handle_callback(client, callback_query):
+    data = callback_query.data
+    if data.startswith("refresh_"):
+        task_id = data.split("_")[1]
+        task = await db.get_task(task_id)
+        if task:
+            await update_task_progress(task_id, task['current'], task['total'])
+        await callback_query.answer()  # Acknowledge the callback
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
