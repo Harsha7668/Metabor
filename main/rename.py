@@ -1797,7 +1797,7 @@ async def safe_edit_message(message, new_text):
         print(f"Failed to edit message: {e}")
 
 #extract audio command 
-@Client.on_message(filters.command("extractaudios") & filters.chat(GROUP))
+@Client.on_message(filters.command("extractaudios") & filters.private)
 async def extract_audios(bot, msg):
     global EXTRACT_ENABLED
     
@@ -1857,7 +1857,7 @@ async def extract_audios(bot, msg):
 
 
 #extract subtitles command 
-@Client.on_message(filters.command("extractsubtitles") & filters.chat(GROUP))
+@Client.on_message(filters.command("extractsubtitles") & filters.private)
 async def extract_subtitles(bot, msg):
     global EXTRACT_ENABLED
     
@@ -1916,7 +1916,7 @@ async def extract_subtitles(bot, msg):
             os.remove(file)
 
 ##extract video command 
-@Client.on_message(filters.command("extractvideo") & filters.chat(GROUP))
+@Client.on_message(filters.command("extractvideo") & filters.private)
 async def extract_video(bot, msg: Message):
     global EXTRACT_ENABLED
     
