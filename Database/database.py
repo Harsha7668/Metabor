@@ -2,6 +2,7 @@ import motor.motor_asyncio
 from config import DATABASE_NAME, DATABASE_URI, LOG_CHANNEL_ID
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
+from datetime import datetime
 
 class Database:
     def __init__(self, uri, database_name):
@@ -13,7 +14,36 @@ class Database:
         self.stats_col = self.db.stats  # Collection for storing server stats
         self.banned_col = self.db["banned_users"]
         self.user_quality_selection_col = self.db['user_quality_selection']
-        self.file_data_col = self.db['file_data']
+        self.file_data_col = self.db['file_data']       
+        self.tasks_col = self.db['tasks']  # Collection for storing tasks
+
+    async def create_task(self, task_id, chat_id, message_id):
+        task = {
+            'task_id': task_id,
+            'chat_id': chat_id,
+            'message_id': message_id,
+            'start_time': datetime.utcnow(),
+            'current': 0,
+            'total': 0,
+            'status': 'Started'  # Or any other initial status
+        }
+        await self.tasks_col.insert_one(task)
+
+    async def update_task(self, task_id, current, total):
+        update = {
+            'current': current,
+            'total': total,
+            'status': 'In Progress' if current < total else 'Completed'
+        }
+        await self.tasks_col.update_one({'task_id': task_id}, {'$set': update})
+
+    async def get_task(self, task_id):
+        task = await self.tasks_col.find_one({'task_id': task_id})
+        return task
+
+    async def cancel_task(self, task_id):
+        await self.tasks_col.update_one({'task_id': task_id}, {'$set': {'status': 'Cancelled'}})
+
 
 
 
