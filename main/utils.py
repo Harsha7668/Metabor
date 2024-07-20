@@ -7,23 +7,22 @@ from pyrogram import Client, filters
 
 
 
-PROGRESS_BAR = """
-╭───[**•PROGRESS BAR•**]───⍟
-│
-├<b>{5}</b>
-│
-├<b>📁**PROCESS** : {1} | {2}</b>
-│
-├<b>🚀**PERCENT** : {0}%</b>
-│
-├<b>⚡**SPEED** : {3}</b>
-│
-├<b>⏱️**ETA** : {4}</b>
-│
-╰─────────────────⍟"""
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+import time
+import math
+import asyncio
 
+# Define admin user IDs here
+ADMIN = [123456789, 987654321]  # Replace with actual admin user IDs
 
-async def progress_message(current, total, ud_type, message, start):
+# Dictionary to keep track of ongoing processes
+processes = {}
+
+# Dictionary to map user IDs to usernames
+usernames = {}
+
+async def progress_message(current, total, ud_type, message, start, initiator_id, initiator_username):
     now = time.time()
     diff = now - start
     if round(diff % 5.00) == 0 or current == total:
@@ -42,6 +41,14 @@ async def progress_message(current, total, ud_type, message, start):
         )
         tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
 
+        # Store process details
+        processes[message.message_id] = {
+            'initiator_id': initiator_id,
+            'initiator_username': initiator_username,
+            'status': 'Downloading',
+            'task': asyncio.create_task(handle_process(current, total, message))
+        }
+
         try:
             await message.edit(
                 text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
@@ -52,26 +59,44 @@ async def progress_message(current, total, ud_type, message, start):
                     estimated_total_time if estimated_total_time != '' else '0 s',
                     progress
                 ),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Cʟᴏꜱᴇ ❌", callback_data="del")]])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Cʟᴏꜱᴇ ❌", callback_data=f"del_{message.message_id}")]])
             )
         except Exception as e:
             print(f"Error editing message: {e}")
 
-@Client.on_callback_query(filters.regex("del"))
-async def closed(bot, msg):
+async def handle_process(current, total, message):
+    # Example task to simulate a process
+    while current < total:
+        await asyncio.sleep(1)
+        # Update process status here
+        current += 1
+        # Handle process updates here
+        # Check for cancellation
+        if message.message_id not in processes:
+            break
+
+@Client.on_callback_query(filters.regex(r"del_(\d+)"))
+async def cancel_process(bot, msg):
+    message_id = int(msg.matches[0].group(1))
     user_id = msg.from_user.id
 
-    if user_id not in ADMIN:
-        # Ignore cancellation request from non-admin users
+    if user_id not in ADMIN and processes.get(message_id, {}).get('initiator_id') != user_id:
+        # Ignore cancellation request if the user is not the initiator or an admin
         return
 
-    try:
-        await msg.message.delete()
-    except Exception as e:
-        print(f"Error deleting message: {e}")
+    if message_id in processes:
+        task = processes[message_id]['task']
+        if not task.done():
+            task.cancel()  # Cancel the task
+            processes.pop(message_id, None)  # Remove process from tracking
+
+        try:
+            await msg.message.delete()
+        except Exception as e:
+            print(f"Error deleting message: {e}")
 
 
-# Your other bot initialization and setup code here
+
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def TimeFormatter(milliseconds: int) -> str:
