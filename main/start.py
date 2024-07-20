@@ -132,7 +132,9 @@ async def start(bot: Client, msg: Message):
     await db.add_user(user_id, username)
 
 
+
 async def check_membership(bot: Client, msg: Message, fsub, joined_channel_status, prompt_text, join_url):
+    print(f"Checking membership for {fsub}: {joined_channel_status}")  # Debug statement
     if not joined_channel_status:
         await msg.reply_text(
             text=prompt_text,
