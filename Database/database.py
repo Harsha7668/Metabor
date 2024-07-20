@@ -15,22 +15,22 @@ class Database:
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
          
-            
     async def add_user(self, user_id: int, username: str):
-    try:
-        await self.users_col.update_one(
-            {"user_id": user_id},
-            {"$set": {
-                "username": username,
-                "joined_updates_channel": False,
-                "joined_group_channel": False
-            }},
-            upsert=True
-        )
-    except PyMongoError as e:
-        print(f"An error occurred while updating the user: {e}")
-        raise
-
+        try:
+            await self.users_col.update_one(
+                {"user_id": user_id},
+                {"$set": {
+                    "username": username,
+                    "joined_updates_channel": False,
+                    "joined_group_channel": False
+                }},
+                upsert=True
+            )
+        except PyMongoError as e:
+            print(f"An error occurred while updating the user: {e}")
+            raise
+        
+    
 async def ban_user(self, user_id: int):
     try:
         await self.banned_col.update_one(
