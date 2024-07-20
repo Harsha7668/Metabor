@@ -42,10 +42,15 @@ Exᴘʟᴏʀᴇ sɪᴍᴘʟɪᴄɪᴛʏ! 💥
 joined_channel_1 = {}
 joined_channel_2 = {}
 
+
+
+    # ... (Other methods remain unchanged) ...
+
+
 @Client.on_message(filters.command("start"))
 async def start(bot, msg: Message):
     user_id = msg.chat.id
-    username = msg.from_user.username or "N/A"  # Get the username or set it to "N/A" if not available
+    username = msg.from_user.username or "N/A"
 
     # Fetch user from the database or add a new user
     user_data = await db.get_user(user_id)
@@ -92,12 +97,10 @@ async def start(bot, msg: Message):
             joined_channel_2[user_id] = True
 
     # Update user's membership status in the database
-    await db.users_col.update_one(
-        {"user_id": user_id},
-        {"$set": {
-            "joined_updates_channel": joined_channel_1.get(user_id, False),
-            "joined_group_channel": joined_channel_2.get(user_id, False)
-        }}
+    await db.update_user_membership(
+        user_id,
+        joined_channel_1.get(user_id, False),
+        joined_channel_2.get(user_id, False)
     )
 
     # If the user has joined both required channels, send the start message with photo
@@ -125,12 +128,14 @@ async def start(bot, msg: Message):
     log_message = (
         f"💬 **Bot Started**\n"
         f"🆔 **ID**: {user_id}\n"
-        f"👤 **Username**: {username}"        
+        f"👤 **Username**: {username}"
     )
     try:
         await bot.send_message(LOG_CHANNEL_ID, log_message)
     except Exception as e:
         print(f"An error occurred while sending log message: {e}")
+
+
 async def check_membership(bot, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
     user_id = msg.chat.id
     if user_id in joined_channel_dict and not joined_channel_dict[user_id]:
