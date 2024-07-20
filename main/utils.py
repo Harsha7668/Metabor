@@ -6,7 +6,6 @@ from Database.database import db
 from pyrogram import Client, filters
 
 
-
 PROGRESS_BAR_TEMPLATE = """
 ╭───[**•PROGRESS BAR•**]───⍟
 │
@@ -22,12 +21,7 @@ PROGRESS_BAR_TEMPLATE = """
 │
 ╰─────────────────⍟"""
 
-async def start_task(chat_id, message_id, task_id):
-    start_time = time.time()
-    await db.create_task(task_id, chat_id, message_id)
-    await progress_message(task_id, 0, 0)  # Initial call
-
-async def progress_message(task_id, current, total):
+async def update_task_progress(task_id, current, total):
     task = await db.get_task(task_id)
     if not task:
         return
@@ -61,6 +55,10 @@ async def progress_message(task_id, current, total):
     except Exception as e:
         print(f"Error editing message: {e}")
 
+async def progress_message(task_list):
+    for task_id, (current, total) in task_list:
+        await update_task_progress(task_id, current, total)
+
 @Client.on_callback_query()
 async def handle_callback(client, callback_query):
     data = callback_query.data
@@ -71,8 +69,6 @@ async def handle_callback(client, callback_query):
             await update_task_progress(task_id, task['current'], task['total'])
         await callback_query.answer()  # Acknowledge the callback
 
-
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(milliseconds, 1000)
     minutes, seconds = divmod(seconds, 60)
@@ -85,7 +81,6 @@ def TimeFormatter(milliseconds: int) -> str:
           ((str(milliseconds) + "ms, ") if milliseconds else "")
     return tmp[:-2]
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def humanbytes(size):
     if not size:
         return ""
@@ -96,6 +91,7 @@ def humanbytes(size):
         size /= power
         n += 1
     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
+
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
