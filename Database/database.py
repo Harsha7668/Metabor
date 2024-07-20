@@ -15,7 +15,7 @@ class Database:
         self.banned_col = self.db["banned_users"]
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
-        self.tokens_col = self.db["tokens"]  # Collection for storing token files
+        self.db["user_tokens"]  # Collection for user tokens
 
     async def add_user(self, user_id: int, username: str):
         try:
@@ -426,6 +426,7 @@ class Database:
         except PyMongoError as e:
             print(f"An error occurred while counting tokens: {e}")
             raise
+
             
     async def get_all_user_ids(self):
         try:
