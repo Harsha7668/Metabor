@@ -8,9 +8,8 @@ from pyrogram import Client, filters
 progress_list = {}  # Dictionary to store progress information for each task
 
 
-import asyncio
 
-# Define your progress bar template
+# Progress Bar Format
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
 │
@@ -26,15 +25,19 @@ PROGRESS_BAR = """
 │
 ╰─────────────────⍟"""
 
-# Function to format time
+# Helper Functions
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(milliseconds, 1000)
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
     days, hours = divmod(hours, 24)
-    return f"{days}d, {hours}h, {minutes}m, {seconds}s, {milliseconds}ms"
+    tmp = ((str(days) + "d, ") if days else "") + \
+          ((str(hours) + "h, ") if hours else "") + \
+          ((str(minutes) + "m, ") if minutes else "") + \
+          ((str(seconds) + "s, ") if seconds else "") + \
+          ((str(milliseconds) + "ms, ") if milliseconds else "")
+    return tmp[:-2]
 
-# Function to format human-readable file size
 def humanbytes(size):
     if not size:
         return ""
@@ -44,10 +47,10 @@ def humanbytes(size):
     while size > power:
         size /= power
         n += 1
-    return f"{round(size, 2)} {Dic_powerN[n]}B"
+    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
-# Function to update progress
-async def progress_message(current, total, ud_type, message, start):
+# Progress Message Function
+async def progress_message(current, total, ud_type, message, start, tasks):
     now = time.time()
     diff = now - start
     if round(diff % 5.00) == 0 or current == total:
@@ -64,8 +67,21 @@ async def progress_message(current, total, ud_type, message, start):
             ''.join(["■" for i in range(math.floor(percentage / 5))]),
             ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
         )
-        tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
 
+        progress_message = f"""
+🚀 Download Started... ⚡️
+
+{progress}
+Progress: {round(percentage, 2)}%
+{humanbytes(current)} of {humanbytes(total)}
+Speed: {speed}
+ETA: {estimated_total_time if estimated_total_time != '' else '0 s'}
+
+"""
+        task_list = '\n'.join([f"{i+1}. {task['real_name']} ({task['user_id']})" for i, task in enumerate(tasks)])
+        
+        complete_message = progress_message + '\n' + task_list + f"\n\nPending Tasks: {len(tasks)}\n\nNote: To remove your task from queue use /clear2 <queue number>"
+        
         try:
             await message.edit(
                 text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
@@ -81,45 +97,9 @@ async def progress_message(current, total, ud_type, message, start):
         except Exception as e:
             print(f"Error editing message: {e}")
 
-# Function to cancel a task
-def cancel_task(task_id, user_id, admin_id):
-    if task_id in progress_list:
-        # Perform cancellation logic here
-        del progress_list[task_id]
-        # Inform user/admin that the task has been canceled
-        print(f"Task {task_id} has been canceled by user {user_id} or admin {admin_id}.")
-
-
-
-
-
-@Client.on_message()
-async def handle_message(client, message):
-    # Start time
-    start_time = time.time()
-    # Example values
-    task_id = message.chat.id
-    total_size = 1000000  # Example total size
-    current_size = 0
-    ud_type = "🚀 Download Started... ⚡️"
-    
-    # Simulate progress update
-    progress_list[task_id] = {
-        'current': current_size,
-        'total': total_size,
-        'ud_type': ud_type,
-        'message': message,
-        'start': start_time
-    }
-    
-    while current_size <= total_size:
-        await progress_message(current_size, total_size, ud_type, message, start_time)
-        current_size += 50000  # Example increment
-        await asyncio.sleep(1)  # Simulate delay
-
-    # Simulate task completion
-    print(f"Task {task_id} completed.")
-
+# Example of using the function
+# async def example_usage(message, user_id, tasks, current, total, speed, eta, progress_percent):
+#     await progress_message(current, total, user_id, message, time.time(), tasks)
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def convert(seconds):
