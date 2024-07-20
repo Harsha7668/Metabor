@@ -21,6 +21,19 @@ PROGRESS_BAR_TEMPLATE = """
 │
 ╰─────────────────⍟"""
 
+async def start_task(chat_id, message_id, task_id):
+    start_time = time.time()
+    await db.create_task(task_id, chat_id, message_id)
+    # You may need to initialize the task with some initial progress
+    await update_task_progress(task_id, 0, 100)  # Example progress
+
+# Example usage:
+task_list = [
+    ('task1', (50, 100)),
+    ('task2', (75, 100)),
+]
+
+await progress_message(task_list)
 async def update_task_progress(task_id, current, total):
     task = await db.get_task(task_id)
     if not task:
