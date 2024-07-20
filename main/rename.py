@@ -23,7 +23,7 @@ from pyrogram.errors import RPCError, FloodWait
 import asyncio
 from main.ffmpeg import remove_all_tags, change_video_metadata, generate_sample_video, add_photo_attachment, merge_videos, unzip_file
 from googleapiclient.http import MediaFileUpload
-from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, get_files_in_folder, drive_service
+from main.gdrive import upload_to_google_drive, extract_id_from_url, copy_file, get_files_in_folder
 from googleapiclient.errors import HttpError
 from Database.database import db
 import datetime
