@@ -1,3 +1,5 @@
+"""
+
 import os
 import time
 import pickle
@@ -101,5 +103,108 @@ def get_files_in_folder(folder_id):
         print(f"An error occurred: {error}")
         return None
 
+"""
 
+import os
+import time
+import pickle
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+import re
+from googleapiclient.errors import HttpError
+import threading, asyncio
+from pymongo import MongoClient
+
+# MongoDB setup
+mongo_client = MongoClient("your_mongo_uri")
+db = mongo_client["your_database_name"]
+user_tokens_col = db["user_tokens"]
+
+# Use a lock to ensure only one clone operation runs at a time
+clone_lock = asyncio.Lock()
+
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+async def authenticate_google_drive(user_id):
+    creds = None
+    user_token = await user_tokens_col.find_one({"user_id": user_id})
+
+    if user_token and "token" in user_token:
+        creds = Credentials.from_authorized_user_info(user_token["token"])
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+            token_info = creds.to_json()
+            await user_tokens_col.update_one(
+                {"user_id": user_id},
+                {"$set": {"token": token_info}},
+                upsert=True
+            )
+
+    return creds
+
+async def upload_to_google_drive(user_id, file_path, file_name, sts):
+    creds = await authenticate_google_drive(user_id)
+    drive_service = build('drive', 'v3', credentials=creds)
+    file_metadata = {'name': file_name}
+    media = MediaFileUpload(file_path, resumable=True)
+    request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
+
+    response = None
+    start_time = time.time()
+    while response is None:
+        status, response = request.next_chunk()
+        if status:
+            await progress_message(status.resumable_progress, os.path.getsize(file_path), "Uploading to Google Drive", sts, start_time)
+
+    return response.get('webViewLink')
+
+def extract_id_from_url(url):
+    match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
+    return match.group(1) if match else None
+
+async def copy_file(user_id, file_id, new_folder_id):
+    creds = await authenticate_google_drive(user_id)
+    drive_service = build('drive', 'v3', credentials=creds)
+    try:
+        async with clone_lock:
+            file = drive_service.files().get(fileId=file_id, fields='name').execute()
+            file_name = file['name']
+
+            query = f"name='{file_name}' and '{new_folder_id}' in parents and trashed=false"
+            existing_files = drive_service.files().list(q=query, fields='files(id)').execute().get('files', [])
+
+            if existing_files:
+                return {'id': existing_files[0]['id'], 'name': file_name, 'status': 'existing'}
+
+            copied_file_metadata = {
+                'name': file_name,
+                'parents': [new_folder_id]
+            }
+
+            copied_file = drive_service.files().copy(fileId=file_id, body=copied_file_metadata).execute()
+
+            return {'id': copied_file['id'], 'name': file_name, 'status': 'new'}
+
+    except HttpError as error:
+        print(f"An error occurred: {error}")
+        return None
+
+def get_files_in_folder(user_id, folder_id):
+    creds = authenticate_google_drive(user_id)
+    drive_service = build('drive', 'v3', credentials=creds)
+    try:
+        query = f"'{folder_id}' in parents and trashed=false"
+        results = drive_service.files().list(q=query, fields="files(id, name, mimeType)").execute()
+        return results.get('files', [])
+    except HttpError as error:
+        print(f"An error occurred: {error}")
+        return None
 
