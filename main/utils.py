@@ -2,7 +2,7 @@ import math, time
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
 import os
-
+import config *
 from pyrogram import Client, filters
 
 
@@ -22,7 +22,7 @@ PROGRESS_BAR = """
 │
 ╰─────────────────⍟"""
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+
 async def progress_message(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
@@ -57,15 +57,21 @@ async def progress_message(current, total, ud_type, message, start):
         except Exception as e:
             print(f"Error editing message: {e}")
 
-
-
 @Client.on_callback_query(filters.regex("del"))
 async def closed(bot, msg):
-    try:
-        await msg.message.delete()
-    except:
+    user_id = msg.from_user.id
+
+    if user_id not in ADMIN:
+        # Ignore cancellation request from non-admin users
         return
 
+    try:
+        await msg.message.delete()
+    except Exception as e:
+        print(f"Error deleting message: {e}")
+
+
+# Your other bot initialization and setup code here
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def TimeFormatter(milliseconds: int) -> str:
