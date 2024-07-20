@@ -2488,7 +2488,7 @@ async def unban_user(bot, msg):
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
 
-"""
+
 @Client.on_message(filters.command("users") & filters.user(ADMIN))
 async def count_users(bot, msg):
     try:
@@ -2503,31 +2503,7 @@ async def count_users(bot, msg):
         await msg.reply_text(response)
     except PyMongoError as e:
         await msg.reply_text(f"An error occurred while counting users: {e}")
-"""
 
-@Client.on_message(filters.command("users") & filters.user(ADMIN))
-async def count_users(bot: Client, msg: Message):
-    user_id = msg.chat.id
-
-    # Directly respond if the user is an admin
-    if user_id in ADMIN:
-        try:
-            # Fetch and count total active and banned users
-            total_users = await db.count_users()
-            banned_users = await db.count_banned_users()
-
-            # Send the user statistics
-            response = (
-                f"**User Statistics:**\n"
-                f"Total Active Users: {total_users}\n"
-                f"Banned Users: {banned_users}"
-            )
-            await msg.reply_text(response)
-        except PyMongoError as e:
-            await msg.reply_text(f"An error occurred while counting users: {e}")
-    else:
-        # Handle cases where the user is not an admin
-        await msg.reply_text("You are not authorized to use this command.")
 
 @Client.on_message(filters.command("ban") & filters.user(ADMIN))
 async def ban_user(bot, msg):
