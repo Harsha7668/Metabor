@@ -74,17 +74,56 @@ def generate_progress_message(current, total, ud_type, start):
         progress
     )
 
-# Example tasks
-tasks = [
-    {'current': 14.0 * 1024 * 1024, 'total': 83.33 * 1024 * 1024, 'ud_type': 'Task 1', 'start': time.time() - 60},
-    {'current': 28.0 * 1024 * 1024, 'total': 83.33 * 1024 * 1024, 'ud_type': 'Task 2', 'start': time.time() - 120},
-    {'current': 42.0 * 1024 * 1024, 'total': 83.33 * 1024 * 1024, 'ud_type': 'Task 3', 'start': time.time() - 180}
-]
+class ProgressManager:
+    def __init__(self):
+        self.tasks = {}
 
-# Generate and print progress for each task
-for task in tasks:
-    progress_message = generate_progress_message(task['current'], task['total'], task['ud_type'], task['start'])
-    print(f"\n{task['ud_type']}\n\n{progress_message}\n/Cancel_user_id")
+    def start_task(self, task_id, total, ud_type):
+        self.tasks[task_id] = {
+            'current': 0,
+            'total': total,
+            'ud_type': ud_type,
+            'start': time.time()
+        }
+
+    def update_task(self, task_id, current):
+        if task_id in self.tasks:
+            task = self.tasks[task_id]
+            task['current'] = current
+            return generate_progress_message(
+                task['current'], task['total'], task['ud_type'], task['start']
+            )
+        return None
+
+    def cancel_task(self, task_id):
+        if task_id in self.tasks:
+            del self.tasks[task_id]
+            return f"Task {task_id} cancelled."
+        return "Task not found."
+
+    def list_progress(self):
+        return {
+            task_id: generate_progress_message(
+                task['current'], task['total'], task['ud_type'], task['start']
+            )
+            for task_id, task in self.tasks.items()
+        }
+
+# Example usage
+progress_manager = ProgressManager()
+progress_manager.start_task('task1', 83.33 * 1024 * 1024, 'Task 1')
+progress_manager.start_task('task2', 100 * 1024 * 1024, 'Task 2')
+
+# Simulate updating tasks
+time.sleep(1)
+print(progress_manager.update_task('task1', 14.0 * 1024 * 1024))
+print(progress_manager.update_task('task2', 50.0 * 1024 * 1024))
+
+# List all progress
+print(progress_manager.list_progress())
+
+# Cancel a task
+print(progress_manager.cancel_task('task1'))
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Define heroku_restart function
