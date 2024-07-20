@@ -42,8 +42,6 @@ joined_channel_1 = {}
 joined_channel_2 = {}
 
 
-
-
 @Client.on_message(filters.command("start"))
 async def start(bot: Client, msg: Message):
     user_id = msg.chat.id
@@ -56,7 +54,13 @@ async def start(bot: Client, msg: Message):
         return
 
     # Fetch user membership status from the database
-    joined_channel_1, joined_channel_2 = await db.get_user_membership(user_id)
+    user_membership = await db.get_user(user_id)
+    if user_membership:
+        joined_channel_1 = user_membership.get("joined_updates_channel", False)
+        joined_channel_2 = user_membership.get("joined_group_channel", False)
+    else:
+        joined_channel_1 = False
+        joined_channel_2 = False
 
     # Check for channel 1 (updates channel) membership
     if FSUB_UPDATES:
@@ -132,9 +136,9 @@ async def start(bot: Client, msg: Message):
     await db.add_user(user_id, username)
 
 
-async def check_membership(bot: Client, msg: Message, fsub, joined_channel_dict, prompt_text, join_url):
-    user_id = msg.chat.id
-    if not joined_channel_dict[user_id]:
+
+async def check_membership(bot: Client, msg: Message, fsub, joined_channel, prompt_text, join_url):
+    if not joined_channel:
         await msg.reply_text(
             text=prompt_text,
             reply_markup=InlineKeyboardMarkup([
@@ -144,12 +148,19 @@ async def check_membership(bot: Client, msg: Message, fsub, joined_channel_dict,
         return False
     return True
 
+
 @Client.on_message(filters.private & ~filters.command("start"))
 async def handle_private_message(bot: Client, msg: Message):
     user_id = msg.chat.id
     
     # Fetch user membership status from the database
-    joined_channel_1, joined_channe2 = await db.get_user_membership(user_id)
+    user_membership = await db.get_user(user_id)
+    if user_membership:
+        joined_channel_1 = user_membership.get("joined_updates_channel", False)
+        joined_channel_2 = user_membership.get("joined_group_channel", False)
+    else:
+        joined_channel_1 = False
+        joined_channel_2 = False
     
     # Check membership for updates channel
     if FSUB_UPDATES and not await check_membership(bot, msg, FSUB_UPDATES, joined_channel_1, "Please join my updates channel before using me.", f"https://t.me/{FSUB_UPDATES}"):
