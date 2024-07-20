@@ -31,32 +31,18 @@ class Database:
             print(f"An error occurred while updating the user: {e}")
             raise
 
-    async def update_user_membership(self, user_id: int, updates_channel: bool, group_channel: bool):
-        try:
-            await self.users_col.update_one(
-                {"user_id": user_id},
-                {"$set": {
-                    "joined_updates_channel": updates_channel,
-                    "joined_group_channel": group_channel
-                }}
-            )
-        except PyMongoError as e:
-            print(f"An error occurred while updating the user membership: {e}")
-            raise
-
-  
-
-    async def ban_user(self, user_id: int):
-        try:
-            await self.banned_col.update_one(
-                {"user_id": user_id},
-                {"$set": {"banned": True}},
-                upsert=True
-            )
-            await self.users_col.delete_one({"user_id": user_id})
-        except PyMongoError as e:
-            print(f"An error occurred while banning the user: {e}")
-            raise  
+      
+ 
+      async def ban_user(self, user_id: int):
+          try:
+              await self.banned_col.update_one(
+                  {"user_id": user_id},
+                  {"$set": {"banned": True}},
+                  upsert=True
+              )
+          except PyMongoError as e:
+              print(f"An error occurred while banning the user: {e}")
+              raise    
 
     async def unban_user(self, user_id: int):
         try:
@@ -86,13 +72,29 @@ class Database:
             print(f"An error occurred while retrieving user: {e}")
             raise
 
-    async def get_banned_user(self, user_id: int):
+    async def is_user_banned(self, user_id: int):
         try:
-            return await self.banned_col.find_one({"user_id": user_id})
+            banned_user = await self.banned_col.find_one({"user_id": user_id})
+            return banned_user is not None
         except PyMongoError as e:
-            print(f"An error occurred while retrieving banned user: {e}")
+            print(f"An error occurred while checking if user is banned: {e}")
             raise
-    
+
+    async def update_user_membership(self, user_id: int, joined_updates_channel: bool, joined_group_channel: bool):
+        try:
+            await self.users_col.update_one(
+                {"user_id": user_id},
+                {"$set": {
+                    "joined_updates_channel": joined_updates_channel,
+                    "joined_group_channel": joined_group_channel
+                }},
+                upsert=True
+            )
+        except PyMongoError as e:
+            print(f"An error occurred while updating user membership: {e}")
+            raise  
+
+  
           
     async def update_user_settings(self, user_id, settings):
         await self.users_col.update_one({'id': user_id}, {'$set': {'settings': settings}}, upsert=True)
