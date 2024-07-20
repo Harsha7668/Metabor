@@ -2734,8 +2734,8 @@ async def upload_token(bot, msg: Message):
         return
 
     file_name = msg.reply_to_message.document.file_name
-    if file_name != "PICKLE":
-        await msg.reply_text("The file must be named `token.PICKLE`.")
+    if file_name != "token.pickle":
+        await msg.reply_text("The file must be named `token.pickle`.")
         return
 
     user_id = msg.from_user.id
@@ -2748,7 +2748,7 @@ async def upload_token(bot, msg: Message):
     # Store the token in the database
     await db.add_token(user_id, token_data)
 
-    await msg.reply_text(f"`token.pickle.PICKLE` has been successfully uploaded and stored for user {user_id}.")
+    await msg.reply_text(f"`token.pickle` has been successfully uploaded and stored for user {user_id}.")
 
 
 @Client.on_message(filters.command("list_tokens") & filters.user(ADMIN))
