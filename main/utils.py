@@ -8,6 +8,7 @@ from pyrogram import Client, filters
 progress_list = {}  # Dictionary to store progress information for each task
 
 
+import asyncio
 
 # Define your progress bar template
 PROGRESS_BAR = """
@@ -46,7 +47,7 @@ def humanbytes(size):
     return f"{round(size, 2)} {Dic_powerN[n]}B"
 
 # Function to update progress
-async def progress_message(task_id, current, total, ud_type, message, start):
+async def progress_message(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
     if round(diff % 5.00) == 0 or current == total:
@@ -80,34 +81,46 @@ async def progress_message(task_id, current, total, ud_type, message, start):
         except Exception as e:
             print(f"Error editing message: {e}")
 
-    progress_list[task_id] = {
-        'current': current,
-        'total': total,
-        'ud_type': ud_type,
-        'message': message,
-        'start': start
-    }
-
-
+# Function to cancel a task
 def cancel_task(task_id, user_id, admin_id):
     if task_id in progress_list:
         # Perform cancellation logic here
         del progress_list[task_id]
         # Inform user/admin that the task has been canceled
-        # You may need to notify the user/admin about the cancellation
-
         print(f"Task {task_id} has been canceled by user {user_id} or admin {admin_id}.")
 
-async def start_task(task_id, user_id, total_size):
-    start_time = time.time()
-    # Mockup message object; replace with actual message object
-    message = None
 
-    # Simulate a process
-    for current_size in range(0, total_size + 1, int(total_size / 100)):
-        await update_progress(task_id, current_size, total_size, "🚀 Download Started... ⚡️", message, start_time)
-        await asyncio.sleep(1)  # Simulate time delay
-        
+
+
+
+@Client.on_message()
+async def handle_message(client, message):
+    # Start time
+    start_time = time.time()
+    # Example values
+    task_id = message.chat.id
+    total_size = 1000000  # Example total size
+    current_size = 0
+    ud_type = "🚀 Download Started... ⚡️"
+    
+    # Simulate progress update
+    progress_list[task_id] = {
+        'current': current_size,
+        'total': total_size,
+        'ud_type': ud_type,
+        'message': message,
+        'start': start_time
+    }
+    
+    while current_size <= total_size:
+        await progress_message(current_size, total_size, ud_type, message, start_time)
+        current_size += 50000  # Example increment
+        await asyncio.sleep(1)  # Simulate delay
+
+    # Simulate task completion
+    print(f"Task {task_id} completed.")
+
+
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def convert(seconds):
     seconds = seconds % (24 * 3600)
