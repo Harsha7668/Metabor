@@ -120,8 +120,8 @@ async def start(bot: Client, msg: Message):
             f"💬 **Bot Started**\n"
             f"🆔 **ID**: {user_id}\n"
             f"👤 **Username**: {username}\n"
-            f"**Joined Updates Channel**: {joined_channel_1}\n"
-            f"**Joined Group Channel**: {joined_channel_2}"
+            f"**Joined Updates Channel**: @{FSUB_UPDATES} {joined_channel_1}\n"
+            f"**Joined Group Channel**: @{FSUB_GROUP} {joined_channel_2}"
         )
         try:
             await bot.send_message(LOG_CHANNEL_ID, log_message)
