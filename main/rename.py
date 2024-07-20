@@ -29,6 +29,7 @@ from Database.database import db
 import datetime
 from datetime import timedelta
 import psutil
+from pymongo.errors import PyMongoError
 
 # Global variables
 START_TIME = datetime.datetime.now()
