@@ -2464,7 +2464,6 @@ async def clear_database_handler(client: Client, msg: Message):
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
 
-
 @Client.on_message(filters.command("broadcast") & filters.user(ADMIN))
 async def broadcast(bot, msg: Message):
     if not msg.reply_to_message:
@@ -2499,6 +2498,7 @@ async def broadcast(bot, msg: Message):
     # Send summary to admin
     await msg.reply_text(f"Broadcast completed: {sent_count} sent, {failed_count} failed.")
     await msg.reply_document('broadcast_log.txt')
+
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 #FUNCTION ABOUT HANDLER
