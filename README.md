@@ -9,13 +9,11 @@
 
 ## Deploy To Koyeb
 
-[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=git&repository=github.com/Aluval/MetaMorpher&env[BOT_TOKEN]&env[API_ID]&env[API_HASH]&env[WEBHOOK]=True&env[ADMIN]&env[DB_URL]&env[DB_NAME]=pyro-botz&env[FORCE_SUB]&env[START_PIC]&env[PORT]=8080&run_command=python%20bot.py&branch=main&name=pyro-rename) 
+[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=git&repository=github.com/Aluval/MetaMorpher&env[BOT_TOKEN]&env[API_ID]&env[API_HASH]&env[FSUB_UPDATES]&env[FSUB_GROUP]&env[AUTH_USERS]&env[LOG_CHANNEL_ID]&env[WEBHOOK]=True&env[ADMIN]&env[DATABASE_URI]&env[DATABASE_NAME]=Cluster0&env[FORCE_SUB]&env[SUNRISES_PIC]&env[PORT]=8080&run_command=python%20bot.py&branch=SH24BOTS-GD-REVERSION-PVT&name=MetaMorpher) 
 
 ## Deploy To Render
 
-◉ watch tutorial for render deploy <a href="https://youtu.be/i6OX3xzOCGY"><img src="https://img.shields.io/badge/Watch%20Tutorial%20On%20YouTube-red.svg?logo=Youtube"></a>                     
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/TEAM-PYRO-BOTZ/PYRO-RENAME-BOT)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Aluval/MetaMorpher)
 
 
 
