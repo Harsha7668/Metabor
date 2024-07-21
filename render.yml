@@ -1,5 +1,5 @@
 services:
-    type: web
+  - type: web
     plan: free
     name: 𝐌𝐞𝐭𝐚𝐌𝐨𝐫𝐩𝐡𝐞𝐫
     env: python
@@ -7,7 +7,7 @@ services:
     startCommand: python bot.py
     repo: https://github.com/Aluval/MetaMorpher.git
     branch: SH24BOTS-GD-REVERSION-PVT
-    autoDeploy: true
+    autoDeploy: false
     envVars:
       - key: BOT_TOKEN
         sync: false
