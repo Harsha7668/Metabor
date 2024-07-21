@@ -16,9 +16,9 @@ DATABASE_URI = os.environ.get("DATABASE_URI", "mongodb+srv://UPLOADXPRO24BOT:UPL
 DATABASE_NAME = os.environ.get("DATABASE_NAME", "Cluster0")
 CAPTION = os.environ.get("CAPTION", "")
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-DOWNLOAD_LOCATION = "./DOWNLOADS"
-DOWNLOAD_LOCATION1 = ""
-SUNRISES_PIC= "https://graph.org/file/bd91761f6e938e2e6d23a.jpg"  # Replace with your Telegraph link
+group = environ.get('GROUP', '-1002128043143')
+GROUP = int(group) if group and id_pattern.search(group) else None
+SUNRISES_PIC = "https://graph.org/file/bd91761f6e938e2e6d23a.jpg"  # Replace with your Telegraph link
 AUTH_USERS = int(os.environ.get("AUTH_USERS", '6469754522'))
 WEBHOOK = bool(os.environ.get("WEBHOOK", True))
 PORT = int(os.environ.get("PORT", "8081"))
