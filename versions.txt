@@ -62,6 +62,7 @@
   /unban
   /users
   /broadcast 
+• Log Channel 
 • Small changes and fixes.
 • Support Render, Koyeb Support.
 • Docker File Updated : Mediainfo, Ffmpeg 
