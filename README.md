@@ -9,7 +9,7 @@
 
 ## Deploy To Koyeb
 
-[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=git&repository=github.com/Aluval/MetaMorpher&env[BOT_TOKEN]&env[API_ID]&env[API_HASH]&env[FSUB_UPDATES]&env[FSUB_GROUP]&env[AUTH_USERS]&env[LOG_CHANNEL_ID]&env[WEBHOOK]=True&env[ADMIN]&env[DATABASE_URI]&env[DATABASE_NAME]=Cluster0&env[FORCE_SUB]&env[SUNRISES_PIC]&env[PORT]=8080&run_command=python%20bot.py&branch=SH24BOTS-GD-REVERSION-PVT&name=MetaMorpher) 
+[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=git&repository=github.com/Aluval/MetaMorpher&env[BOT_TOKEN]&env[API_ID]&env[API_HASH]&env[FSUB_UPDATES]&env[FSUB_GROUP]&env[AUTH_USERS]&env[LOG_CHANNEL_ID]&env[WEBHOOK]=True&env[ADMIN]&env[DATABASE_URI]&env[DATABASE_NAME]=Cluster0&env[SUNRISES_PIC]&env[PORT]=8080&run_command=python%20bot.py&branch=SH24BOTS-GD-REVERSION-PVT&name=MetaMorpher) 
 
 ## Deploy To Render
 
@@ -49,6 +49,8 @@ Press Below Button to Deploy!
 - `Unzip files only support extension .zip`: Unzips files specifically supporting .zip extension.
 - `Screenshots`: Captures screenshots.
 - `Sample Video`: Generates sample videos.
+- `Youtube Leech`: YouTube Leech From Link to Below 2GB Files Upload & Above 2GB Files In Drive.
+- `Mediainfo`: Media & Document 📄 Information ℹ️ 
 
 ###  **𝑅𝐸𝑄𝑈𝐼𝑅𝐸𝐷 𝑉𝐴𝑅𝐼𝐴𝐵𝐿𝐸𝑆** 
 
@@ -66,7 +68,15 @@ Press Below Button to Deploy!
 
 * `SUNRISES_PIC` - Start Pic
 
-* `AUTH_USERS` - for restart owner id 
+* `AUTH_USERS` - for restart owner id
+
+* `DATABASE_NAME` - Database Name
+
+* `DATABASE_URI` - Mongdb Url From mongodb.com.
+
+* `WEBHOOK` - True
+
+* `PORT` - 8080
 
 ### Bot Commands
  ```
