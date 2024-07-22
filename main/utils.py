@@ -23,9 +23,20 @@ PROGRESS_BAR = """
 ├<b>❌**CANCEL** : {6}</b>
 ╰─────────────────⍟"""
 
+import time
+import math
+
 async def progress_message(current, total, ud_type, message, start, process_id):
     now = time.time()
     diff = now - start
+    
+    # Check for cancellation request
+    process = await db.get_process(process_id)
+    if process and process['status'] == 'cancelled':
+        await message.edit_text("Process was cancelled.")
+        # Handle the cancellation of the download/upload here
+        return
+    
     if round(diff % 5.00) == 0 or current == total:
         percentage = current * 100 / total
         speed = humanbytes(current / diff) + "/s"
@@ -40,15 +51,9 @@ async def progress_message(current, total, ud_type, message, start, process_id):
             ''.join(["■" for i in range(math.floor(percentage / 5))]),
             ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
         )
-        cancel_command = f"/cancel_{process_id}"
         tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
 
         try:
-            process = await db.get_process(process_id)
-            if process and process['status'] == 'cancelled':
-                await message.edit(text="Process cancelled by user.")
-                return True
-
             await message.edit(
                 text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
                     round(percentage, 2),
@@ -56,17 +61,15 @@ async def progress_message(current, total, ud_type, message, start, process_id):
                     humanbytes(total),
                     speed,
                     estimated_total_time if estimated_total_time != '' else '0 s',
-                    progress,
-                    cancel_command
+                    progress
                 ),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data=f"cancel_{process_id}")]])
             )
         except Exception as e:
             print(f"Error editing message: {e}")
 
-
-
-
+        # Update progress in database
+        await db.update_process(process_id, {'progress': percentage})
 
 @Client.on_callback_query(filters.regex(r'^cancel_(\w+)$'))
 async def handle_cancel_callback(bot, callback_query: CallbackQuery):
@@ -87,6 +90,9 @@ async def handle_cancel_callback(bot, callback_query: CallbackQuery):
 
     await callback_query.answer(f"Process {process_id} has been cancelled.")
     await callback_query.message.edit_text(f"Process {process_id} has been cancelled.")
+
+
+
 
 # Function to format time in human-readable format
 def TimeFormatter(milliseconds: int) -> str:
