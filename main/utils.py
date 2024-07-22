@@ -4,6 +4,12 @@ import heroku3
 import os
 
 
+import time
+import math
+fromi pyrogram import Client 
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyromod import listen
+
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
 │
@@ -19,8 +25,8 @@ PROGRESS_BAR = """
 │
 ╰─────────────────⍟"""
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-async def progress_message(current, total, ud_type, message, start):
+# Function to show the progress message
+async def progress_message(current, total, ud_type, message, start, user_id, admins):
     now = time.time()
     diff = now - start
     if round(diff % 5.00) == 0 or current == total:
@@ -37,9 +43,12 @@ async def progress_message(current, total, ud_type, message, start):
             ''.join(["■" for i in range(math.floor(percentage / 5))]),
             ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
         )
-        tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
 
         try:
+            reply_markup = InlineKeyboardMarkup(
+                [[InlineKeyboardButton("Cancel", callback_data=f"cancel_{user_id}")]]
+            )
+
             await message.edit(
                 text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
                     round(percentage, 2),
@@ -49,15 +58,12 @@ async def progress_message(current, total, ud_type, message, start):
                     estimated_total_time if estimated_total_time != '' else '0 s',
                     progress
                 ),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+                reply_markup=reply_markup
             )
         except Exception as e:
             print(f"Error editing message: {e}")
 
-
-
-
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+# Function to format time in human-readable format
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(milliseconds, 1000)
     minutes, seconds = divmod(seconds, 60)
@@ -70,7 +76,7 @@ def TimeFormatter(milliseconds: int) -> str:
           ((str(milliseconds) + "ms, ") if milliseconds else "")
     return tmp[:-2]
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+# Function to convert bytes to human-readable format
 def humanbytes(size):
     if not size:
         return ""
@@ -82,18 +88,27 @@ def humanbytes(size):
         n += 1
     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
+# Function to handle the callback query
+async def cancel_callback_handler(client, callback_query):
+    user_id = int(callback_query.data.split('_')[1])
+    if callback_query.from_user.id == user_id or callback_query.from_user.id in admins:
+        # Perform the cancel action here
+        await callback_query.message.edit("Task has been canceled.")
+    else:
+        await callback_query.answer("It's not your task.", show_alert=True)
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-def convert(seconds):
-    seconds = seconds % (24 * 3600)
-    hour = seconds // 3600
-    seconds %= 3600
-    minutes = seconds // 60
-    seconds %= 60
-    return "%d:%02d:%02d" % (hour, minutes, seconds)
+# In your main bot code, register the callback handler using pyromod
+@Client.on_callback_query()
+async def handle_callbacks(client, callback_query):
+    if callback_query.data.startswith("cancel_"):
+        await cancel_callback_handler(client, callback_query)
 
+# Ensure you call progress_message with the correct parameters
+# Example usage:
+# await progress_message(current, total, ud_type, message, start, user_id, admins)
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Define heroku_restart function
+
 async def heroku_restart():
     HEROKU_API = "HRKU-987b360b-e27e-43bf-b4e8-026e4c07521e"
     HEROKU_APP_NAME = "infinitystartrename24bot"
