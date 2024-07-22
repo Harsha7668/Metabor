@@ -575,6 +575,7 @@ async def mirror_to_google_drive(bot, msg: Message):
         await db.update_process(process_id, {'status': 'failed'})
 
 
+# Rename command handler
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
 async def rename_file(bot, msg):
     if len(msg.command) < 2 or not msg.reply_to_message:
@@ -590,6 +591,7 @@ async def rename_file(bot, msg):
     c_time = time.time()
 
     process_id = await db.create_process(msg.from_user.id)
+    print(f"Created process with ID: {process_id}")
 
     # Create inline keyboard with cancel button
     cancel_button = InlineKeyboardButton("❌ Cancel", callback_data=f"cancel_{process_id}")
@@ -635,11 +637,11 @@ async def rename_file(bot, msg):
                 await sts.edit("Process was cancelled.")
                 return
         except Exception as e:
+            print(f"Error: {e}")
             return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded)
     await sts.delete()
-
 
 
 
