@@ -4,6 +4,8 @@ import heroku3
 import os
 from Database.database import db
 from pyrogram.types import Message
+from pyrogram import Client, filters
+from pyrogram.types import CallbackQuery
 
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
