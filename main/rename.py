@@ -481,8 +481,7 @@ async def inline_preview_gofile_api_key(bot, callback_query):
     await callback_query.message.reply_text(f"Current Gofile API Key for user `{user_id}`: {api_key}")
 
 
-
-@Client.on_message(filters.command("compress") & filters.chat(GROUP))
+@Client.on_message(filters.private & filters.command("compress"))
 async def compress_media(bot, msg: Message):
     user_id = msg.from_user.id
 
