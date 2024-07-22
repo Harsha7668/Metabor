@@ -18,6 +18,7 @@ PROGRESS_BAR = """
 │
 ├<b>⏱️**ETA** : {4}</b>
 │
+├<b>❌**CANCEL** : {6}</b>
 ╰─────────────────⍟"""
 
 async def progress_message(current, total, ud_type, message, start, process_id):
@@ -37,8 +38,7 @@ async def progress_message(current, total, ud_type, message, start, process_id):
             ''.join(["■" for i in range(math.floor(percentage / 5))]),
             ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
         )
-        tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
-
+        cancel_command = f"/cancel_{process_id}"
         try:
             await message.edit(
                 text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
@@ -47,7 +47,8 @@ async def progress_message(current, total, ud_type, message, start, process_id):
                     humanbytes(total),
                     speed,
                     estimated_total_time if estimated_total_time != '' else '0 s',
-                    progress
+                    progress,
+                    cancel_command
                 ),
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Join Us 🌟", url="https://t.me/Sunrises24botupdates")]])
             )
