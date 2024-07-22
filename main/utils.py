@@ -6,7 +6,7 @@ import os
 
 import time
 import math
-fromi pyrogram import Client 
+from pyrogram import Client
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyromod import listen
 
