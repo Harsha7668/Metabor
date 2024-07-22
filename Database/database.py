@@ -15,6 +15,23 @@ class Database:
         self.banned_col = self.db["banned_users"]
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
+        self.processes_col = self.db['processes']
+
+
+    async def get_gdrive_folder_id(self, user_id):
+        user = await self.users_col.find_one({'user_id': user_id}, {'gdrive_folder_id': 1})
+        return user.get('gdrive_folder_id') if user else None
+
+    async def create_process(self, user_id):
+        result = await self.processes_col.insert_one({'user_id': user_id, 'status': 'ongoing', 'progress': 0})
+        return result.inserted_id
+
+    async def get_process(self, process_id):
+        return await self.processes_col.find_one({'_id': process_id})
+
+    async def update_process(self, process_id, update_data):
+        await self.processes_col.update_one({'_id': process_id}, {'$set': update_data})
+    
         
     async def add_user(self, user_id: int, username: str):
         try:
