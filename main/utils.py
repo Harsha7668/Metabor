@@ -35,6 +35,7 @@ PROGRESS_BAR = """
 ├<b>❌**CANCEL** : {6}</b>
 ╰─────────────────⍟"""
 
+
 async def progress_message(current, total, ud_type, message, start, process_id):
     now = time.time()
     diff = now - start
@@ -76,6 +77,9 @@ async def progress_message(current, total, ud_type, message, start, process_id):
         except Exception as e:
             print(f"Error in progress message: {e}")
             
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 @Client.on_callback_query(filters.regex(r"cancel_\d+"))
 async def cancel_process(bot, callback_query):
     process_id = int(callback_query.data.split("_")[1])
@@ -94,9 +98,8 @@ async def cancel_process(bot, callback_query):
 
     # Notify the user about the cancellation
     await callback_query.message.edit("Process cancelled by user.")
-
-    # Optionally, you can also notify the user through a private message or log the cancellation
-
+    
+    
 # Function to format time in human-readable format
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(milliseconds, 1000)
