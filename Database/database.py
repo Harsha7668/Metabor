@@ -18,7 +18,7 @@ class Database:
         self.processes_col = self.db['processes']
 
 
-        
+
     async def create_process(self, user_id):
         result = await self.processes_col.insert_one({'user_id': user_id, 'status': 'ongoing', 'progress': 0})
         return result.inserted_id
@@ -30,9 +30,11 @@ class Database:
         await self.processes_col.update_one({'_id': process_id}, {'$set': update_data})
 
     async def cancel_process(self, process_id):
-        await self.update_process(process_id, {'status': 'cancelled'})
+        await self.update_process(process_id, {'status': 'cancelled'})    
+
+        
     
-    
+ 
         
     async def add_user(self, user_id: int, username: str):
         try:
