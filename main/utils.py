@@ -41,7 +41,14 @@ async def progress_message(current, total, ud_type, message, start, process_id):
             ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
         )
         cancel_command = f"/cancel_{process_id}"
+        tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
+
         try:
+            process = await db.get_process(process_id)
+            if process and process['status'] == 'cancelled':
+                await message.edit(text="Process cancelled by user.")
+                return True
+
             await message.edit(
                 text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
                     round(percentage, 2),
@@ -52,13 +59,12 @@ async def progress_message(current, total, ud_type, message, start, process_id):
                     progress,
                     cancel_command
                 ),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Join Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
             )
         except Exception as e:
             print(f"Error editing message: {e}")
 
-        # Update progress in database
-        await db.update_process(process_id, {'progress': percentage})
+
 
 
 
@@ -73,7 +79,7 @@ async def handle_cancel_callback(bot, callback_query: CallbackQuery):
         return
 
     # Update the process status to cancelled
-    await db.update_process(process_id, {'status': 'cancelled'})
+    await db.cancel_process(process_id)
 
     await callback_query.answer(f"Process {process_id} has been cancelled.")
     await callback_query.message.edit_text(f"Process {process_id} has been cancelled.")
