@@ -576,8 +576,11 @@ async def mirror_to_google_drive(bot, msg: Message):
 
 
 
+
+
+# Define the rename command handler
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
-async def rename_file(bot, msg):
+async def rename_file(bot, msg: Message):
     if len(msg.command) < 2 or not msg.reply_to_message:
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
@@ -589,18 +592,29 @@ async def rename_file(bot, msg):
     new_name = msg.text.split(" ", 1)[1]
     sts = await msg.reply_text("🚀 Downloading... ⚡")
     c_time = time.time()
-    process_id = await db.create_process(msg.from_user.id)
     downloaded = None
-    
+
     try:
-        # Download the file
         downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time, process_id))
     except Exception as e:
-        await sts.edit(text=f"Download error: {e}")
-        return
-    
+        if "FILE_REFERENCE_EXPIRED" in str(e):
+            # Refetch the original message
+            original_msg = await bot.get_messages(msg.chat.id, reply.message_id)
+            # Retry the download
+            downloaded = await original_msg.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time, process_id))
+        else:
+            await sts.edit(text=f"Download error: {e}")
+            return
+
     filesize = humanbytes(media.file_size)
-    cap = CAPTION.format(file_name=new_name, file_size=filesize)
+
+    if CAPTION:
+        try:
+            cap = CAPTION.format(file_name=new_name, file_size=filesize)
+        except KeyError as e:
+            return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
+    else:
+        cap = f"{new_name}\n\n🌟 Size: {filesize}"
 
     # Retrieve thumbnail from the database
     thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
@@ -627,7 +641,7 @@ async def rename_file(bot, msg):
         try:
             await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time, process_id))
         except Exception as e:
-            await sts.edit(f"Error: {e}")
+            return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded)
     await sts.delete()
