@@ -56,7 +56,33 @@ EXTRACT_ENABLED = True
 
 
 
+from pyrogram import Client, filters
+from pyrogram.types import Message
 
+@Client.on_message(filters.command("cancel"))
+async def cancel_process_command(bot, msg: Message):
+    try:
+        # Extract process ID from the command
+        process_id = msg.text.split("_")[1]
+        process_id = process_id.strip()
+
+        # Find and cancel the process
+        process = await db.processes_col.find_one({'_id': process_id})
+        if not process:
+            return await msg.reply_text("No such process found.")
+
+        # Update the process status to cancelled
+        await db.processes_col.update_one({'_id': process_id}, {'$set': {'status': 'cancelled'}})
+        await msg.reply_text(f"Process {process_id} has been cancelled.")
+        
+        # Optionally, notify user about the cancellation
+        user_id = process['user_id']
+        user_message = f"Your ongoing process ({process_id}) has been cancelled."
+        await bot.send_message(user_id, user_message)
+
+    except Exception as e:
+        await msg.reply_text(f"Error: {e}")
+        
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Command handler to start the interaction (only in admin)
 @Client.on_message(filters.command("bsettings") & filters.chat(ADMIN))
