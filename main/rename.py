@@ -56,32 +56,7 @@ EXTRACT_ENABLED = True
 
 
 
-from pyrogram import Client, filters
-from pyrogram.types import Message
 
-@Client.on_message(filters.command("cancel"))
-async def cancel_process_command(bot, msg: Message):
-    try:
-        # Extract process ID from the command
-        process_id = msg.text.split("_")[1]
-        process_id = process_id.strip()
-
-        # Find and cancel the process
-        process = await db.processes_col.find_one({'_id': process_id})
-        if not process:
-            return await msg.reply_text("No such process found.")
-
-        # Update the process status to cancelled
-        await db.processes_col.update_one({'_id': process_id}, {'$set': {'status': 'cancelled'}})
-        await msg.reply_text(f"Process {process_id} has been cancelled.")
-        
-        # Optionally, notify user about the cancellation
-        user_id = process['user_id']
-        user_message = f"Your ongoing process ({process_id}) has been cancelled."
-        await bot.send_message(user_id, user_message)
-
-    except Exception as e:
-        await msg.reply_text(f"Error: {e}")
         
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Command handler to start the interaction (only in admin)
@@ -653,10 +628,11 @@ async def rename_file(bot, msg):
         await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
     else:
         try:
-            if await progress_message(os.path.getsize(downloaded), os.path.getsize(downloaded), "Uploading", sts, c_time, process_id):
-                return await sts.edit("Process cancelled by user.")
-                
-            await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time, process_id))
+            if process_id == await db.get_process(process_id):
+                await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time, process_id))
+            else:
+                await sts.edit("Process was cancelled.")
+                return
         except Exception as e:
             return await sts.edit(f"Error: {e}")
 
