@@ -2,23 +2,8 @@ import math, time
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
 import os
-from Database.database import db
-from pyrogram.types import Message
-from pyrogram import Client, filters
-from pyrogram.types import CallbackQuery
 
-from pyrogram import Client, filters
-from pyrogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
-import time
-import math
-import os
-
-
-
-
-
-
-# Define the progress bar format
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
 │
@@ -32,11 +17,10 @@ PROGRESS_BAR = """
 │
 ├<b>⏱️**ETA** : {4}</b>
 │
-├<b>❌**CANCEL** : {6}</b>
 ╰─────────────────⍟"""
 
-
-async def progress_message(current, total, ud_type, message, start, process_id):
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+async def progress_message(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
     if round(diff % 5.00) == 0 or current == total:
@@ -53,15 +37,9 @@ async def progress_message(current, total, ud_type, message, start, process_id):
             ''.join(["■" for i in range(math.floor(percentage / 5))]),
             ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
         )
-        cancel_command = f"/cancel_{process_id}"
         tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
 
         try:
-            process = await db.get_process(process_id)
-            if process and process['status'] == 'cancelled':
-                await message.edit(text="Process cancelled by user.")
-                return True
-
             await message.edit(
                 text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
                     round(percentage, 2),
@@ -69,38 +47,15 @@ async def progress_message(current, total, ud_type, message, start, process_id):
                     humanbytes(total),
                     speed,
                     estimated_total_time if estimated_total_time != '' else '0 s',
-                    progress,
-                    cancel_command
+                    progress
                 ),
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
             )
         except Exception as e:
-            print(f"Error in progress message: {e}")
-            
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+            print(f"Error editing message: {e}")
 
-@Client.on_callback_query(filters.regex(r"cancel_\d+"))
-async def cancel_process(bot, callback_query):
-    process_id = int(callback_query.data.split("_")[1])
-    user_id = callback_query.from_user.id
 
-    # Fetch the process details
-    process = await db.get_process(process_id)
-    if not process:
-        return await callback_query.message.edit("Invalid process ID.")
-
-    if process['status'] == 'cancelled':
-        return await callback_query.message.edit("Process already cancelled.")
-
-    # Update process status to 'cancelled'
-    await db.cancel_process(process_id)
-
-    # Notify the user about the cancellation
-    await callback_query.message.edit("Process cancelled by user.")
-    
-    
-# Function to format time in human-readable format
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(milliseconds, 1000)
     minutes, seconds = divmod(seconds, 60)
@@ -113,7 +68,7 @@ def TimeFormatter(milliseconds: int) -> str:
           ((str(milliseconds) + "ms, ") if milliseconds else "")
     return tmp[:-2]
 
-# Function to convert bytes to human-readable format
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def humanbytes(size):
     if not size:
         return ""
@@ -125,6 +80,7 @@ def humanbytes(size):
         n += 1
     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
+
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def convert(seconds):
     seconds = seconds % (24 * 3600)
@@ -133,7 +89,9 @@ def convert(seconds):
     minutes = seconds // 60
     seconds %= 60
     return "%d:%02d:%02d" % (hour, minutes, seconds)
-    
+
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+# Define heroku_restart function
 async def heroku_restart():
     HEROKU_API = "HRKU-987b360b-e27e-43bf-b4e8-026e4c07521e"
     HEROKU_APP_NAME = "infinitystartrename24bot"
@@ -164,7 +122,7 @@ async def download_media(msg, sts):
         raise
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24        
-# Recursive function to upload files
+# Recursive function to upload file
 async def upload_files(bot, chat_id, directory, base_path=""):
     for item in os.listdir(directory):
         item_path = os.path.join(directory, item)
@@ -175,4 +133,4 @@ async def upload_files(bot, chat_id, directory, base_path=""):
                 print(f"Error uploading {item}: {e}")
         elif os.path.isdir(item_path):
             await upload_files(bot, chat_id, item_path, base_path=os.path.join(base_path, item))
-
+        
