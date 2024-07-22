@@ -575,8 +575,9 @@ async def mirror_to_google_drive(bot, msg: Message):
         await db.update_process(process_id, {'status': 'failed'})
 
 
+
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
-async def rename_file(bot, msg: Message):
+async def rename_file(bot, msg):
     if len(msg.command) < 2 or not msg.reply_to_message:
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
@@ -586,30 +587,16 @@ async def rename_file(bot, msg: Message):
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
     new_name = msg.text.split(" ", 1)[1]
-    
-    # Create a new process ID and save it in the database
-    process_id = await db.create_process(msg.from_user.id)
-    
     sts = await msg.reply_text("🚀 Downloading... ⚡")
     c_time = time.time()
-    downloaded = None
 
-    try:
-        downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time, process_id))
-        if os.path.getsize(downloaded) == 0:
-            raise ValueError("Downloaded file size is 0 bytes.")
-    except Exception as e:
-        if "FILE_REFERENCE_EXPIRED" in str(e):
-            # Refetch the original message
-            original_msg = await bot.get_messages(msg.chat.id, reply.message_id)
-            # Retry the download
-            downloaded = await original_msg.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time, process_id))
-            if os.path.getsize(downloaded) == 0:
-                raise ValueError("Downloaded file size is 0 bytes.")
-        else:
-            await sts.edit(text=f"Download error: {e}")
-            return
+    process_id = await db.create_process(msg.from_user.id)
 
+    # Create inline keyboard with cancel button
+    cancel_button = InlineKeyboardButton("❌ Cancel", callback_data=f"cancel_{process_id}")
+    reply_markup = InlineKeyboardMarkup([[cancel_button]])
+
+    downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time, process_id))
     filesize = humanbytes(media.file_size)
 
     if CAPTION:
@@ -643,13 +630,16 @@ async def rename_file(bot, msg: Message):
         await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
     else:
         try:
-            await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time, process_id))
+            if process_id == await db.get_process(process_id):
+                await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time, process_id))
+            else:
+                await sts.edit("Process was cancelled.")
+                return
         except Exception as e:
             return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded)
     await sts.delete()
-
 
 
 
