@@ -574,6 +574,8 @@ async def mirror_to_google_drive(bot, msg: Message):
         await sts.edit(f"Error: {e}")
         await db.update_process(process_id, {'status': 'failed'})
 
+
+
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
 async def rename_file(bot, msg):
     if len(msg.command) < 2 or not msg.reply_to_message:
@@ -587,23 +589,18 @@ async def rename_file(bot, msg):
     new_name = msg.text.split(" ", 1)[1]
     sts = await msg.reply_text("🚀 Downloading... ⚡")
     c_time = time.time()
-
     process_id = await db.create_process(msg.from_user.id)
-
-    # Create inline keyboard with cancel button
-    cancel_button = InlineKeyboardButton("❌ Cancel", callback_data=f"cancel_{process_id}")
-    reply_markup = InlineKeyboardMarkup([[cancel_button]])
-
-    downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time, process_id))
+    downloaded = None
+    
+    try:
+        # Download the file
+        downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time, process_id))
+    except Exception as e:
+        await sts.edit(text=f"Download error: {e}")
+        return
+    
     filesize = humanbytes(media.file_size)
-
-    if CAPTION:
-        try:
-            cap = CAPTION.format(file_name=new_name, file_size=filesize)
-        except KeyError as e:
-            return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
-    else:
-        cap = f"{new_name}\n\n🌟 Size: {filesize}"
+    cap = CAPTION.format(file_name=new_name, file_size=filesize)
 
     # Retrieve thumbnail from the database
     thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
@@ -628,16 +625,14 @@ async def rename_file(bot, msg):
         await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
     else:
         try:
-            if process_id == await db.get_process(process_id):
-                await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time, process_id))
-            else:
-                await sts.edit("Process was cancelled.")
-                return
+            await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time, process_id))
         except Exception as e:
-            return await sts.edit(f"Error: {e}")
+            await sts.edit(f"Error: {e}")
 
     os.remove(downloaded)
     await sts.delete()
+
+
     
   
 """
