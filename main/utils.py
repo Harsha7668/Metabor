@@ -78,6 +78,10 @@ async def handle_cancel_callback(bot, callback_query: CallbackQuery):
         await callback_query.answer("No such process found.")
         return
 
+    if process['status'] == 'cancelled':
+        await callback_query.answer("Process is already cancelled.")
+        return
+
     # Update the process status to cancelled
     await db.cancel_process(process_id)
 
