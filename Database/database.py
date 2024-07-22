@@ -18,10 +18,7 @@ class Database:
         self.processes_col = self.db['processes']
 
 
-    async def get_gdrive_folder_id(self, user_id):
-        user = await self.users_col.find_one({'user_id': user_id}, {'gdrive_folder_id': 1})
-        return user.get('gdrive_folder_id') if user else None
-
+    
     async def create_process(self, user_id):
         result = await self.processes_col.insert_one({'user_id': user_id, 'status': 'ongoing', 'progress': 0})
         return result.inserted_id
