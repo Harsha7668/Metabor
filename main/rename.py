@@ -481,174 +481,111 @@ async def inline_preview_gofile_api_key(bot, callback_query):
     await callback_query.message.reply_text(f"Current Gofile API Key for user `{user_id}`: {api_key}")
 
 
-
-
-
-@Client.on_message(filters.command("mirror") & filters.chat(GROUP))
-async def mirror_to_google_drive(bot, msg: Message):
-    global MIRROR_ENABLED
-
-    if not MIRROR_ENABLED:
-        return await msg.reply_text("The mirror feature is currently disabled.")
-
+@Client.on_message(filters.command("compress") & filters.chat(GROUP))
+async def compress_media(bot, msg: Message):
     user_id = msg.from_user.id
 
-    # Retrieve the user's Google Drive folder ID
-    gdrive_folder_id = await db.get_gdrive_folder_id(user_id)
-
-    if not gdrive_folder_id:
-        return await msg.reply_text("Google Drive folder ID is not set. Please use the /gdriveid command to set it.")
-
     reply = msg.reply_to_message
-    if len(msg.command) < 2 or not reply:
-        return await msg.reply_text("Please reply to a file with the new filename and extension.")
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the compress command\nFormat: `compress -n output_filename`")
+
+    if len(msg.command) < 3 or msg.command[1] != "-n":
+        return await msg.reply_text("Please provide the output filename with the `-n` flag\nFormat: `compress -n output_filename`")
+
+    output_filename = " ".join(msg.command[2:]).strip()
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
 
     media = reply.document or reply.audio or reply.video
     if not media:
-        return await msg.reply_text("Please reply to a file with the new filename and extension.")
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the compress command.")
 
-    new_name = msg.text.split(" ", 1)[1]
-
-    # Store process information in database
-    process_id = await db.create_process(user_id)
-
-    try:
-        # Show progress message for downloading
-        sts = await msg.reply_text(f"🚀 Downloading...\n/cancel_{process_id}")
-
-        # Download the file
-        downloaded_file = await bot.download_media(message=reply, file_name=new_name, progress=progress_message, progress_args=("Downloading", sts, time.time(), process_id))
-        filesize = os.path.getsize(downloaded_file)
-
-        # Check if process was cancelled
-        process = await db.get_process(process_id)
-        if process['status'] == 'cancelled':
-            os.remove(downloaded_file)
-            return await sts.edit("Process cancelled by user.")
-
-        # Once downloaded, update the message to indicate uploading
-        await sts.edit(f"💠 Uploading...\n/cancel_{process_id}")
-
-        start_time = time.time()
-
-        # Upload file to Google Drive
-        file_metadata = {'name': new_name, 'parents': [gdrive_folder_id]}
-        media = MediaFileUpload(downloaded_file, resumable=True)
-
-        # Upload with progress monitoring
-        request = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink')
-        response = None
-        while response is None:
-            status, response = request.next_chunk()
-            if status:
-                current_progress = status.progress() * 100
-                await progress_message(current_progress, 100, "Uploading to Google Drive", sts, start_time, process_id)
-
-        file_id = response.get('id')
-        file_link = response.get('webViewLink')
-
-        # Prepare caption for the uploaded file
-        if CAPTION:
-            caption_text = CAPTION.format(file_name=new_name, file_size=humanbytes(filesize))
-        else:
-            caption_text = f"Uploaded File: {new_name}\nSize: {humanbytes(filesize)}"
-
-        # Send the Google Drive link to the user
-        button = [
-            [InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]
-        ]
-        await msg.reply_text(
-            f"File successfully mirrored and uploaded to Google Drive!\n\n"
-            f"Google Drive Link: [View File]({file_link})\n\n"
-            f"Uploaded File: {new_name}\n"
-            f"Size: {humanbytes(filesize)}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-        os.remove(downloaded_file)
-        await sts.delete()
-
-        # Update process status in database
-        await db.update_process(process_id, {'status': 'completed'})
-
-    except Exception as e:
-        await sts.edit(f"Error: {e}")
-        await db.update_process(process_id, {'status': 'failed'})
-
-
-# Rename command handler
-@Client.on_message(filters.command("rename") & filters.chat(GROUP))
-async def rename_file(bot, msg):
-    if len(msg.command) < 2 or not msg.reply_to_message:
-        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
-
-    reply = msg.reply_to_message
-    media = reply.document or reply.audio or reply.video
-    if not media:
-        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
-
-    new_name = msg.text.split(" ", 1)[1]
-    sts = await msg.reply_text("🚀 Downloading... ⚡")
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
     c_time = time.time()
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await safe_edit_message(sts, f"Error downloading media: {e}")
+        return
 
-    process_id = await db.create_process(msg.from_user.id)
-    print(f"Created process with ID: {process_id}")
+    output_file = output_filename
 
-    # Create inline keyboard with cancel button
-    cancel_button = InlineKeyboardButton("❌ Cancel", callback_data=f"cancel_{process_id}")
-    reply_markup = InlineKeyboardMarkup([[cancel_button]])
-
-    downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time, process_id))
-    filesize = humanbytes(media.file_size)
-
-    if CAPTION:
-        try:
-            cap = CAPTION.format(file_name=new_name, file_size=filesize)
-        except KeyError as e:
-            return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
-    else:
-        cap = f"{new_name}\n\n🌟 Size: {filesize}"
+    await safe_edit_message(sts, "💠 Compressing media... ⚡")
+    try:
+        compress_video(downloaded, output_file)
+    except Exception as e:
+        await safe_edit_message(sts, f"Error compressing media: {e}")
+        os.remove(downloaded)
+        return
 
     # Retrieve thumbnail from the database
-    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
-    og_thumbnail = None
+    thumbnail_file_id = await db.get_thumbnail(user_id)
+    file_thumb = None
     if thumbnail_file_id:
         try:
-            og_thumbnail = await bot.download_media(thumbnail_file_id)
-        except Exception as e:
-            print(f"Error downloading thumbnail from ID: {e}")
+            file_thumb = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
     else:
         if hasattr(media, 'thumbs') and media.thumbs:
             try:
-                og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
+                file_thumb = await bot.download_media(media.thumbs[0].file_id)
             except Exception as e:
-                print(f"Error downloading thumbnail from media: {e}")
+                file_thumb = None
 
-    await sts.edit("💠 Uploading... ⚡")
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+    await safe_edit_message(sts, "💠 Uploading... ⚡")
     c_time = time.time()
 
-    if os.path.getsize(downloaded) > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(downloaded, new_name, sts)
-        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**File successfully compressed and uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {output_filename}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
     else:
         try:
-            if process_id == await db.get_process(process_id):
-                await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time, process_id))
-            else:
-                await sts.edit("Process was cancelled.")
-                return
+            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
         except Exception as e:
-            print(f"Error: {e}")
-            return await sts.edit(f"Error: {e}")
+            return await safe_edit_message(sts, f"Error: {e}")
 
     os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
     await sts.delete()
 
 
+def compress_video(input_path, output_path):
+    command = [
+        'ffmpeg',
+        '-i', input_path,
+        '-preset', 'ultrafast',
+        '-c:v', 'libx265',
+        '-crf', '27',
+        '-map', '0:v',
+        '-c:a', 'aac',
+        '-map', '0:a',
+        '-c:s', 'copy',
+        '-map', '0:s?',
+        output_path,
+        '-y'
+    ]
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
 
 
-    
-  
-"""
 # Command handler for /mirror
 @Client.on_message(filters.command("mirror") & filters.chat(GROUP))
 async def mirror_to_google_drive(bot, msg: Message):
@@ -725,9 +662,9 @@ async def mirror_to_google_drive(bot, msg: Message):
         await sts.delete()
 
     except Exception as e:
-        await sts.edit(f"Error: {e}")"""
+        await sts.edit(f"Error: {e}")
         
-"""
+
 #Rename Command
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
 async def rename_file(bot, msg):
@@ -781,7 +718,7 @@ async def rename_file(bot, msg):
             return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded)
-    await sts.delete()"""
+    await sts.delete()
 
 #Change Metadata Code
 @Client.on_message(filters.command("changemetadata") & filters.chat(GROUP))
