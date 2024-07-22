@@ -15,27 +15,8 @@ class Database:
         self.banned_col = self.db["banned_users"]
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
-        self.processes_col = self.db['processes']
 
-
-
-    async def create_process(self, user_id):
-        result = await self.processes_col.insert_one({'user_id': user_id, 'status': 'ongoing', 'progress': 0})
-        return result.inserted_id
-
-    async def get_process(self, process_id):
-        return await self.processes_col.find_one({'_id': process_id})
-
-    async def update_process(self, process_id, update_data):
-        await self.processes_col.update_one({'_id': process_id}, {'$set': update_data})
-
-    async def cancel_process(self, process_id):
-        await self.update_process(process_id, {'status': 'cancelled'})    
-
-        
     
- 
-        
     async def add_user(self, user_id: int, username: str):
         try:
             await self.users_col.update_one(
