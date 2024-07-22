@@ -2,6 +2,7 @@ import math, time
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
 import os
+from Database.database import db
 
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
