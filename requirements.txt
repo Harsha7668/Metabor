@@ -20,4 +20,3 @@ lxml_html_clean
 motor
 pymongo
 datetime
-pyromod
