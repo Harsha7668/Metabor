@@ -17,45 +17,23 @@ import os
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
 │
-├<b>{progress}</b>
+├<b>{5}</b>
 │
-├<b>📁**PROCESS** : {current} | {total}</b>
+├<b>📁**PROCESS** : {1} | {2}</b>
 │
-├<b>🚀**PERCENT** : {percentage}%</b>
+├<b>🚀**PERCENT** : {0}%</b>
 │
-├<b>⚡**SPEED** : {speed}</b>
+├<b>⚡**SPEED** : {3}</b>
 │
-├<b>⏱️**ETA** : {eta}</b>
+├<b>⏱️**ETA** : {4}</b>
 │
-├<b>❌**CANCEL** : {cancel_command}</b>
+├<b>❌**CANCEL** : {6}</b>
 ╰─────────────────⍟"""
 
-# Define helper functions
-def humanbytes(size):
-    """Convert bytes to a human-readable format."""
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if size < 1024:
-            return f"{size:.2f} {unit}"
-        size /= 1024
 
-def TimeFormatter(ms):
-    """Convert milliseconds to a human-readable format."""
-    seconds, ms = divmod(ms, 1000)
-    minutes, seconds = divmod(seconds, 60)
-    hours, minutes = divmod(minutes, 60)
-    return f"{hours}h {minutes}m {seconds}s"
-
-# Define the progress message handler
 async def progress_message(current, total, ud_type, message, start, process_id):
     now = time.time()
     diff = now - start
-
-    # Check for cancellation request
-    process = await db.get_process(process_id)
-    if process and process['status'] == 'cancelled':
-        await message.edit_text("Process was cancelled.")
-        return
-
     if round(diff % 5.00) == 0 or current == total:
         percentage = current * 100 / total
         speed = humanbytes(current / diff) + "/s"
@@ -71,39 +49,53 @@ async def progress_message(current, total, ud_type, message, start, process_id):
             ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
         )
         cancel_command = f"/cancel_{process_id}"
+        tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
+
         try:
+            process = await db.get_process(process_id)
+            if process and process['status'] == 'cancelled':
+                await message.edit(text="Process cancelled by user.")
+                return True
+
             await message.edit(
                 text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
-                    progress=progress,
-                    current=humanbytes(current),
-                    total=humanbytes(total),
-                    percentage=round(percentage, 2),
-                    speed=speed,
-                    eta=estimated_total_time if estimated_total_time != '' else '0 s',
-                    cancel_command=cancel_command
+                    round(percentage, 2),
+                    humanbytes(current),
+                    humanbytes(total),
+                    speed,
+                    estimated_total_time if estimated_total_time != '' else '0 s',
+                    progress,
+                    cancel_command
                 ),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data=f"cancel_{process_id}")]])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
             )
         except Exception as e:
             print(f"Error editing message: {e}")
+            
+# Function to format time in human-readable format
+def TimeFormatter(milliseconds: int) -> str:
+    seconds, milliseconds = divmod(milliseconds, 1000)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+    tmp = ((str(days) + "d, ") if days else "") + \
+          ((str(hours) + "h, ") if hours else "") + \
+          ((str(minutes) + "m, ") if minutes else "") + \
+          ((str(seconds) + "s, ") if seconds else "") + \
+          ((str(milliseconds) + "ms, ") if milliseconds else "")
+    return tmp[:-2]
 
-# Define the cancel command handler
-@Client.on_callback_query(filters.regex(r'^cancel_(\w+)$'))
-async def handle_cancel_callback(bot, callback_query: CallbackQuery):
-    process_id = callback_query.data.split("_")[1]
-
-    # Find and cancel the process
-    process = await db.get_process(process_id)
-    if not process:
-        await callback_query.answer("No such process found.")
-        return
-
-    # Update the process status to cancelled
-    await db.update_process(process_id, {'status': 'cancelled'})
-
-    await callback_query.answer(f"Process {process_id} has been cancelled.")
-    await callback_query.message.edit_text(f"Process {process_id} has been cancelled.")
-
+# Function to convert bytes to human-readable format
+def humanbytes(size):
+    if not size:
+        return ""
+    power = 2**10
+    n = 0
+    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+    while size > power:
+        size /= power
+        n += 1
+    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def convert(seconds):
