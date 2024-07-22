@@ -599,7 +599,69 @@ async def mirror_to_google_drive(bot, msg: Message):
         await sts.edit(f"Error: {e}")
         await db.update_process(process_id, {'status': 'failed'})
 
+@Client.on_message(filters.command("rename") & filters.chat(GROUP))
+async def rename_file(bot, msg):
+    if len(msg.command) < 2 or not msg.reply_to_message:
+        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
+    reply = msg.reply_to_message
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
+
+    new_name = msg.text.split(" ", 1)[1]
+    sts = await msg.reply_text("🚀 Downloading... ⚡")
+    c_time = time.time()
+
+    process_id = await db.create_process(msg.from_user.id)
+
+    # Create inline keyboard with cancel button
+    cancel_button = InlineKeyboardButton("❌ Cancel", callback_data=f"cancel_{process_id}")
+    reply_markup = InlineKeyboardMarkup([[cancel_button]])
+
+    downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time, process_id))
+    filesize = humanbytes(media.file_size)
+
+    if CAPTION:
+        try:
+            cap = CAPTION.format(file_name=new_name, file_size=filesize)
+        except KeyError as e:
+            return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
+    else:
+        cap = f"{new_name}\n\n🌟 Size: {filesize}"
+
+    # Retrieve thumbnail from the database
+    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
+    og_thumbnail = None
+    if thumbnail_file_id:
+        try:
+            og_thumbnail = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
+    else:
+        if hasattr(media, 'thumbs') and media.thumbs:
+            try:
+                og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
+            except Exception:
+                pass
+
+    await sts.edit("💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if os.path.getsize(downloaded) > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(downloaded, new_name, sts)
+        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
+    else:
+        try:
+            if await progress_message(os.path.getsize(downloaded), os.path.getsize(downloaded), "Uploading", sts, c_time, process_id):
+                return await sts.edit("Process cancelled by user.")
+                
+            await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time, process_id))
+        except Exception as e:
+            return await sts.edit(f"Error: {e}")
+
+    os.remove(downloaded)
+    await sts.delete()
     
   
 """
@@ -681,7 +743,7 @@ async def mirror_to_google_drive(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"Error: {e}")"""
         
-
+"""
 #Rename Command
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
 async def rename_file(bot, msg):
@@ -735,7 +797,7 @@ async def rename_file(bot, msg):
             return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded)
-    await sts.delete()
+    await sts.delete()"""
 
 #Change Metadata Code
 @Client.on_message(filters.command("changemetadata") & filters.chat(GROUP))
