@@ -575,10 +575,6 @@ async def mirror_to_google_drive(bot, msg: Message):
         await db.update_process(process_id, {'status': 'failed'})
 
 
-
-
-
-# Define the rename command handler
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
 async def rename_file(bot, msg: Message):
     if len(msg.command) < 2 or not msg.reply_to_message:
@@ -600,12 +596,16 @@ async def rename_file(bot, msg: Message):
 
     try:
         downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time, process_id))
+        if os.path.getsize(downloaded) == 0:
+            raise ValueError("Downloaded file size is 0 bytes.")
     except Exception as e:
         if "FILE_REFERENCE_EXPIRED" in str(e):
             # Refetch the original message
             original_msg = await bot.get_messages(msg.chat.id, reply.message_id)
             # Retry the download
             downloaded = await original_msg.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time, process_id))
+            if os.path.getsize(downloaded) == 0:
+                raise ValueError("Downloaded file size is 0 bytes.")
         else:
             await sts.edit(text=f"Download error: {e}")
             return
@@ -649,6 +649,9 @@ async def rename_file(bot, msg: Message):
 
     os.remove(downloaded)
     await sts.delete()
+
+
+
 
 
     
