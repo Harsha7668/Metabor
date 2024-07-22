@@ -575,7 +575,6 @@ async def mirror_to_google_drive(bot, msg: Message):
         await db.update_process(process_id, {'status': 'failed'})
 
 
-
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
 async def rename_file(bot, msg):
     if len(msg.command) < 2 or not msg.reply_to_message:
@@ -613,14 +612,14 @@ async def rename_file(bot, msg):
     if thumbnail_file_id:
         try:
             og_thumbnail = await bot.download_media(thumbnail_file_id)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error downloading thumbnail from ID: {e}")
     else:
         if hasattr(media, 'thumbs') and media.thumbs:
             try:
                 og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Error downloading thumbnail from media: {e}")
 
     await sts.edit("💠 Uploading... ⚡")
     c_time = time.time()
@@ -640,6 +639,7 @@ async def rename_file(bot, msg):
 
     os.remove(downloaded)
     await sts.delete()
+
 
 
 
