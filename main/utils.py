@@ -13,6 +13,11 @@ import time
 import math
 import os
 
+
+
+
+
+
 # Define the progress bar format
 PROGRESS_BAR = """
 ╭───[**•PROGRESS BAR•**]───⍟
@@ -29,7 +34,6 @@ PROGRESS_BAR = """
 │
 ├<b>❌**CANCEL** : {6}</b>
 ╰─────────────────⍟"""
-
 
 async def progress_message(current, total, ud_type, message, start, process_id):
     now = time.time()
@@ -70,8 +74,29 @@ async def progress_message(current, total, ud_type, message, start, process_id):
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
             )
         except Exception as e:
-            print(f"Error editing message: {e}")
+            print(f"Error in progress message: {e}")
             
+@Client.on_callback_query(filters.regex(r"cancel_\d+"))
+async def cancel_process(bot, callback_query):
+    process_id = int(callback_query.data.split("_")[1])
+    user_id = callback_query.from_user.id
+
+    # Fetch the process details
+    process = await db.get_process(process_id)
+    if not process:
+        return await callback_query.message.edit("Invalid process ID.")
+
+    if process['status'] == 'cancelled':
+        return await callback_query.message.edit("Process already cancelled.")
+
+    # Update process status to 'cancelled'
+    await db.cancel_process(process_id)
+
+    # Notify the user about the cancellation
+    await callback_query.message.edit("Process cancelled by user.")
+
+    # Optionally, you can also notify the user through a private message or log the cancellation
+
 # Function to format time in human-readable format
 def TimeFormatter(milliseconds: int) -> str:
     seconds, milliseconds = divmod(milliseconds, 1000)
