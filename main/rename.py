@@ -590,6 +590,10 @@ async def rename_file(bot, msg: Message):
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
     new_name = msg.text.split(" ", 1)[1]
+    
+    # Create a new process ID and save it in the database
+    process_id = await db.create_process(msg.from_user.id)
+    
     sts = await msg.reply_text("🚀 Downloading... ⚡")
     c_time = time.time()
     downloaded = None
