@@ -58,15 +58,23 @@ async def progress_message(current, total, ud_type, message, start, process_id):
         # Update progress in database
         await db.update_process(process_id, {'progress': percentage})
 
-async def cancel_process(bot, msg: Message):
-    user_id = msg.from_user.id
-    process = await db.processes_col.find_one({'user_id': user_id, 'status': 'ongoing'})
 
+
+@Client.on_callback_query(filters.regex(r'^cancel_(\w+)$'))
+async def handle_cancel_callback(bot, callback_query: CallbackQuery):
+    process_id = callback_query.data.split("_")[1]
+
+    # Find and cancel the process
+    process = await db.get_process(process_id)
     if not process:
-        return await msg.reply_text("No ongoing process found to cancel.")
+        await callback_query.answer("No such process found.")
+        return
 
-    await db.update_process(process['_id'], {'status': 'cancelled'})
-    return await msg.reply_text("Process has been cancelled.")
+    # Update the process status to cancelled
+    await db.update_process(process_id, {'status': 'cancelled'})
+
+    await callback_query.answer(f"Process {process_id} has been cancelled.")
+    await callback_query.message.edit_text(f"Process {process_id} has been cancelled.")
 
 # Function to format time in human-readable format
 def TimeFormatter(milliseconds: int) -> str:
