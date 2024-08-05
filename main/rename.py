@@ -240,11 +240,12 @@ async def display_user_settings(client, msg, edit=False):
         [InlineKeyboardButton("Screenshots Settings 📸", callback_data="screenshots_option")],
         [InlineKeyboardButton("Thumbnail Settings 📄", callback_data="thumbnail_settings")],
         [InlineKeyboardButton("View Metadata ✨", callback_data="preview_metadata")],
-        [InlineKeyboardButton("Attach Photo 📎", callback_data="attach_photo"), 
+        [InlineKeyboardButton("Attach Photo 📎", callback_data="attach_photo"),
          InlineKeyboardButton("View Photo ✨", callback_data="preview_photo")],
+        [InlineKeyboardButton("View Photo Post ✨", callback_data="preview_photo_post")],        
+        [InlineKeyboardButton("Delete Photo  Post ❌", callback_data="delete_photo_post")],
         [InlineKeyboardButton("View Gofile API Key 🔗", callback_data="preview_gofilekey")],
         [InlineKeyboardButton("View Google Drive Folder ID 📂", callback_data="preview_gdrive")],
-        [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
         [InlineKeyboardButton("Close ❌", callback_data="del")]
     ])
     
@@ -252,7 +253,7 @@ async def display_user_settings(client, msg, edit=False):
         await msg.edit_text(f"User Settings\nCurrent sample video duration: {current_duration}\nCurrent screenshots setting: {current_screenshots}", reply_markup=keyboard)
     else:
         await msg.reply(f"User Settings\nCurrent sample video duration: {current_duration}\nCurrent screenshots setting: {current_screenshots}", reply_markup=keyboard)
-
+        
 @Client.on_callback_query(filters.regex("^screenshots_option$"))
 async def screenshots_option(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
