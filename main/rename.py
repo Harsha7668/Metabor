@@ -371,7 +371,7 @@ async def preview_photo_callback(client: Client, query: CallbackQuery):
         await query.message.edit_text("No photo found. Please save a photo first.")
 
 @Client.on_message(filters.command("savephotopost") & filters.chat(GROUP))
-async def save_photo(bot: Client, msg: Message):
+async def save_photo(bot, msg: Message):
     user_id = msg.from_user.id
     reply = msg.reply_to_message
     if not reply or not reply.photo:
