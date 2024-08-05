@@ -390,7 +390,33 @@ async def delete_thumbnail(client, callback_query: CallbackQuery):
     except Exception as e:
         await callback_query.message.reply_text("An error occurred while trying to remove your thumbnail. Please try again later.")
 
+@Client.on_callback_query(filters.regex("delete_photo_post"))
+async def delete_photo_callback(client: Client, query: CallbackQuery):
+    user_id = query.from_user.id
+    result = await db.delete_photo(user_id)
+    await query.message.edit_text(result)
 
+@Client.on_callback_query(filters.regex("preview_photo_post"))
+async def preview_photo_callback(client: Client, query: CallbackQuery):
+    user_id = query.from_user.id
+    
+    saved_photo = await db.get_saved_photo(user_id)
+
+    if saved_photo:
+        await client.send_photo(query.message.chat.id, saved_photo, caption="Here is your saved photo.")
+    else:
+        await query.message.edit_text("No photo found. Please save a photo first.")
+
+@Client.on_message(filters.command("savephotopost") & filters.chat(GROUP))
+async def save_photo(bot, msg: message):
+    user_id = msg.from_user.id
+    reply = msg.reply_to_message
+    if not reply or not reply.photo:
+        return await msg.reply_text("Please reply to a photo to save.")
+
+    photo = reply.photo
+    result = await db.save_photo(user_id, photo.file_id)
+    await msg.reply_text(result)
 
 @Client.on_callback_query(filters.regex("^preview_gdrive$"))
 async def inline_preview_gdrive(bot, callback_query):
