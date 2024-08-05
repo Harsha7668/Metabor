@@ -3101,6 +3101,7 @@ async def change_metadata_and_index(bot, msg, downloaded, new_name, media, sts, 
         os.remove(file_thumb)
     await sts.delete()
 
+"""
 @Client.on_message(filters.command("gofilepost") & filters.chat(GROUP))
 async def gofile_upload(bot: Client, msg: Message):
     user_id = msg.from_user.id
@@ -3200,204 +3201,135 @@ async def gofile_upload(bot: Client, msg: Message):
     except Exception as e:
         await sts.edit(f"Error during upload: {e}")
 
+    """
+
+
+@Client.on_message(filters.command("gofilepost") & filters.chat(GROUP))
+async def gofile_upload(bot: Client, msg: Message):
+    user_id = msg.from_user.id
+
+    # Retrieve the user's Gofile API key from the database
+    gofile_api_key = await db.get_gofile_api_key(user_id)
+
+    if not gofile_api_key:
+        return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
+
+    reply = msg.reply_to_message
+    if not reply or not (reply.document or reply.video or reply.audio):
+        return await msg.reply_text("Please reply to a file, video, or audio to upload to Gofile.")
+
+    media = reply.document or reply.video or reply.audio
+    original_file_name = media.file_name
+
+    # Replace underscores with dashes for display purposes
+    display_file_name = original_file_name.replace("_", " - ")
+
+    sts = await msg.reply_text("🚀 Uploading to Gofile...")
+    c_time = time.time()
+    
+    downloaded_file = None
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Get available servers
+            async with session.get("https://api.gofile.io/servers") as resp:
+                if resp.status != 200:
+                    return await sts.edit(f"Failed to get servers. Status code: {resp.status}")
+
+                data = await resp.json()
+                servers = data.get("data", {}).get("servers", [])
+                if not servers:
+                    return await sts.edit("No servers available.")
+                
+                server_name = servers[0].get("name")  # Use the server name
+                if not server_name:
+                    return await sts.edit("Server name is missing.")
+                
+                upload_url = f"https://{server_name}.gofile.io/contents/uploadfile"
+
+            # Download the media file
+            downloaded_file = await bot.download_media(
+                media,
+                file_name=original_file_name,  # Use the original filename for download
+                progress=progress_message,
+                progress_args=("🚀 Download Started...", sts, c_time)
+            )
+
+            # Fetch metadata titles from the database
+            metadata_titles = await db.get_metadata_titles(user_id)
+            video_title = metadata_titles.get('video_title', '')
+            audio_title = metadata_titles.get('audio_title', '')
+            subtitle_title = metadata_titles.get('subtitle_title', '')
+
+            if any([video_title, audio_title, subtitle_title]):
+                # Change metadata
+                output_file = f"changed_{original_file_name}"
+                try:
+                    change_video_metadata(downloaded_file, video_title, audio_title, subtitle_title, output_file)
+                except Exception as e:
+                    await sts.edit(f"Error changing metadata: {e}")
+                    os.remove(downloaded_file)
+                    return
+            else:
+                output_file = downloaded_file
+
+            # Get the file size
+            file_size = os.path.getsize(output_file)
+            filesize_human = humanbytes(file_size)
+
+            # Upload the file to Gofile
+            with open(output_file, "rb") as file:
+                form_data = aiohttp.FormData()
+                form_data.add_field("file", file, filename=original_file_name)
+                headers = {"Authorization": f"Bearer {gofile_api_key}"} if gofile_api_key else {}
+
+                async with session.post(
+                    upload_url,
+                    headers=headers,
+                    data=form_data
+                ) as resp:
+                    if resp.status != 200:
+                        return await sts.edit(f"Upload failed: Status code {resp.status}")
+
+                    response = await resp.json()
+                    if response["status"] == "ok":
+                        download_url = response["data"]["downloadPage"]
+
+                        # Calculate upload time
+                        upload_time = time.time() - c_time
+                        readable_upload_time = str(datetime.timedelta(seconds=int(upload_time)))
+
+                        # Prepare the caption
+                        caption = (
+                            f"📂 Filename: {display_file_name}\n\n"
+                            f"📏 Size: {filesize_human}\n\n"                         
+                            f"⏳ Upload Time: {readable_upload_time}\n\n"
+                            f"🖇️ Download link: {download_url}"
+                        )
+
+                        # Retrieve the saved photo from the database
+                        saved_photo = await db.get_saved_photo(user_id)
+                        if saved_photo:
+                            await bot.send_photo(CHANNEL_ID, saved_photo, caption=caption)
+                        else:
+                            await bot.send_message(CHANNEL_ID, caption)
+
+                        await sts.edit(f"Upload successful!\nDownload link: {download_url}")
+                    else:
+                        await sts.edit(f"Upload failed: {response['message']}")
+
+    except Exception as e:
+        await sts.edit(f"Error during upload: {e}")
+
     finally:
         try:
             if downloaded_file and os.path.exists(downloaded_file):
                 os.remove(downloaded_file)
+            if output_file and output_file != downloaded_file and os.path.exists(output_file):
+                os.remove(output_file)
         except Exception as e:
             print(f"Error deleting file: {e}")
-                
-import os
-import time
-import asyncio
-import subprocess
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from pyrogram.errors import FloodWait
 
-
-
-@Client.on_message(filters.document | filters.video & filters.private)
-async def handle_video(bot, msg):
-    buttons = [
-        [InlineKeyboardButton("Remove Audio", callback_data="remove_audio")],
-        [InlineKeyboardButton("Swap Audio", callback_data="swap_audio")]
-    ]
-    await msg.reply_text("Choose an action:", reply_markup=InlineKeyboardMarkup(buttons))
-
-def get_audio_streams(file_path):
-    # Extract audio stream information using FFmpeg
-    command = ['ffmpeg', '-i', file_path]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    stderr = stderr.decode('utf-8')
-
-    # Parse the FFmpeg output to get audio streams
-    audio_streams = []
-    for line in stderr.split('\n'):
-        if 'Audio:' in line:
-            parts = line.split(' ')
-            stream_index = parts[0].replace('Stream', '').replace(':', '')
-            audio_streams.append(stream_index)
-    
-    return audio_streams
-
-@Client.on_callback_query(filters.regex("remove_audio"))
-async def remove_audio_action(bot, query):
-    video = query.message.reply_to_message
-    if not video:
-        return await query.message.edit_text("Please reply to a video.")
-
-    # Download video
-    sts = await query.message.reply_text("🚀 Downloading video... ⚡")
-    c_time = time.time()
-    downloaded = await video.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-
-    audio_streams = get_audio_streams(downloaded)
-    
-    if not audio_streams:
-        return await query.message.edit_text("No audio streams found in the video.")
-
-    # Create buttons for each audio stream
-    buttons = [[InlineKeyboardButton(f"Audio {i+1}", callback_data=f"remove_audio_{i}")] for i in range(len(audio_streams))]
-    buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel")])
-    
-    await query.message.edit_text("Select the audio to remove:", reply_markup=InlineKeyboardMarkup(buttons))
-
-@Client.on_callback_query(filters.regex("remove_audio_"))
-async def process_remove_audio(bot, query):
-    audio_index = int(query.data.split("_")[-1])
-    video = query.message.reply_to_message
-
-    # Download video
-    sts = await query.message.reply_text("🚀 Downloading video... ⚡")
-    c_time = time.time()
-    downloaded = await video.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-
-    audio_streams = get_audio_streams(downloaded)
-    selected_audio = audio_streams[audio_index]
-
-    # Process removal of the selected audio
-    output_file = os.path.splitext(downloaded)[0] + "_noaudio" + os.path.splitext(downloaded)[1]
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-an', output_file, '-y']
-    
-    await sts.edit("💠 Removing audio... ⚡")
-    process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await process.communicate()
-
-    if process.returncode != 0:
-        await sts.edit(f"❗ FFmpeg error: {stderr.decode('utf-8')}")
-        os.remove(downloaded)
-        if os.path.exists(output_file):
-            os.remove(output_file)
-        return
-
-    filesize = os.path.getsize(output_file)
-    filesize_human = f"{filesize / (1024 * 1024):.2f} MB"
-    cap = f"{os.path.basename(output_file)}\n\n🌟 Size: {filesize_human}"
-
-    await sts.edit("💠 Uploading... ⚡")
-    c_time = time.time()
-
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await query.message.reply_text(
-            f"**File successfully processed and uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {os.path.basename(output_file)}\n"
-            f"**Request User:** {query.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-    else:
-        await upload_to_telegram(query.message.chat.id, output_file, None, cap)
-
-    # Clean up
-    os.remove(downloaded)
-    os.remove(output_file)
-    await sts.delete()
-
-@Client.on_callback_query(filters.regex("swap_audio"))
-async def swap_audio_action(bot, query):
-    video = query.message.reply_to_message
-    if not video:
-        return await query.message.edit_text("Please reply to a video.")
-
-    # Download video
-    sts = await query.message.reply_text("🚀 Downloading video... ⚡")
-    c_time = time.time()
-    downloaded = await video.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-
-    audio_streams = get_audio_streams(downloaded)
-    
-    if not audio_streams:
-        return await query.message.edit_text("No audio streams found in the video.")
-
-    # Create buttons for each audio stream
-    buttons = [[InlineKeyboardButton(f"Audio {i+1}", callback_data=f"swap_audio_{i}")] for i in range(len(audio_streams))]
-    buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel")])
-    
-    await query.message.edit_text("Select the audio to swap:", reply_markup=InlineKeyboardMarkup(buttons))
-
-@Client.on_callback_query(filters.regex("swap_audio_"))
-async def process_swap_audio(bot, query):
-    audio_index = int(query.data.split("_")[-1])
-    video = query.message.reply_to_message
-
-    # Download video
-    sts = await query.message.reply_text("🚀 Downloading video... ⚡")
-    c_time = time.time()
-    downloaded = await video.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-
-    audio_streams = get_audio_streams(downloaded)
-    selected_audio = audio_streams[audio_index]
-
-    # Process swapping of the selected audio
-    output_file = os.path.splitext(downloaded)[0] + "_swap" + os.path.splitext(downloaded)[1]
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', f'0:{selected_audio}', output_file, '-y']
-    
-    await sts.edit("💠 Swapping audio... ⚡")
-    process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await process.communicate()
-
-    if process.returncode != 0:
-        await sts.edit(f"❗ FFmpeg error: {stderr.decode('utf-8')}")
-        os.remove(downloaded)
-        if os.path.exists(output_file):
-            os.remove(output_file)
-        return
-
-    filesize = os.path.getsize(output_file)
-    filesize_human = f"{filesize / (1024 * 1024):.2f} MB"
-    cap = f"{os.path.basename(output_file)}\n\n🌟 Size: {filesize_human}"
-
-    await sts.edit("💠 Uploading... ⚡")
-    c_time = time.time()
-
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await query.message.reply_text(
-            f"**File successfully processed and uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {os.path.basename(output_file)}\n"
-            f"**Request User:** {query.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-    else:
-        await upload_to_telegram(query.message.chat.id, output_file, None, cap)
-
-    # Clean up
-    os.remove(downloaded)
-    os.remove(output_file)
-    await sts.delete()
-
-    
-@Client.on_callback_query(filters.regex("cancel"))
-async def cancel_action(bot, query):
-    await query.message.edit_text("Action canceled.")
 
     
 if __name__ == '__main__':
