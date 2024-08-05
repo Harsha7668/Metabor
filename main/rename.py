@@ -3188,8 +3188,6 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.errors import FloodWait
 
-# Define the maximum file size for Telegram uploads
-FILE_SIZE_LIMIT = 50 * 1024 * 1024  # 50 MB for example
 
 @Client.on_message(filters.private & filters.video)
 async def handle_video(bot, msg):
@@ -3229,11 +3227,7 @@ async def upload_to_telegram(bot, chat_id, file_path, thumb, caption):
     except FloodWait as e:
         await asyncio.sleep(e.x)
 
-async def upload_to_google_drive(file_path, file_name, sts):
-    # Implement Google Drive upload logic
-    # For example, using a placeholder function
-    file_link = "https://drive.google.com/your_file_link"  # Replace with actual link
-    return file_link
+
 
 @Client.on_callback_query(filters.regex("remove_audio"))
 async def remove_audio_action(bot, query):
