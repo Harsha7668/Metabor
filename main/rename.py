@@ -3330,6 +3330,79 @@ async def gofile_upload(bot: Client, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
 
+import aiohttp
+import os
+import time
+import shutil
+from pyrogram import Client, filters
+
+@Client.on_message(filters.command("gofiledownload") & filters.chat(GROUP))
+async def gofile_download(bot: Client, msg: Message):
+    user_id = msg.from_user.id
+    gofile_link = msg.command[1] if len(msg.command) > 1 else None
+
+    if not gofile_link:
+        return await msg.reply_text("Please provide a GoFile link. Usage: /gofile_download {gofile_link}")
+
+    sts = await msg.reply_text("🚀 Downloading from GoFile...")
+    c_time = time.time()
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Fetch file info from GoFile link
+            async with session.get(gofile_link) as resp:
+                if resp.status != 200:
+                    return await sts.edit(f"Failed to access GoFile link. Status code: {resp.status}")
+
+                data = await resp.json()
+                file_url = data.get("data", {}).get("directLink")
+                if not file_url:
+                    return await sts.edit("Failed to retrieve file URL from GoFile link.")
+
+                # Download the file
+                downloaded_file = os.path.join("/tmp", file_url.split("/")[-1])
+                async with session.get(file_url) as file_resp:
+                    with open(downloaded_file, "wb") as f:
+                        shutil.copyfileobj(await file_resp.content, f)
+
+                # Get the file size
+                file_size = os.path.getsize(downloaded_file)
+                filesize_human = humanbytes(file_size)
+
+                # Handle file upload
+                if file_size > FILE_SIZE_LIMIT:
+                    file_link = await upload_to_google_drive(downloaded_file, downloaded_file.split("/")[-1], sts)
+                    button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+                    await msg.reply_text(
+                        f"**File successfully downloaded and uploaded to Google Drive!**\n\n"
+                        f"**Google Drive Link**: [View File]({file_link})\n\n"
+                        f"**Uploaded File**: {downloaded_file.split('/')[-1]}\n"
+                        f"**Request User:** {msg.from_user.mention}\n\n"
+                        f"**Size**: {filesize_human}",
+                        reply_markup=InlineKeyboardMarkup(button)
+                    )
+                else:
+                    await bot.send_document(
+                        msg.chat.id, 
+                        document=downloaded_file, 
+                        caption=f"{downloaded_file.split('/')[-1]}\n\n🌟 Size: {filesize_human}", 
+                        progress=progress_message, 
+                        progress_args=("🚀 Upload Started... ⚡", sts, c_time)
+                    )
+
+                await sts.edit(f"Download successful!\nFile: {downloaded_file.split('/')[-1]}\nSize: {filesize_human}")
+
+    except Exception as e:
+        await sts.edit(f"Error during download: {e}")
+
+    finally:
+        try:
+            if downloaded_file and os.path.exists(downloaded_file):
+                os.remove(downloaded_file)
+        except Exception as e:
+            print(f"Error deleting file: {e}")
+
+
 
     
 if __name__ == '__main__':
