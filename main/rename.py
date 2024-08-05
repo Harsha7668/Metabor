@@ -3189,7 +3189,8 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.errors import FloodWait
 
 
-@Client.on_message(filters.private & filters.video)
+
+@Client.on_message(filters.document | filters.video & filters.private)
 async def handle_video(bot, msg):
     buttons = [
         [InlineKeyboardButton("Remove Audio", callback_data="remove_audio")],
@@ -3209,25 +3210,10 @@ def get_audio_streams(file_path):
     for line in stderr.split('\n'):
         if 'Audio:' in line:
             parts = line.split(' ')
-            stream_index = parts[0]
+            stream_index = parts[0].replace('Stream', '').replace(':', '')
             audio_streams.append(stream_index)
     
     return audio_streams
-
-async def upload_to_telegram(bot, chat_id, file_path, thumb, caption):
-    try:
-        await bot.send_document(
-            chat_id,
-            document=file_path,
-            thumb=thumb,
-            caption=caption,
-            progress=progress_message,
-            progress_args=("💠 Upload Started... ⚡️", None, time.time())
-        )
-    except FloodWait as e:
-        await asyncio.sleep(e.x)
-
-
 
 @Client.on_callback_query(filters.regex("remove_audio"))
 async def remove_audio_action(bot, query):
@@ -3242,30 +3228,14 @@ async def remove_audio_action(bot, query):
 
     audio_streams = get_audio_streams(downloaded)
     
+    if not audio_streams:
+        return await query.message.edit_text("No audio streams found in the video.")
+
     # Create buttons for each audio stream
     buttons = [[InlineKeyboardButton(f"Audio {i+1}", callback_data=f"remove_audio_{i}")] for i in range(len(audio_streams))]
     buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel")])
     
     await query.message.edit_text("Select the audio to remove:", reply_markup=InlineKeyboardMarkup(buttons))
-
-@Client.on_callback_query(filters.regex("swap_audio"))
-async def swap_audio_action(bot, query):
-    video = query.message.reply_to_message
-    if not video:
-        return await query.message.edit_text("Please reply to a video.")
-
-    # Download video
-    sts = await query.message.reply_text("🚀 Downloading video... ⚡")
-    c_time = time.time()
-    downloaded = await video.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-
-    audio_streams = get_audio_streams(downloaded)
-    
-    # Create buttons for each audio stream
-    buttons = [[InlineKeyboardButton(f"Audio {i+1}", callback_data=f"swap_audio_{i}")] for i in range(len(audio_streams))]
-    buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel")])
-    
-    await query.message.edit_text("Select the audio to swap:", reply_markup=InlineKeyboardMarkup(buttons))
 
 @Client.on_callback_query(filters.regex("remove_audio_"))
 async def process_remove_audio(bot, query):
@@ -3321,6 +3291,28 @@ async def process_remove_audio(bot, query):
     os.remove(output_file)
     await sts.delete()
 
+@Client.on_callback_query(filters.regex("swap_audio"))
+async def swap_audio_action(bot, query):
+    video = query.message.reply_to_message
+    if not video:
+        return await query.message.edit_text("Please reply to a video.")
+
+    # Download video
+    sts = await query.message.reply_text("🚀 Downloading video... ⚡")
+    c_time = time.time()
+    downloaded = await video.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+
+    audio_streams = get_audio_streams(downloaded)
+    
+    if not audio_streams:
+        return await query.message.edit_text("No audio streams found in the video.")
+
+    # Create buttons for each audio stream
+    buttons = [[InlineKeyboardButton(f"Audio {i+1}", callback_data=f"swap_audio_{i}")] for i in range(len(audio_streams))]
+    buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel")])
+    
+    await query.message.edit_text("Select the audio to swap:", reply_markup=InlineKeyboardMarkup(buttons))
+
 @Client.on_callback_query(filters.regex("swap_audio_"))
 async def process_swap_audio(bot, query):
     audio_index = int(query.data.split("_")[-1])
@@ -3375,6 +3367,7 @@ async def process_swap_audio(bot, query):
     os.remove(output_file)
     await sts.delete()
 
+    
 @Client.on_callback_query(filters.regex("cancel"))
 async def cancel_action(bot, query):
     await query.message.edit_text("Action canceled.")
