@@ -226,7 +226,7 @@ async def sample_video_option(client, callback_query: CallbackQuery):
 async def back_to_settings(client, callback_query: CallbackQuery):
     await display_user_settings(client, callback_query.message, edit=True)
 
-@Client.on_message(filters.private & filters.command("usersettings"))
+@Client.on_message(filters.command("usersettings") & filters.chat(GROUP))
 async def display_user_settings(client, msg, edit=False):
     user_id = msg.from_user.id
     
@@ -239,11 +239,12 @@ async def display_user_settings(client, msg, edit=False):
         [InlineKeyboardButton("Screenshots Settings 📸", callback_data="screenshots_option")],
         [InlineKeyboardButton("Thumbnail Settings 📄", callback_data="thumbnail_settings")],
         [InlineKeyboardButton("View Metadata ✨", callback_data="preview_metadata")],
-        [InlineKeyboardButton("Attach Photo 📎", callback_data="attach_photo"), 
+        [InlineKeyboardButton("Attach Photo 📎", callback_data="attach_photo"),
          InlineKeyboardButton("View Photo ✨", callback_data="preview_photo")],
+        [InlineKeyboardButton("View Photo Post ✨", callback_data="preview_photo_post")],        
+        [InlineKeyboardButton("Delete Photo  Post ❌", callback_data="delete_photo_post")],
         [InlineKeyboardButton("View Gofile API Key 🔗", callback_data="preview_gofilekey")],
         [InlineKeyboardButton("View Google Drive Folder ID 📂", callback_data="preview_gdrive")],
-        [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
         [InlineKeyboardButton("Close ❌", callback_data="del")]
     ])
     
@@ -251,6 +252,7 @@ async def display_user_settings(client, msg, edit=False):
         await msg.edit_text(f"User Settings\nCurrent sample video duration: {current_duration}\nCurrent screenshots setting: {current_screenshots}", reply_markup=keyboard)
     else:
         await msg.reply(f"User Settings\nCurrent sample video duration: {current_duration}\nCurrent screenshots setting: {current_screenshots}", reply_markup=keyboard)
+        
 
 @Client.on_callback_query(filters.regex("^screenshots_option$"))
 async def screenshots_option(client, callback_query: CallbackQuery):
@@ -351,6 +353,34 @@ async def set_thumbnail_command(client, message):
     else:
         await message.reply("Send a photo to set as your permanent thumbnail.")
 
+@Client.on_callback_query(filters.regex("delete_photo_post"))
+async def delete_photo_callback(client: Client, query: CallbackQuery):
+    user_id = query.from_user.id
+    result = await db.delete_photo(user_id)
+    await query.message.edit_text(result)
+
+@Client.on_callback_query(filters.regex("preview_photo_post"))
+async def preview_photo_callback(client: Client, query: CallbackQuery):
+    user_id = query.from_user.id
+    
+    saved_photo = await db.get_saved_photo(user_id)
+
+    if saved_photo:
+        await client.send_photo(query.message.chat.id, saved_photo, caption="Here is your saved photo.")
+    else:
+        await query.message.edit_text("No photo found. Please save a photo first.")
+
+@Client.on_message(filters.command("savephotopost") & filters.chat(GROUP))
+async def save_photo(bot: Client, msg: Message):
+    user_id = msg.from_user.id
+    reply = msg.reply_to_message
+    if not reply or not reply.photo:
+        return await msg.reply_text("Please reply to a photo to save.")
+
+    photo = reply.photo
+    result = await db.save_photo(user_id, photo.file_id)
+    await msg.reply_text(result)
+    
 @Client.on_message(filters.photo & filters.private)
 async def set_thumbnail_handler(client, message):
     user_id = message.from_user.id
