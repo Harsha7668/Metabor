@@ -3423,7 +3423,9 @@ async def change_index_audio(bot, msg):
         return
 
     # Get the available streams
-    ffprobe_cmd = ['ffprobe', '-v', 'error', '-select_streams', 'a:s', '-show_entries', 'stream=index:stream_tags=language', '-of', 'default=noprint_wrappers=1:nokey=1', downloaded]
+    ffprobe_cmd = [
+        'ffprobe', '-v', 'error', '-show_streams', '-select_streams', 'a:s', '-print_format', 'json', downloaded
+    ]
     process = await asyncio.create_subprocess_exec(*ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
 
@@ -3432,15 +3434,19 @@ async def change_index_audio(bot, msg):
         os.remove(downloaded)
         return
 
-    stream_info = stdout.decode('utf-8').strip().split('\n')
+    import json
+    streams = json.loads(stdout.decode('utf-8'))['streams']
     stream_labels = []
-    for i in range(0, len(stream_info), 2):
-        stream_index = stream_info[i]
-        language = stream_info[i+1] if len(stream_info) > i+1 else "unknown"
-        if 'eng' in language:
-            stream_labels.append(f"{stream_index} subtitle - English")
-        else:
+
+    for stream in streams:
+        stream_index = stream['index']
+        codec_type = stream['codec_type']
+        language = stream['tags'].get('language', 'unknown')
+
+        if codec_type == 'audio':
             stream_labels.append(f"{stream_index} audio - {language}")
+        elif codec_type == 'subtitle':
+            stream_labels.append(f"{stream_index} subtitle - {language}")
 
     # Build the inline keyboard with available streams
     buttons = []
