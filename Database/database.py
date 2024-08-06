@@ -17,7 +17,6 @@ class Database:
         self.file_data_col = self.db['file_data']
         self.photo_col = self.db['photos']
 
-
     async def insert_file_data(self, message_id, user_id, downloaded, streams_info):
         await self.file_data_col.insert_one({
             "message_id": message_id,
@@ -39,6 +38,8 @@ class Database:
     async def delete_file_data(self, message_id):
         await self.file_data_col.delete_one({"message_id": message_id})
 
+    
+    
     
     async def save_photo(self, user_id, file_id):
         try:
