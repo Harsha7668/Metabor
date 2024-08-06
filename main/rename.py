@@ -967,7 +967,7 @@ async def attach_photo(bot, msg: Message):
             os.remove(attachment_path)
 
 
-
+"""
 
 # Command handler
 # Command handler for changing audio index
@@ -1206,7 +1206,7 @@ async def change_index_subtitle(bot, msg):
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await sts.delete()
-
+"""
 
 
 #merge command 
@@ -3390,6 +3390,177 @@ async def download_link(link: str, file_name: str, sts, c_time):
     except Exception as e:
         await sts.edit(f"Error during download: {e}")
         return None
+
+
+
+@Client.on_message(filters.command("changeindexaudio") & filters.chat(GROUP))
+async def change_index_audio(bot, msg):
+    global CHANGE_INDEX_ENABLED
+
+    if not CHANGE_INDEX_ENABLED:
+        return await msg.reply_text("The changeindexaudio feature is currently disabled.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the index command\nFormat: `/changeindexaudio`")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the index command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        # Download the media file
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await sts.edit(f"Error downloading media: {e}")
+        return
+
+    # Get the available streams
+    ffprobe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'stream=index,codec_type,codec_name,language', '-of', 'default=noprint_wrappers=1', downloaded]
+    process = await asyncio.create_subprocess_exec(*ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        await sts.edit(f"❗ FFprobe error: {stderr.decode('utf-8')}")
+        os.remove(downloaded)
+        return
+
+    streams = stdout.decode('utf-8').strip().split('\n')
+    audio_streams = []
+    subtitle_streams = []
+
+    for stream in streams:
+        if 'codec_type=audio' in stream:
+            audio_streams.append(stream)
+        elif 'codec_type=subtitle' in stream:
+            subtitle_streams.append(stream)
+
+    if not audio_streams and not subtitle_streams:
+        await sts.edit("No audio or subtitle streams found.")
+        os.remove(downloaded)
+        return
+
+    # Build the inline keyboard with available streams
+    buttons = []
+    for stream in audio_streams:
+        index = stream.split('index=')[1].split()[0]
+        language = stream.split('language=')[1].split()[0] if 'language=' in stream else 'unknown'
+        buttons.append([InlineKeyboardButton(f"Audio {index} - {language}", callback_data=f"remove_audio_{index}")])
+
+    for stream in subtitle_streams:
+        index = stream.split('index=')[1].split()[0]
+        buttons.append([InlineKeyboardButton(f"Subtitle {index}", callback_data=f"remove_subtitle_{index}")])
+
+    buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel"), InlineKeyboardButton("Done", callback_data="done")])
+    markup = InlineKeyboardMarkup(buttons)
+
+    await sts.edit("Select the streams you want to remove:", reply_markup=markup)
+
+    @Client.on_callback_query(filters.regex(r'remove_audio_\d+|remove_subtitle_\d+|done|cancel'))
+    async def callback_query_handler(bot, callback_query):
+        data = callback_query.data
+
+        if data == "cancel":
+            await callback_query.message.delete()
+            os.remove(downloaded)
+            return
+
+        selected_streams = callback_query.message.reply_markup.inline_keyboard
+        if data == "done":
+            await callback_query.message.edit("💠 Changing audio indexing... ⚡")
+            await process_media(bot, callback_query.message, selected_streams, downloaded)
+            return
+
+        # Toggle selection state
+        for button_row in selected_streams:
+            for button in button_row:
+                if button.callback_data == data:
+                    if button.text.startswith("✅"):
+                        button.text = button.text[1:].strip()
+                    else:
+                        button.text = f"✅ {button.text.strip()}"
+                    break
+
+        await callback_query.message.edit(reply_markup=InlineKeyboardMarkup(selected_streams))
+
+async def process_media(bot, message, selected_streams, downloaded):
+    indexes_to_remove = []
+    for button_row in selected_streams:
+        for button in button_row:
+            if button.text.startswith("✅"):
+                index = button.callback_data.split('_')[-1]
+                indexes_to_remove.append(index)
+
+    output_file = os.path.splitext(downloaded)[0] + "_indexed" + os.path.splitext(downloaded)[1]
+
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
+
+    for idx in indexes_to_remove:
+        ffmpeg_cmd.extend(['-map', f'0:{idx}'])
+
+    ffmpeg_cmd.extend(['-map', '0:s?'])
+
+    ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
+
+    process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        await message.edit(f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        os.remove(downloaded)
+        if os.path.exists(output_file):
+            os.remove(output_file)
+        return
+
+    thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
+
+    if thumbnail_file_id:
+        try:
+            file_thumb = await bot.download_media(thumbnail_file_id)
+        except Exception as e:
+            file_thumb = None
+    else:
+        file_thumb = None
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{os.path.basename(output_file)}\n\n🌟 Size: {filesize_human}"
+
+    await message.edit("💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), message)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await bot.send_message(
+            message.chat.id,
+            f"**File successfully changed audio index and uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {os.path.basename(output_file)}\n"
+            f"**Request User:** {message.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
+            await bot.send_document(
+                message.chat.id,
+                document=output_file,
+                thumb=file_thumb,
+                caption=cap,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡️", message, c_time)
+            )
+        except Exception as e:
+            await message.edit(f"Error: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
+    await message.delete()
 
     
 if __name__ == '__main__':
