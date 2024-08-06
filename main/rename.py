@@ -3392,7 +3392,6 @@ async def download_link(link: str, file_name: str, sts, c_time):
         return None
 
 
-
 import json
 
 selected_streams = set()  # To keep track of selected streams
@@ -3426,7 +3425,7 @@ async def change_index_audio(bot, msg):
 
     # Get the available streams
     ffprobe_cmd = [
-        'ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index:stream_tags=language', '-of', 'json', downloaded
+        'ffprobe', '-v', 'error', '-show_entries', 'stream=index:stream_tags=language:stream=codec_type', '-of', 'json', downloaded
     ]
     process = await asyncio.create_subprocess_exec(*ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
@@ -3577,7 +3576,6 @@ async def process_media(bot, message, selected_streams, downloaded):
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await message.delete()
-
 
 
 if __name__ == '__main__':
