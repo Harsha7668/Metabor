@@ -3394,11 +3394,13 @@ async def download_link(link: str, file_name: str, sts, c_time):
 
 
 selected_streams = set()  # To keep track of selected streams
+downloaded = None
 
 @Client.on_message(filters.command("changeindexaudio") & filters.chat(GROUP))
 async def change_index_audio(bot, msg):
     global CHANGE_INDEX_ENABLED
     global selected_streams
+    global downloaded
 
     if not CHANGE_INDEX_ENABLED:
         return await msg.reply_text("The changeindexaudio feature is currently disabled.")
@@ -3430,17 +3432,27 @@ async def change_index_audio(bot, msg):
         os.remove(downloaded)
         return
 
-    # Hard-coded stream labels for demonstration
-    stream_labels = {
-        "0": "audio - telugu",
-        "1": "audio - tamil",
-        "2": "audio - hindi",
-        "3": "subtitle - english",
-    }
+    stream_info = stdout.decode('utf-8').strip().split('\n')
+    stream_labels = []
+    stream_index = -1
+    for line in stream_info:
+        if line.startswith('index='):
+            stream_index = int(line.split('=')[1])
+        elif line.startswith('codec_type='):
+            codec_type = line.split('=')[1]
+        elif line.startswith('codec_name='):
+            codec_name = line.split('=')[1]
+        elif line.startswith('language='):
+            language = line.split('=')[1]
+            if codec_type == 'audio':
+                stream_labels.append(f"{stream_index} audio - {language}")
+            elif codec_type == 'subtitle':
+                stream_labels.append(f"{stream_index} subtitle - {language}")
 
     # Build the inline keyboard with available streams
     buttons = []
-    for index, label in stream_labels.items():
+    for label in stream_labels:
+        index = label.split()[0]
         buttons.append([InlineKeyboardButton(f"{label}", callback_data=f"toggle_{index}")])
 
     buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel"), InlineKeyboardButton("Done", callback_data="done")])
@@ -3452,12 +3464,13 @@ async def change_index_audio(bot, msg):
 @Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     global selected_streams
+    global downloaded
     data = callback_query.data
 
     if data == "cancel":
         await callback_query.message.delete()
-        # Assuming `downloaded` is available here. If not, make sure to manage it properly.
-        os.remove(downloaded)
+        if downloaded:
+            os.remove(downloaded)
         return
 
     if data == "done":
@@ -3554,12 +3567,6 @@ async def process_media(bot, message, selected_streams, downloaded):
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await message.delete()
-
-def parse_ffprobe_output(stream, key, default=None):
-    try:
-        return stream.split(f'{key}=')[1].split()[0]
-    except IndexError:
-        return default
 
 
     
