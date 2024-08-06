@@ -3582,19 +3582,8 @@ async def process_media(bot, message, selected_streams, downloaded):
     await message.delete()
 """        
 
-import os
-import time
-import asyncio
-import json
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
-from your_database_module import db  # Replace with your actual DB module
-from your_utils_module import humanbytes, progress_message  # Replace with your actual utility functions
-from your_cloud_module import upload_to_google_drive  # Replace with your actual cloud upload function
 
-CHANGE_INDEX_ENABLED = True
-GROUP = -1001234567890  # Replace with your actual group ID
-FILE_SIZE_LIMIT = 2000000000  # Replace with your actual file size limit
+import json
 
 @Client.on_message(filters.command("changeindexaudio") & filters.chat(GROUP))
 async def change_index_audio(bot, msg):
