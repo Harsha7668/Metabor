@@ -3433,9 +3433,12 @@ async def change_index_audio(bot, msg):
 
     for stream in streams:
         if 'codec_type=audio' in stream:
-            audio_streams.append(stream)
+            index = parse_ffprobe_output(stream, 'index')
+            language = parse_ffprobe_output(stream, 'language', 'unknown')
+            audio_streams.append((index, language))
         elif 'codec_type=subtitle' in stream:
-            subtitle_streams.append(stream)
+            index = parse_ffprobe_output(stream, 'index')
+            subtitle_streams.append(index)
 
     if not audio_streams and not subtitle_streams:
         await sts.edit("No audio or subtitle streams found.")
@@ -3444,13 +3447,10 @@ async def change_index_audio(bot, msg):
 
     # Build the inline keyboard with available streams
     buttons = []
-    for stream in audio_streams:
-        index = stream.split('index=')[1].split()[0]
-        language = stream.split('language=')[1].split()[0] if 'language=' in stream else 'unknown'
+    for index, language in audio_streams:
         buttons.append([InlineKeyboardButton(f"Audio {index} - {language}", callback_data=f"remove_audio_{index}")])
 
-    for stream in subtitle_streams:
-        index = stream.split('index=')[1].split()[0]
+    for index in subtitle_streams:
         buttons.append([InlineKeyboardButton(f"Subtitle {index}", callback_data=f"remove_subtitle_{index}")])
 
     buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel"), InlineKeyboardButton("Done", callback_data="done")])
@@ -3458,32 +3458,33 @@ async def change_index_audio(bot, msg):
 
     await sts.edit("Select the streams you want to remove:", reply_markup=markup)
 
-    @Client.on_callback_query(filters.regex(r'remove_audio_\d+|remove_subtitle_\d+|done|cancel'))
-    async def callback_query_handler(bot, callback_query):
-        data = callback_query.data
+@Client.on_callback_query(filters.regex(r'remove_audio_\d+|remove_subtitle_\d+|done|cancel'))
+async def callback_query_handler(bot, callback_query: CallbackQuery):
+    data = callback_query.data
 
-        if data == "cancel":
-            await callback_query.message.delete()
-            os.remove(downloaded)
-            return
+    if data == "cancel":
+        await callback_query.message.delete()
+        # Assuming `downloaded` is available here. If not, make sure to manage it properly.
+        os.remove(downloaded)
+        return
 
-        selected_streams = callback_query.message.reply_markup.inline_keyboard
-        if data == "done":
-            await callback_query.message.edit("💠 Changing audio indexing... ⚡")
-            await process_media(bot, callback_query.message, selected_streams, downloaded)
-            return
+    selected_streams = callback_query.message.reply_markup.inline_keyboard
+    if data == "done":
+        await callback_query.message.edit("💠 Changing audio indexing... ⚡")
+        await process_media(bot, callback_query.message, selected_streams, downloaded)
+        return
 
-        # Toggle selection state
-        for button_row in selected_streams:
-            for button in button_row:
-                if button.callback_data == data:
-                    if button.text.startswith("✅"):
-                        button.text = button.text[1:].strip()
-                    else:
-                        button.text = f"✅ {button.text.strip()}"
-                    break
+    # Toggle selection state
+    for button_row in selected_streams:
+        for button in button_row:
+            if button.callback_data == data:
+                if button.text.startswith("✅"):
+                    button.text = button.text[1:].strip()
+                else:
+                    button.text = f"✅ {button.text.strip()}"
+                break
 
-        await callback_query.message.edit(reply_markup=InlineKeyboardMarkup(selected_streams))
+    await callback_query.message.edit(reply_markup=InlineKeyboardMarkup(selected_streams))
 
 async def process_media(bot, message, selected_streams, downloaded):
     indexes_to_remove = []
@@ -3562,6 +3563,11 @@ async def process_media(bot, message, selected_streams, downloaded):
         os.remove(file_thumb)
     await message.delete()
 
+def parse_ffprobe_output(stream, key, default=None):
+    try:
+        return stream.split(f'{key}=')[1].split()[0]
+    except IndexError:
+        return default
     
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
