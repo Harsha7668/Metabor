@@ -3640,12 +3640,12 @@ async def change_index_audio(bot, msg):
         index = label.split()[0]
         buttons.append([InlineKeyboardButton(f"{label}", callback_data=f"toggle_{index}")])
 
-    buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel"), InlineKeyboardButton("Done", callback_data="done")])
+    buttons.append([InlineKeyboardButton("Reverse Selection", callback_data="reverse"), InlineKeyboardButton("Cancel", callback_data="cancel"), InlineKeyboardButton("Done", callback_data="done")])
     markup = InlineKeyboardMarkup(buttons)
 
     await sts.edit("Select the streams you want to remove:", reply_markup=markup)
 
-@Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel'))
+@Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel|reverse'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     data = callback_query.data
 
@@ -3663,6 +3663,33 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         if file_data:
             selected_streams = set(data.split('_')[1] for data in callback_query.message.reply_markup.inline_keyboard[0] if data[0].callback_data.startswith('toggle_'))
             await process_media(bot, callback_query.message, selected_streams, file_data['downloaded'], file_data['streams_info'])
+        return
+
+    if data == "reverse":
+        # Get all available streams
+        file_data = await db.get_file_data(callback_query.message.message_id)
+        stream_data = json.loads(file_data['streams_info'])
+        all_stream_indexes = {str(stream['index']) for stream in stream_data.get('streams', [])}
+        
+        # Get currently selected streams
+        selected_streams = set(data.split('_')[1] for data in callback_query.message.reply_markup.inline_keyboard[0] if data[0].callback_data.startswith('toggle_'))
+
+        # Reverse the selection
+        new_selected_streams = all_stream_indexes - selected_streams
+        await db.update_selected_streams(callback_query.message.message_id, list(new_selected_streams))
+
+        # Update buttons to reflect new selection
+        buttons = callback_query.message.reply_markup.inline_keyboard
+        for row in buttons:
+            for button in row:
+                if button.callback_data.startswith("toggle_"):
+                    index = button.callback_data.split('_')[1]
+                    if index in new_selected_streams:
+                        button.text = f"✅ {button.text.split(' ', 1)[1]}"
+                    else:
+                        button.text = button.text[2:].strip() if button.text.startswith("✅") else button.text
+
+        await callback_query.message.edit(reply_markup=InlineKeyboardMarkup(buttons))
         return
 
     # Toggle selection state
@@ -3697,7 +3724,7 @@ async def process_media(bot, message, selected_streams, downloaded, streams_info
 
     # Load stream data from database
     stream_data = json.loads(streams_info)
-    all_stream_indexes = {stream['index'] for stream in stream_data.get('streams', [])}
+    all_stream_indexes = {str(stream['index']) for stream in stream_data.get('streams', [])}
     selected_stream_indexes = set(map(int, selected_streams))
 
     # Map selected streams
@@ -3752,7 +3779,10 @@ async def process_media(bot, message, selected_streams, downloaded, streams_info
 
     os.remove(downloaded)
     os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
     await message.delete()
+
             
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
