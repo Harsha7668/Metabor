@@ -16,6 +16,29 @@ class Database:
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
         self.photo_col = self.db['photos']
+
+
+    async def insert_file_data(self, message_id, user_id, downloaded, streams_info):
+        await self.file_data_col.insert_one({
+            "message_id": message_id,
+            "user_id": user_id,
+            "downloaded": downloaded,
+            "streams_info": streams_info,
+            "selected_streams": []
+        })
+
+    async def update_selected_streams(self, message_id, selected_streams):
+        await self.file_data_col.update_one(
+            {"message_id": message_id},
+            {"$set": {"selected_streams": selected_streams}}
+        )
+
+    async def get_file_data(self, message_id):
+        return await self.file_data_col.find_one({"message_id": message_id})
+
+    async def delete_file_data(self, message_id):
+        await self.file_data_col.delete_one({"message_id": message_id})
+
     
     async def save_photo(self, user_id, file_id):
         try:
