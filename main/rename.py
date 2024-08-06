@@ -3438,7 +3438,8 @@ async def change_index_audio(bot, msg):
             audio_streams.append((index, language))
         elif 'codec_type=subtitle' in stream:
             index = parse_ffprobe_output(stream, 'index')
-            subtitle_streams.append(index)
+            language = parse_ffprobe_output(stream, 'language', 'unknown')
+            subtitle_streams.append((index, language))
 
     if not audio_streams and not subtitle_streams:
         await sts.edit("No audio or subtitle streams found.")
@@ -3448,17 +3449,17 @@ async def change_index_audio(bot, msg):
     # Build the inline keyboard with available streams
     buttons = []
     for index, language in audio_streams:
-        buttons.append([InlineKeyboardButton(f"Audio {index} - {language}", callback_data=f"remove_audio_{index}")])
+        buttons.append([InlineKeyboardButton(f"Audio {index} - {language}", callback_data=f"toggle_audio_{index}")])
 
-    for index in subtitle_streams:
-        buttons.append([InlineKeyboardButton(f"Subtitle {index}", callback_data=f"remove_subtitle_{index}")])
+    for index, language in subtitle_streams:
+        buttons.append([InlineKeyboardButton(f"Subtitle {index} - {language}", callback_data=f"toggle_subtitle_{index}")])
 
     buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel"), InlineKeyboardButton("Done", callback_data="done")])
     markup = InlineKeyboardMarkup(buttons)
 
     await sts.edit("Select the streams you want to remove:", reply_markup=markup)
 
-@Client.on_callback_query(filters.regex(r'remove_audio_\d+|remove_subtitle_\d+|done|cancel'))
+@Client.on_callback_query(filters.regex(r'toggle_audio_\d+|toggle_subtitle_\d+|done|cancel'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     data = callback_query.data
 
@@ -3468,13 +3469,13 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         os.remove(downloaded)
         return
 
-    selected_streams = callback_query.message.reply_markup.inline_keyboard
     if data == "done":
         await callback_query.message.edit("💠 Changing audio indexing... ⚡")
-        await process_media(bot, callback_query.message, selected_streams, downloaded)
+        await process_media(bot, callback_query.message, callback_query.message.reply_markup.inline_keyboard, downloaded)
         return
 
     # Toggle selection state
+    selected_streams = callback_query.message.reply_markup.inline_keyboard
     for button_row in selected_streams:
         for button in button_row:
             if button.callback_data == data:
@@ -3568,6 +3569,7 @@ def parse_ffprobe_output(stream, key, default=None):
         return stream.split(f'{key}=')[1].split()[0]
     except IndexError:
         return default
+
     
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
