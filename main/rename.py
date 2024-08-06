@@ -3393,6 +3393,8 @@ async def download_link(link: str, file_name: str, sts, c_time):
 
 
 
+import json
+
 selected_streams = set()  # To keep track of selected streams
 downloaded = None
 
@@ -3424,7 +3426,7 @@ async def change_index_audio(bot, msg):
 
     # Get the available streams
     ffprobe_cmd = [
-        'ffprobe', '-v', 'error', '-show_streams', '-select_streams', 'a:s', '-print_format', 'json', downloaded
+        'ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index:stream_tags=language', '-of', 'json', downloaded
     ]
     process = await asyncio.create_subprocess_exec(*ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
@@ -3434,19 +3436,28 @@ async def change_index_audio(bot, msg):
         os.remove(downloaded)
         return
 
-    import json
-    streams = json.loads(stdout.decode('utf-8'))['streams']
+    streams = json.loads(stdout.decode('utf-8')).get('streams', [])
     stream_labels = []
 
     for stream in streams:
         stream_index = stream['index']
+        language = stream.get('tags', {}).get('language', 'unknown')
         codec_type = stream['codec_type']
-        language = stream['tags'].get('language', 'unknown')
 
         if codec_type == 'audio':
-            stream_labels.append(f"{stream_index} audio - {language}")
+            if language == 'tel':
+                stream_labels.append(f"{stream_index} audio - Telugu")
+            elif language == 'tam':
+                stream_labels.append(f"{stream_index} audio - Tamil")
+            elif language == 'hin':
+                stream_labels.append(f"{stream_index} audio - Hindi")
+            else:
+                stream_labels.append(f"{stream_index} audio - {language}")
         elif codec_type == 'subtitle':
-            stream_labels.append(f"{stream_index} subtitle - {language}")
+            if language == 'eng':
+                stream_labels.append(f"{stream_index} subtitle - English")
+            else:
+                stream_labels.append(f"{stream_index} subtitle - {language}")
 
     # Build the inline keyboard with available streams
     buttons = []
@@ -3568,7 +3579,7 @@ async def process_media(bot, message, selected_streams, downloaded):
     await message.delete()
 
 
-    
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
