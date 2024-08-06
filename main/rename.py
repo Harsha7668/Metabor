@@ -3586,12 +3586,14 @@ import json
 
 selected_streams = set()  # To keep track of selected streams to remove
 downloaded = None
+streams_info = []  # To store stream information
 
 @Client.on_message(filters.command("streamremove") & filters.chat(GROUP))
 async def change_index_audio(bot, msg):
     global CHANGE_INDEX_ENABLED
     global selected_streams
     global downloaded
+    global streams_info
 
     if not CHANGE_INDEX_ENABLED:
         return await msg.reply_text("The streamremove feature is currently disabled.")
@@ -3625,10 +3627,10 @@ async def change_index_audio(bot, msg):
         os.remove(downloaded)
         return
 
-    streams = json.loads(stdout.decode('utf-8')).get('streams', [])
+    streams_info = json.loads(stdout.decode('utf-8')).get('streams', [])
     stream_labels = []
 
-    for stream in streams:
+    for stream in streams_info:
         stream_index = stream['index']
         language = stream.get('tags', {}).get('language', 'unknown')
         codec_type = stream['codec_type']
@@ -3667,6 +3669,7 @@ async def change_index_audio(bot, msg):
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     global selected_streams
     global downloaded
+    global streams_info
     data = callback_query.data
 
     if data == "cancel":
@@ -3718,16 +3721,19 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
 async def process_media(bot, message, selected_streams, downloaded):
+    global streams_info
+
     # Parse the new filename from the message text
     command_args = message.text.split()
     new_filename = command_args[2] if len(command_args) > 2 else os.path.splitext(downloaded)[0] + "_indexed" + os.path.splitext(downloaded)[1]
     output_file = os.path.join(os.path.dirname(downloaded), new_filename)
 
     # Generate ffmpeg command to remove selected streams
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0:v?']
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
 
-    for idx in set(idx['index'] for idx in json.loads(open(downloaded + '.json').read())['streams']) - set(map(int, selected_streams)):
-        ffmpeg_cmd.extend(['-map', f'0:{idx}'])
+    for stream in streams_info:
+        if str(stream['index']) not in selected_streams:
+            ffmpeg_cmd.extend(['-map', f'0:{stream["index"]}'])
 
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
@@ -3788,6 +3794,7 @@ async def process_media(bot, message, selected_streams, downloaded):
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await message.delete()
+
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
