@@ -3726,17 +3726,15 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
 
-async def process_media(bot, message, selected_streams, downloaded):
-    command_args = message.text.split()
-    new_filename = command_args[2] if len(command_args) > 2 else os.path.splitext(downloaded)[0] + "_modified" + os.path.splitext(downloaded)[1]
+async def process_media(bot, message, remove_stream_index, downloaded):
+    new_filename = os.path.splitext(downloaded)[0] + "_modified" + os.path.splitext(downloaded)[1]
     output_file = os.path.join(os.path.dirname(downloaded), new_filename)
 
-    # Generate ffmpeg command to remove specific streams
+    # Use ffprobe to get stream information
     ffprobe_cmd = [
         'ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=print_section=0', downloaded
     ]
     
-    # Get available streams
     process = await asyncio.create_subprocess_exec(*ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
     
@@ -3745,12 +3743,13 @@ async def process_media(bot, message, selected_streams, downloaded):
         os.remove(downloaded)
         return
     
-    available_streams = set(stdout.decode().strip().split('\n'))
+    available_streams = stdout.decode().strip().split('\n')
 
+    # Construct ffmpeg command to exclude the specific stream
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
 
     for idx in available_streams:
-        if idx not in selected_streams:
+        if idx != remove_stream_index:
             ffmpeg_cmd.extend(['-map', f'0:{idx}'])
 
     # Ensure output file format is correct
@@ -3768,16 +3767,6 @@ async def process_media(bot, message, selected_streams, downloaded):
         if os.path.exists(output_file):
             os.remove(output_file)
         return
-
-    thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
-
-    if thumbnail_file_id:
-        try:
-            file_thumb = await bot.download_media(thumbnail_file_id)
-        except Exception as e:
-            file_thumb = None
-    else:
-        file_thumb = None
 
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
@@ -3803,7 +3792,6 @@ async def process_media(bot, message, selected_streams, downloaded):
             await bot.send_document(
                 message.chat.id,
                 document=output_file,
-                thumb=file_thumb,
                 caption=cap,
                 progress=progress_message,
                 progress_args=("💠 Upload Started... ⚡️", message, c_time)
@@ -3813,8 +3801,6 @@ async def process_media(bot, message, selected_streams, downloaded):
 
     os.remove(downloaded)
     os.remove(output_file)
-    if file_thumb and os.path.exists(file_thumb):
-        os.remove(file_thumb)
     await message.delete()
 
 if __name__ == '__main__':
