@@ -3583,14 +3583,14 @@ async def process_media(bot, message, selected_streams, downloaded):
 """        
 
 
+
+
 import json
-
-
 
 selected_streams = set()  # To keep track of selected streams
 downloaded = None
 
-@Client.on_message(filters.command("changeindexaudio") & filters.chat(GROUP))
+@Client.on_message(filters.command("streamremove") & filters.chat(GROUP))
 async def change_index_audio(bot, msg):
     global CHANGE_INDEX_ENABLED
     global selected_streams
@@ -3659,16 +3659,14 @@ async def change_index_audio(bot, msg):
         index = label.split()[0]
         buttons.append([InlineKeyboardButton(f"{label}", callback_data=f"toggle_{index}")])
 
-    buttons.append([InlineKeyboardButton("Reverse Selection", callback_data="reverse_selection")],
-                   [InlineKeyboardButton("Cancel", callback_data="cancel"),
-                    InlineKeyboardButton("Done", callback_data="done")])
+    buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel"), InlineKeyboardButton("Done", callback_data="done")])
+    buttons.append([InlineKeyboardButton("Reverse Selection", callback_data="reverse")])
     markup = InlineKeyboardMarkup(buttons)
 
     selected_streams.clear()
     await sts.edit("Select the streams you want to remove:", reply_markup=markup)
 
-
-@Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel|reverse_selection'))
+@Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel|reverse'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     global selected_streams
     global downloaded
@@ -3685,25 +3683,8 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         await process_media(bot, callback_query.message, selected_streams, downloaded)
         return
 
-    if data == "reverse_selection":
-        # Reverse the current selection
-        all_indices = {btn.callback_data.split('_')[1] for row in callback_query.message.reply_markup.inline_keyboard for btn in row if btn.callback_data.startswith('toggle_')}
-        selected_streams = all_indices - selected_streams
-        # Update selected streams in the database
-        await db.update_selected_streams(callback_query.message.id, list(selected_streams))
-        # Update buttons to reflect new selection
-        buttons = callback_query.message.reply_markup.inline_keyboard
-        for row in buttons:
-            for button in row:
-                if button.callback_data.startswith('toggle_'):
-                    index = button.callback_data.split('_')[1]
-                    if index in selected_streams:
-                        if not button.text.startswith("✅"):
-                            button.text = f"✅ {button.text}"
-                    else:
-                        if button.text.startswith("✅"):
-                            button.text = button.text[2:]  # Remove the checkmark
-        await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+    if data == "reverse":
+        await reverse_selection(callback_query.message)
         return
 
     # Toggle selection state
@@ -3726,42 +3707,28 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
-
-async def process_media(bot, message, selected_streams, downloaded):
-    # Determine the output file extension based on the media type
-    output_file_ext = '.mkv'  # Default to MKV for video
-
-    # Use FFprobe to detect the media type and codecs
+async def reverse_selection(message):
+    global selected_streams
     ffprobe_cmd = [
-        'ffprobe', '-v', 'error', '-show_entries', 'format=format_name:streams=codec_name', '-of', 'json', downloaded
+        'ffprobe', '-v', 'error', '-show_entries', 'stream=index:stream_tags=language:stream=codec_type', '-of', 'json', downloaded
     ]
     process = await asyncio.create_subprocess_exec(*ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
         await message.edit(f"❗ FFprobe error: {stderr.decode('utf-8')}")
-        os.remove(downloaded)
         return
 
-    info = json.loads(stdout.decode('utf-8'))
-    format_name = info.get('format', {}).get('format_name', '')
-    codecs = [stream.get('codec_name', '') for stream in info.get('streams', [])]
+    streams = json.loads(stdout.decode('utf-8')).get('streams', [])
+    all_streams = set(str(stream['index']) for stream in streams)
 
-    if 'audio' in format_name:
-        if 'aac' in codecs:
-            output_file_ext = '.aac'
-        elif 'eac3' in codecs:
-            output_file_ext = '.eac3'
-        elif 'mp3' in codecs:
-            output_file_ext = '.mp3'
-        elif 'opus' in codecs:
-            output_file_ext = '.opus'
-        else:
-            output_file_ext = '.mp3'  # Default to MP3 if no specific codec is found
-    elif 'subtitle' in format_name:
-        output_file_ext = '.srt'  # Use SRT for subtitles
+    selected_streams = all_streams - selected_streams
 
-    output_file = os.path.splitext(downloaded)[0] + "_indexed" + output_file_ext
+    # Update the message with new selection state
+    await message.edit("Reversed selection. Please review your selections.")
+
+async def process_media(bot, message, selected_streams, downloaded):
+    output_file = os.path.splitext(downloaded)[0] + "_indexed" + os.path.splitext(downloaded)[1]
 
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
 
@@ -3769,20 +3736,6 @@ async def process_media(bot, message, selected_streams, downloaded):
         ffmpeg_cmd.extend(['-map', f'0:{idx}'])
 
     ffmpeg_cmd.extend(['-map', '0:s?'])
-
-    if 'subtitle' in format_name:
-        # Special handling for subtitles
-        ffmpeg_cmd.extend(['-c:s', 'srt'])
-    else:
-        # Handling audio based on the detected codec
-        if 'aac' in codecs:
-            ffmpeg_cmd.extend(['-c:a', 'aac'])
-        elif 'eac3' in codecs:
-            ffmpeg_cmd.extend(['-c:a', 'eac3'])
-        elif 'mp3' in codecs:
-            ffmpeg_cmd.extend(['-c:a', 'libmp3lame'])
-        elif 'opus' in codecs:
-            ffmpeg_cmd.extend(['-c:a', 'libopus'])
 
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
@@ -3826,24 +3779,28 @@ async def process_media(bot, message, selected_streams, downloaded):
             reply_markup=InlineKeyboardMarkup(button)
         )
     else:
-        try:
-            await bot.send_document(
-                message.chat.id,
-                document=output_file,
-                thumb=file_thumb,
-                caption=cap,
-                progress=progress_message,
-                progress_args=("💠 Upload Started... ⚡️", message, c_time)
-            )
-        except Exception as e:
-            await message.edit(f"Error: {e}")
+        while True:
+            try:
+                await bot.send_document(
+                    message.chat.id,
+                    document=output_file,
+                    thumb=file_thumb,
+                    caption=cap,
+                    progress=progress_message,
+                    progress_args=("💠 Upload Started... ⚡️", message, c_time)
+                )
+                break
+            except FloodWait as e:
+                await asyncio.sleep(e.x)  # Wait for the time specified by FloodWait exception
 
     os.remove(downloaded)
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await message.delete()
-    
+
+
+
             
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
