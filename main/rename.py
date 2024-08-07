@@ -3802,6 +3802,7 @@ import json
 selected_streams = set()
 downloaded = None
 
+
 async def safe_edit_message(bot, chat_id, message_id, text, reply_markup=None):
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=reply_markup)
@@ -3844,11 +3845,6 @@ async def change_index_audio(bot, msg):
         await sts.edit(f"❗ FFprobe error: {stderr.decode('utf-8')}")
         os.remove(downloaded)
         return
-
-    # Save the JSON output to a file
-    json_file = downloaded + '.json'
-    with open(json_file, 'w') as f:
-        f.write(stdout.decode('utf-8'))
 
     streams = json.loads(stdout.decode('utf-8')).get('streams', [])
     stream_labels = []
@@ -3946,10 +3942,9 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 async def process_media(bot, message, selected_streams, downloaded):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
 
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
-
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0']
     for idx in selected_streams:
-        ffmpeg_cmd.extend(['-map', f'0:{idx}', '-map', '-0:{idx}'])
+        ffmpeg_cmd.extend(['-map', f'-0:{idx}'])
 
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
@@ -4011,9 +4006,7 @@ async def process_media(bot, message, selected_streams, downloaded):
         os.remove(file_thumb)
     os.remove(downloaded)
 
-# Assuming the rest of your bot setup and run code follows...
 
-    
                 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
