@@ -3796,9 +3796,8 @@ async def process_media(bot, message, selected_streams, downloaded):
     await message.delete()
 """
 
-
+import os
 import json
-
 
 selected_streams = set()
 downloaded = None
@@ -4015,7 +4014,7 @@ async def process_media(bot, message, selected_streams, downloaded):
         os.remove(file_thumb)
 
     await safe_edit_message(bot, message.chat.id, message.id, "✅ Upload complete!")
-
+        
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
