@@ -4004,16 +4004,14 @@ async def process_media(bot, message, selected_streams, downloaded):
             )
         except Exception as e:
             await message.edit(f"❌ Error uploading file: {e}")
+        finally:
+            os.remove(output_file)
 
-    # Cleanup
-    os.remove(downloaded)
-    os.remove(output_file)
     if file_thumb:
         os.remove(file_thumb)
+    os.remove(downloaded)
 
-    await safe_edit_message(bot, message.chat.id, message.id, "✅ Upload complete!")
-        
-    
+# Assuming the rest of your bot setup and run code follows...
 
     
                 
