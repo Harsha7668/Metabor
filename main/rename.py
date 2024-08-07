@@ -3810,19 +3810,8 @@ async def process_media(bot, msg, selected_streams, downloaded, custom_filename)
         except Exception as e:
             print(f"Failed to download thumbnail from database: {e}")
             file_thumb = None
-    else:
-        # Add logic to retrieve thumbnail from media if needed
-        if hasattr(media, 'thumbs') and media.thumbs:
-            try:
-                file_thumb = await bot.download_media(media.thumbs[0].file_id)
-                if file_thumb and not os.path.exists(file_thumb):
-                    file_thumb = None
-            except Exception as e:
-                print(f"Failed to download thumbnail from media: {e}")
-                file_thumb = None
 
-    # Process the media file (your existing logic here)
-    output_file = downloaded  # Adjust this based on your actual processing
+    output_file = downloaded
     output_filename = custom_filename or os.path.basename(output_file)
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
@@ -3868,7 +3857,7 @@ async def process_media(bot, msg, selected_streams, downloaded, custom_filename)
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
-    await sts.delete()
+    await sts.delete()    
     
 
 """
