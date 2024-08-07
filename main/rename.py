@@ -3585,7 +3585,9 @@ async def process_media(bot, message, selected_streams, downloaded):
 
 import json
 
-selected_streams = set()  # Define globally
+
+
+selected_streams = set()  # To keep track of selected streams
 downloaded = None
 
 @Client.on_message(filters.command("changeindexaudio") & filters.chat(GROUP))
@@ -3661,9 +3663,6 @@ async def change_index_audio(bot, msg):
                     InlineKeyboardButton("Cancel", callback_data="cancel"),
                     InlineKeyboardButton("Done", callback_data="done")])
     markup = InlineKeyboardMarkup(buttons)
-
-    # Save initial state to the database
-    await db.insert_file_data(msg.message_id, msg.from_user.id, downloaded, stream_labels)
 
     selected_streams.clear()
     await sts.edit("Select the streams you want to remove:", reply_markup=markup)
@@ -3789,12 +3788,12 @@ async def process_media(bot, message, selected_streams, downloaded):
         except Exception as e:
             await message.edit(f"Error: {e}")
 
-    # Clean up local files
     os.remove(downloaded)
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
-    await message.delete()   
+    await message.delete()
+    
             
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
