@@ -3587,6 +3587,10 @@ import json
 
 @Client.on_message(filters.command("changeindexaudio") & filters.chat(GROUP))
 async def change_index_audio(bot, msg):
+    global CHANGE_INDEX_ENABLED
+    global selected_streams
+    global downloaded
+
     if not CHANGE_INDEX_ENABLED:
         return await msg.reply_text("The changeindexaudio feature is currently disabled.")
 
@@ -3621,7 +3625,6 @@ async def change_index_audio(bot, msg):
 
     streams = json.loads(stdout.decode('utf-8')).get('streams', [])
     stream_labels = []
-    stream_info = []
 
     for stream in streams:
         stream_index = stream['index']
@@ -3645,14 +3648,22 @@ async def change_index_audio(bot, msg):
         elif codec_type == 'video':
             stream_labels.append(f"{stream_index} video")
 
-        # Store stream info for database
-        stream_info.append({
-            "index": stream_index,
-            "language": language,
-            "codec_type": codec_type
-        })
+    # Build the inline keyboard with available streams
+    buttons = []
+    for label in stream_labels:
+        index = label.split()[0]
+        buttons.append([InlineKeyboardButton(f"{label}", callback_data=f"toggle_{index}")])
 
-    # Store initial data in the database
+    buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel"), InlineKeyboardButton("Done", callback_data="done")])
+    markup = InlineKeyboardMarkup(buttons)
+
+    selected_streams.clear()
+    await sts.edit("Select the streams you want to remove:", reply_markup=markup)
+
+    # Insert initial file data into the database
+    stream_info = {
+        "streams": stream_labels
+    }
     await db.insert_file_data(msg.message_id, msg.from_user.id, downloaded, stream_info)
 
     # Build the inline keyboard with available streams
