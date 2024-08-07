@@ -3732,21 +3732,31 @@ async def process_media(bot, message, selected_streams, downloaded):
     new_filename = command_args[2] if len(command_args) > 2 else os.path.splitext(downloaded)[0] + "_indexed" + os.path.splitext(downloaded)[1]
     output_file = os.path.join(os.path.dirname(downloaded), new_filename)
 
-    # Load the JSON file containing stream information
-    json_file = downloaded + '.json'
-    if not os.path.exists(json_file):
-        await message.edit("❗ JSON file not found.")
+    # Generate ffmpeg command to remove selected streams
+    ffprobe_cmd = [
+        'ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=print_section=0', downloaded
+    ]
+    
+    # Get available streams
+    process = await asyncio.create_subprocess_exec(*ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+    
+    if process.returncode != 0:
+        await message.edit(f"❗ FFprobe error: {stderr.decode('utf-8')}")
         os.remove(downloaded)
         return
+    
+    available_streams = set(stdout.decode().strip().split('\n'))
 
-    with open(json_file, 'r') as f:
-        streams_info = json.load(f)
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
 
-    # Generate ffmpeg command to remove selected streams
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0:v?']
+    for idx in available_streams:
+        if idx not in selected_streams:
+            ffmpeg_cmd.extend(['-map', f'0:{idx}'])
 
-    for idx in set(idx['index'] for idx in streams_info['streams']) - set(map(int, selected_streams)):
-        ffmpeg_cmd.extend(['-map', f'0:{idx}'])
+    # Ensure output file format is correct
+    if not output_file.lower().endswith(('.mkv', '.mp4')):
+        output_file += '.mkv'
 
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
@@ -3806,10 +3816,7 @@ async def process_media(bot, message, selected_streams, downloaded):
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
-    if os.path.exists(json_file):
-        os.remove(json_file)
     await message.delete()
-
 
 
 if __name__ == '__main__':
