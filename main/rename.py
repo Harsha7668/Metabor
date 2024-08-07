@@ -3768,6 +3768,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
+"""
 from pyrogram.errors.exceptions.flood_420 import FloodWait
 import asyncio
 
@@ -3844,6 +3845,92 @@ async def process_media(bot, message, selected_streams, downloaded):
             if os.path.exists(output_file):
                 os.remove(output_file)
             await message.delete()  # Make sure to delete the message after completion
+"""
+from pyrogram.errors.exceptions.flood_420 import FloodWait
+import asyncio
+
+async def process_media(bot, message, selected_streams, downloaded, custom_filename):
+    output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
+    output_filename = custom_filename or os.path.basename(output_file)
+
+    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0']
+    for idx in selected_streams:
+        ffmpeg_cmd.extend(['-map', f'-0:{idx}'])
+
+    ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
+
+    process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        await message.edit(f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        os.remove(downloaded)
+        if os.path.exists(output_file):
+            os.remove(output_file)
+        return
+
+    # Retrieve thumbnail from the database
+    thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
+    file_thumb = None
+    if thumbnail_file_id:
+        try:
+            file_thumb = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
+    else:
+        try:
+            media = message.reply_to_message
+            if hasattr(media, 'thumbs') and media.thumbs:
+                file_thumb = await bot.download_media(media.thumbs[0].file_id)
+        except Exception as e:
+            file_thumb = None
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+    await safe_edit_message(bot, message.chat.id, message.id, "💠 Uploading... ⚡")
+    c_time = time.time()
+
+    while True:
+        try:
+            if filesize > FILE_SIZE_LIMIT:
+                file_link = await upload_to_google_drive(output_file, output_filename, message)
+                button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+                await bot.send_message(
+                    message.chat.id,
+                    f"**File successfully processed and uploaded to Google Drive!**\n\n"
+                    f"**Google Drive Link**: [View File]({file_link})\n\n"
+                    f"**Uploaded File**: {output_filename}\n"
+                    f"**Request User:** {message.from_user.mention}\n\n"
+                    f"**Size**: {filesize_human}",
+                    reply_markup=InlineKeyboardMarkup(button)
+                )
+            else:
+                await bot.send_document(
+                    chat_id=message.chat.id,
+                    document=output_file,
+                    thumb=file_thumb,
+                    caption=cap,
+                    progress=progress_message,
+                    progress_args=("💠 Upload Started... ⚡", message, c_time)
+                )
+            break
+        except FloodWait as e:
+            print(f"Flood wait exception: Waiting for {e.x} seconds.")
+            await asyncio.sleep(e.x)  # Wait for the required time before retrying
+        except Exception as e:
+            await message.edit(f"❌ Error uploading file: {e}")
+            break
+        finally:
+            if file_thumb and os.path.exists(file_thumb):
+                os.remove(file_thumb)
+            os.remove(downloaded)
+            if os.path.exists(output_file):
+                os.remove(output_file)
+            await message.delete()  # Make sure to delete the message after completion
+
+
             
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
