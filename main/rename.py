@@ -3751,7 +3751,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
             custom_filename = command_text.split("-n")[1].strip()
         
         await safe_edit_message(bot, callback_query.message.chat.id, callback_query.message.id, "💠 Removing selected streams... ⚡")
-        await process_media(bot, callback_query.message, selected_streams, downloaded, custom_filename, sts)
+        await process_media(bot, callback_query.message, selected_streams, downloaded, custom_filename)
         return
 
     # Toggle selection state
@@ -3778,7 +3778,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 from pyrogram.errors.exceptions.flood_420 import FloodWait
 import asyncio
 
-async def process_media(bot, msg, selected_streams, downloaded, custom_filename, sts):
+async def process_media(bot, selected_streams, downloaded, custom_filename):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
     output_filename = custom_filename or os.path.basename(output_file)
 
@@ -3797,74 +3797,9 @@ async def process_media(bot, msg, selected_streams, downloaded, custom_filename,
         if os.path.exists(output_file):
             os.remove(output_file)
         return
-
+            
     # Retrieve thumbnail from the database
-    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
-    file_thumb = None
-    
-    if thumbnail_file_id:
-        try:
-            file_thumb = await bot.download_media(thumbnail_file_id)
-            if file_thumb and not os.path.exists(file_thumb):
-                file_thumb = None
-        except Exception as e:
-            print(f"Failed to download thumbnail from database: {e}")
-            file_thumb = None
-
-    output_file = downloaded
-    output_filename = custom_filename or os.path.basename(output_file)
-    filesize = os.path.getsize(output_file)
-    filesize_human = humanbytes(filesize)
-    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
-
-    if sts:
-        await safe_edit_message(sts, "💠 Uploading... ⚡")
-    c_time = time.time()
-
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, output_filename, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {output_filename}\n"
-            f"**Request User:** {msg.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-    else:
-        try:
-            if file_thumb and os.path.exists(file_thumb):
-                await bot.send_document(
-                    msg.chat.id,
-                    document=output_file,
-                    thumb=file_thumb,
-                    caption=cap,
-                    progress=progress_message,
-                    progress_args=("💠 Upload Started... ⚡", sts, c_time)
-                )
-            else:
-                await bot.send_document(
-                    msg.chat.id,
-                    document=output_file,
-                    caption=cap,
-                    progress=progress_message,
-                    progress_args=("💠 Upload Started... ⚡", sts, c_time)
-                )
-        except Exception as e:
-            if sts:
-                await safe_edit_message(sts, f"Error: {e}")
-
-    os.remove(downloaded)
-    os.remove(output_file)
-    if file_thumb and os.path.exists(file_thumb):
-        os.remove(file_thumb)
-    if sts:
-        await sts.delete()
-
-"""
-    # Retrieve thumbnail from the database
-    thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
+    thumbnail_file_id = await db.get_thumbnail(user_id)
     file_thumb = None
     if thumbnail_file_id:
         try:
@@ -3923,7 +3858,6 @@ async def process_media(bot, msg, selected_streams, downloaded, custom_filename,
             if os.path.exists(output_file):
                 os.remove(output_file)
             await message.delete()  # Make sure to delete the message after completion
-"""
 
 
 if __name__ == '__main__':
