@@ -3659,13 +3659,14 @@ async def change_index_audio(bot, msg):
         index = label.split()[0]
         buttons.append([InlineKeyboardButton(f"{label}", callback_data=f"toggle_{index}")])
 
-    buttons.append([InlineKeyboardButton("Reverse Selection", callback_data="reverse_selection"),
-                    InlineKeyboardButton("Cancel", callback_data="cancel"),
+    buttons.append([InlineKeyboardButton("Reverse Selection", callback_data="reverse_selection")],
+                   [InlineKeyboardButton("Cancel", callback_data="cancel"),
                     InlineKeyboardButton("Done", callback_data="done")])
     markup = InlineKeyboardMarkup(buttons)
 
     selected_streams.clear()
     await sts.edit("Select the streams you want to remove:", reply_markup=markup)
+
 
 @Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel|reverse_selection'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
@@ -3688,7 +3689,8 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         # Reverse the current selection
         all_indices = {btn.callback_data.split('_')[1] for row in callback_query.message.reply_markup.inline_keyboard for btn in row if btn.callback_data.startswith('toggle_')}
         selected_streams = all_indices - selected_streams
-        await db.update_selected_streams(callback_query.message.message_id, list(selected_streams))
+        # Update selected streams in the database
+        await db.update_selected_streams(callback_query.message.id, list(selected_streams))
         # Update buttons to reflect new selection
         buttons = callback_query.message.reply_markup.inline_keyboard
         for row in buttons:
@@ -3724,8 +3726,42 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
+
 async def process_media(bot, message, selected_streams, downloaded):
-    output_file = os.path.splitext(downloaded)[0] + "_indexed" + os.path.splitext(downloaded)[1]
+    # Determine the output file extension based on the media type
+    output_file_ext = '.mkv'  # Default to MKV for video
+
+    # Use FFprobe to detect the media type and codecs
+    ffprobe_cmd = [
+        'ffprobe', '-v', 'error', '-show_entries', 'format=format_name:streams=codec_name', '-of', 'json', downloaded
+    ]
+    process = await asyncio.create_subprocess_exec(*ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        await message.edit(f"❗ FFprobe error: {stderr.decode('utf-8')}")
+        os.remove(downloaded)
+        return
+
+    info = json.loads(stdout.decode('utf-8'))
+    format_name = info.get('format', {}).get('format_name', '')
+    codecs = [stream.get('codec_name', '') for stream in info.get('streams', [])]
+
+    if 'audio' in format_name:
+        if 'aac' in codecs:
+            output_file_ext = '.aac'
+        elif 'eac3' in codecs:
+            output_file_ext = '.eac3'
+        elif 'mp3' in codecs:
+            output_file_ext = '.mp3'
+        elif 'opus' in codecs:
+            output_file_ext = '.opus'
+        else:
+            output_file_ext = '.mp3'  # Default to MP3 if no specific codec is found
+    elif 'subtitle' in format_name:
+        output_file_ext = '.srt'  # Use SRT for subtitles
+
+    output_file = os.path.splitext(downloaded)[0] + "_indexed" + output_file_ext
 
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
 
@@ -3733,6 +3769,20 @@ async def process_media(bot, message, selected_streams, downloaded):
         ffmpeg_cmd.extend(['-map', f'0:{idx}'])
 
     ffmpeg_cmd.extend(['-map', '0:s?'])
+
+    if 'subtitle' in format_name:
+        # Special handling for subtitles
+        ffmpeg_cmd.extend(['-c:s', 'srt'])
+    else:
+        # Handling audio based on the detected codec
+        if 'aac' in codecs:
+            ffmpeg_cmd.extend(['-c:a', 'aac'])
+        elif 'eac3' in codecs:
+            ffmpeg_cmd.extend(['-c:a', 'eac3'])
+        elif 'mp3' in codecs:
+            ffmpeg_cmd.extend(['-c:a', 'libmp3lame'])
+        elif 'opus' in codecs:
+            ffmpeg_cmd.extend(['-c:a', 'libopus'])
 
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
