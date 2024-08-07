@@ -3778,7 +3778,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 from pyrogram.errors.exceptions.flood_420 import FloodWait
 import asyncio
 
-async def process_media(bot, msg, selected_streams, downloaded, custom_filename):
+async def process_media(bot, msg, selected_streams, downloaded, custom_filename, sts):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
     output_filename = custom_filename or os.path.basename(output_file)
 
@@ -3817,7 +3817,8 @@ async def process_media(bot, msg, selected_streams, downloaded, custom_filename)
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
 
-    await safe_edit_message(sts, "💠 Uploading... ⚡")
+    if sts:
+        await safe_edit_message(sts, "💠 Uploading... ⚡")
     c_time = time.time()
 
     if filesize > FILE_SIZE_LIMIT:
@@ -3851,14 +3852,15 @@ async def process_media(bot, msg, selected_streams, downloaded, custom_filename)
                     progress_args=("💠 Upload Started... ⚡", sts, c_time)
                 )
         except Exception as e:
-            await safe_edit_message(sts, f"Error: {e}")
+            if sts:
+                await safe_edit_message(sts, f"Error: {e}")
 
     os.remove(downloaded)
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
-    await sts.delete()    
-    
+    if sts:
+        await sts.delete()
 
 """
     # Retrieve thumbnail from the database
