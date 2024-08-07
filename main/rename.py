@@ -3709,6 +3709,7 @@ async def change_index_audio(bot, msg):
             if downloaded:
                 os.remove(downloaded)
 
+
 @Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel|reverse'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     global selected_streams
@@ -3774,18 +3775,14 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
-
-from pyrogram.errors.exceptions.flood_420 import FloodWait
-import asyncio
-
-async def process_media(bot, selected_streams, downloaded, custom_filename):
+async def process_media(bot, message, selected_streams, downloaded, custom_filename=None):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
     output_filename = custom_filename or os.path.basename(output_file)
 
+    # FFmpeg command to process the media file
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0']
     for idx in selected_streams:
         ffmpeg_cmd.extend(['-map', f'-0:{idx}'])
-
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
     process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -3797,23 +3794,18 @@ async def process_media(bot, selected_streams, downloaded, custom_filename):
         if os.path.exists(output_file):
             os.remove(output_file)
         return
-            
+
     # Retrieve thumbnail from the database
+    user_id = message.from_user.id
     thumbnail_file_id = await db.get_thumbnail(user_id)
     file_thumb = None
     if thumbnail_file_id:
         try:
             file_thumb = await bot.download_media(thumbnail_file_id)
         except Exception:
-            pass
-    else:
-        try:
-            media = message.reply_to_message
-            if hasattr(media, 'thumbs') and media.thumbs:
-                file_thumb = await bot.download_media(media.thumbs[0].file_id)
-        except Exception as e:
             file_thumb = None
 
+    # Prepare file size information
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
@@ -3857,8 +3849,7 @@ async def process_media(bot, selected_streams, downloaded, custom_filename):
             os.remove(downloaded)
             if os.path.exists(output_file):
                 os.remove(output_file)
-            await message.delete()  # Make sure to delete the message after completion
-
+            await message.delete()  # Ensure to delete the message after completion
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
