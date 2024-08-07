@@ -3768,6 +3768,9 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
+from pyrogram.errors.exceptions.flood_420 import FloodWait
+import asyncio
+
 async def process_media(bot, message, selected_streams, downloaded):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
 
@@ -3804,39 +3807,43 @@ async def process_media(bot, message, selected_streams, downloaded):
     await safe_edit_message(bot, message.chat.id, message.id, "💠 Uploading... ⚡")
     c_time = time.time()
 
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), message)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await bot.send_message(
-            message.chat.id,
-            f"**File successfully processed and uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {os.path.basename(output_file)}\n"
-            f"**Request User:** {message.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
-        )
-    else:
+    while True:
         try:
-            await bot.send_document(
-                chat_id=message.chat.id,
-                document=output_file,
-                thumb=file_thumb,
-                caption=cap,
-                progress=progress_message,
-                progress_args=("🚀 Upload Started... ⚡️", message, c_time)
-            )
+            if filesize > FILE_SIZE_LIMIT:
+                file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), message)
+                button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+                await bot.send_message(
+                    message.chat.id,
+                    f"**File successfully processed and uploaded to Google Drive!**\n\n"
+                    f"**Google Drive Link**: [View File]({file_link})\n\n"
+                    f"**Uploaded File**: {os.path.basename(output_file)}\n"
+                    f"**Request User:** {message.from_user.mention}\n\n"
+                    f"**Size**: {filesize_human}",
+                    reply_markup=InlineKeyboardMarkup(button)
+                )
+            else:
+                await bot.send_document(
+                    chat_id=message.chat.id,
+                    document=output_file,
+                    thumb=file_thumb,
+                    caption=cap,
+                    progress=progress_message,
+                    progress_args=("🚀 Upload Started... ⚡️", message, c_time)
+                )
+            break
+        except FloodWait as e:
+            print(f"Flood wait exception: Waiting for {e.x} seconds.")
+            await asyncio.sleep(e.x)  # Wait for the required time before retrying
         except Exception as e:
             await message.edit(f"❌ Error uploading file: {e}")
+            break
         finally:
-            os.remove(output_file)
-
-    if file_thumb:
-        os.remove(file_thumb)
-    os.remove(downloaded)
-        
-    await sts.delete()  # Delete the status message after completion
-        
+            if file_thumb:
+                os.remove(file_thumb)
+            os.remove(downloaded)
+            if os.path.exists(output_file):
+                os.remove(output_file)
+            await message.delete()  # Make sure to delete the message after completion
             
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
