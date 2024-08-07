@@ -3919,7 +3919,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         return
 
     if data == "done":
-        await safe_edit_message(bot, callback_query.message.chat.id, callback_query.message.id, "💠 Changing audio indexing... ⚡")
+        await safe_edit_message(bot, callback_query.message.chat.id, callback_query.message.id, "💠 Removing selected streams... ⚡")
         await process_media(bot, callback_query.message, selected_streams, downloaded)
         return
 
@@ -3944,14 +3944,12 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
 async def process_media(bot, message, selected_streams, downloaded):
-    output_file = os.path.splitext(downloaded)[0] + "_indexed" + os.path.splitext(downloaded)[1]
+    output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
 
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
 
     for idx in selected_streams:
-        ffmpeg_cmd.extend(['-map', f'0:{idx}'])
-
-    ffmpeg_cmd.extend(['-map', '0:s?'])
+        ffmpeg_cmd.extend(['-map', f'0:{idx}', '-map', '-0:{idx}'])
 
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
@@ -3987,7 +3985,7 @@ async def process_media(bot, message, selected_streams, downloaded):
         button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
         await bot.send_message(
             message.chat.id,
-            f"**File successfully changed audio index and uploaded to Google Drive!**\n\n"
+            f"**File successfully processed and uploaded to Google Drive!**\n\n"
             f"**Google Drive Link**: [View File]({file_link})\n\n"
             f"**Uploaded File**: {os.path.basename(output_file)}\n"
             f"**Request User:** {message.from_user.mention}\n\n"
@@ -4015,6 +4013,10 @@ async def process_media(bot, message, selected_streams, downloaded):
 
     await safe_edit_message(bot, message.chat.id, message.id, "✅ Upload complete!")
         
+    
+
+    
+                
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
