@@ -3796,6 +3796,11 @@ async def process_media(bot, message, selected_streams, downloaded, custom_filen
             os.remove(output_file)
         return
 
+    # Rename output file if custom filename provided
+    if custom_filename and custom_filename != output_filename:
+        os.rename(output_file, custom_filename)
+        output_file = custom_filename
+
     # Retrieve thumbnail from the database
     thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
     og_thumbnail = None
@@ -3832,8 +3837,7 @@ async def process_media(bot, message, selected_streams, downloaded, custom_filen
     if og_thumbnail and os.path.exists(og_thumbnail):
         os.remove(og_thumbnail)
     await message.delete()
-
-
+        
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
