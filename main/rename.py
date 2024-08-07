@@ -3727,12 +3727,11 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
 
 async def process_media(bot, message, selected_streams, downloaded):
-    # Parse the new filename from the message text
     command_args = message.text.split()
-    new_filename = command_args[2] if len(command_args) > 2 else os.path.splitext(downloaded)[0] + "_indexed" + os.path.splitext(downloaded)[1]
+    new_filename = command_args[2] if len(command_args) > 2 else os.path.splitext(downloaded)[0] + "_modified" + os.path.splitext(downloaded)[1]
     output_file = os.path.join(os.path.dirname(downloaded), new_filename)
 
-    # Generate ffmpeg command to remove selected streams
+    # Generate ffmpeg command to remove specific streams
     ffprobe_cmd = [
         'ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=print_section=0', downloaded
     ]
@@ -3792,7 +3791,7 @@ async def process_media(bot, message, selected_streams, downloaded):
         button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
         await bot.send_message(
             message.chat.id,
-            f"**File successfully changed audio index and uploaded to Google Drive!**\n\n"
+            f"**File successfully processed and uploaded to Google Drive!**\n\n"
             f"**Google Drive Link**: [View File]({file_link})\n\n"
             f"**Uploaded File**: {os.path.basename(output_file)}\n"
             f"**Request User:** {message.from_user.mention}\n\n"
@@ -3817,7 +3816,6 @@ async def process_media(bot, message, selected_streams, downloaded):
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await message.delete()
-
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
