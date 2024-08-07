@@ -3775,7 +3775,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
-async def process_media(bot, msg, selected_streams, downloaded, custom_filename):
+async def process_media(bot, message, selected_streams, downloaded, custom_filename):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
     output_filename = custom_filename or os.path.basename(output_file)
 
@@ -3790,7 +3790,7 @@ async def process_media(bot, msg, selected_streams, downloaded, custom_filename)
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        await msg.edit(f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        await message.edit(f"❗ FFmpeg error: {stderr.decode('utf-8')}")
         os.remove(downloaded)
         if os.path.exists(output_file):
             os.remove(output_file)
@@ -3802,7 +3802,7 @@ async def process_media(bot, msg, selected_streams, downloaded, custom_filename)
         output_file = custom_filename
 
     # Retrieve thumbnail from the database
-    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
+    thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
     og_thumbnail = None
     if thumbnail_file_id:
         try:
@@ -3810,9 +3810,9 @@ async def process_media(bot, msg, selected_streams, downloaded, custom_filename)
         except Exception:
             pass
     else:
-        if hasattr(msg.reply_to_message, 'thumbs') and msg.reply_to_message.thumbs:
+        if hasattr(message.reply_to_message, 'thumbs') and message.reply_to_message.thumbs:
             try:
-                og_thumbnail = await bot.download_media(msg.reply_to_message.thumbs[0].file_id)
+                og_thumbnail = await bot.download_media(message.reply_to_message.thumbs[0].file_id)
             except Exception:
                 pass
 
@@ -3820,17 +3820,17 @@ async def process_media(bot, msg, selected_streams, downloaded, custom_filename)
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
 
-    await msg.edit("💠 Uploading... ⚡")
+    await message.edit("💠 Uploading... ⚡")
     c_time = time.time()
 
     if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, output_filename, msg)
-        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {output_filename}\n💾 **Size:** {filesize_human}\n🔗 **Link:** {file_link}")
+        file_link = await upload_to_google_drive(output_file, output_filename, message)
+        await message.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {output_filename}\n💾 **Size:** {filesize_human}\n🔗 **Link:** {file_link}")
     else:
         try:
-            await bot.send_document(msg.chat.id, document=output_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", msg, c_time))
+            await bot.send_document(message.chat.id, document=output_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", message, c_time))
         except Exception as e:
-            return await msg.edit(f"Error: {e}")
+            return await message.edit(f"Error: {e}")
 
     os.remove(downloaded)
     os.remove(output_file)
