@@ -3725,36 +3725,15 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
+async def process_media(bot, message, selected_streams, downloaded):
+    output_file = os.path.splitext(downloaded)[0] + "_indexed" + os.path.splitext(downloaded)[1]
 
-async def process_media(bot, message, remove_stream_index, downloaded):
-    new_filename = os.path.splitext(downloaded)[0] + "_modified" + os.path.splitext(downloaded)[1]
-    output_file = os.path.join(os.path.dirname(downloaded), new_filename)
-
-    # Use ffprobe to get stream information
-    ffprobe_cmd = [
-        'ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=print_section=0', downloaded
-    ]
-    
-    process = await asyncio.create_subprocess_exec(*ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await process.communicate()
-    
-    if process.returncode != 0:
-        await message.edit(f"❗ FFprobe error: {stderr.decode('utf-8')}")
-        os.remove(downloaded)
-        return
-    
-    available_streams = stdout.decode().strip().split('\n')
-
-    # Construct ffmpeg command to exclude the specific stream
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
 
-    for idx in available_streams:
-        if idx != remove_stream_index:
-            ffmpeg_cmd.extend(['-map', f'0:{idx}'])
+    for idx in selected_streams:
+        ffmpeg_cmd.extend(['-map', f'0:{idx}'])
 
-    # Ensure output file format is correct
-    if not output_file.lower().endswith(('.mkv', '.mp4')):
-        output_file += '.mkv'
+    ffmpeg_cmd.extend(['-map', '0:s?'])
 
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
@@ -3768,6 +3747,16 @@ async def process_media(bot, message, remove_stream_index, downloaded):
             os.remove(output_file)
         return
 
+    thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
+
+    if thumbnail_file_id:
+        try:
+            file_thumb = await bot.download_media(thumbnail_file_id)
+        except Exception as e:
+            file_thumb = None
+    else:
+        file_thumb = None
+
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
     cap = f"{os.path.basename(output_file)}\n\n🌟 Size: {filesize_human}"
@@ -3780,7 +3769,7 @@ async def process_media(bot, message, remove_stream_index, downloaded):
         button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
         await bot.send_message(
             message.chat.id,
-            f"**File successfully processed and uploaded to Google Drive!**\n\n"
+            f"**File successfully changed audio index and uploaded to Google Drive!**\n\n"
             f"**Google Drive Link**: [View File]({file_link})\n\n"
             f"**Uploaded File**: {os.path.basename(output_file)}\n"
             f"**Request User:** {message.from_user.mention}\n\n"
@@ -3792,6 +3781,7 @@ async def process_media(bot, message, remove_stream_index, downloaded):
             await bot.send_document(
                 message.chat.id,
                 document=output_file,
+                thumb=file_thumb,
                 caption=cap,
                 progress=progress_message,
                 progress_args=("💠 Upload Started... ⚡️", message, c_time)
@@ -3801,6 +3791,8 @@ async def process_media(bot, message, remove_stream_index, downloaded):
 
     os.remove(downloaded)
     os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
     await message.delete()
 
 if __name__ == '__main__':
