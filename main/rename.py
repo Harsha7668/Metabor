@@ -3778,7 +3778,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 from pyrogram.errors.exceptions.flood_420 import FloodWait
 import asyncio
 
-async def process_media(bot, message, selected_streams, downloaded, custom_filename):
+async def process_media(bot, msg, selected_streams, downloaded, custom_filename):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
     output_filename = custom_filename or os.path.basename(output_file)
 
