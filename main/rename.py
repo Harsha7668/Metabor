@@ -3751,7 +3751,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         if "-n" in command_text:
             custom_filename = command_text.split("-n")[1].strip()
         
-        await safe_edit_message(bot, callback_query.message.chat.id, callback_query.message.id, "💠 Removing selected streams... ⚡")
+        sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
         await process_media(bot, callback_query.message, selected_streams, downloaded, custom_filename)
         return
 
@@ -3775,16 +3775,17 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
-async def process_media(bot, message, selected_streams, downloaded, custom_filename=None):
+async def process_media(bot, message, selected_streams, downloaded, custom_filename):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
     output_filename = custom_filename or os.path.basename(output_file)
 
-    # FFmpeg command to process the media file
+    # Construct FFmpeg command to process media
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0']
     for idx in selected_streams:
         ffmpeg_cmd.extend(['-map', f'-0:{idx}'])
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
+    # Execute FFmpeg command
     process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
 
@@ -3796,60 +3797,42 @@ async def process_media(bot, message, selected_streams, downloaded, custom_filen
         return
 
     # Retrieve thumbnail from the database
-    user_id = message.from_user.id
-    thumbnail_file_id = await db.get_thumbnail(user_id)
-    file_thumb = None
+    thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
+    og_thumbnail = None
     if thumbnail_file_id:
         try:
-            file_thumb = await bot.download_media(thumbnail_file_id)
+            og_thumbnail = await bot.download_media(thumbnail_file_id)
         except Exception:
-            file_thumb = None
+            pass
+    else:
+        if hasattr(message.reply_to_message, 'thumbs') and message.reply_to_message.thumbs:
+            try:
+                og_thumbnail = await bot.download_media(message.reply_to_message.thumbs[0].file_id)
+            except Exception:
+                pass
 
-    # Prepare file size information
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
 
-    await safe_edit_message(bot, message.chat.id, message.id, "💠 Uploading... ⚡")
+    await message.edit("💠 Uploading... ⚡")
     c_time = time.time()
 
-    while True:
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, message)
+        await message.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {output_filename}\n💾 **Size:** {filesize_human}\n🔗 **Link:** {file_link}")
+    else:
         try:
-            if filesize > FILE_SIZE_LIMIT:
-                file_link = await upload_to_google_drive(output_file, output_filename, message)
-                button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-                await bot.send_message(
-                    message.chat.id,
-                    f"**File successfully processed and uploaded to Google Drive!**\n\n"
-                    f"**Google Drive Link**: [View File]({file_link})\n\n"
-                    f"**Uploaded File**: {output_filename}\n"
-                    f"**Request User:** {message.from_user.mention}\n\n"
-                    f"**Size**: {filesize_human}",
-                    reply_markup=InlineKeyboardMarkup(button)
-                )
-            else:
-                await bot.send_document(
-                    chat_id=message.chat.id,
-                    document=output_file,
-                    thumb=file_thumb,
-                    caption=cap,
-                    progress=progress_message,
-                    progress_args=("💠 Upload Started... ⚡", message, c_time)
-                )
-            break
-        except FloodWait as e:
-            print(f"Flood wait exception: Waiting for {e.x} seconds.")
-            await asyncio.sleep(e.x)  # Wait for the required time before retrying
+            await bot.send_document(message.chat.id, document=output_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", message, c_time))
         except Exception as e:
-            await message.edit(f"❌ Error uploading file: {e}")
-            break
-        finally:
-            if file_thumb and os.path.exists(file_thumb):
-                os.remove(file_thumb)
-            os.remove(downloaded)
-            if os.path.exists(output_file):
-                os.remove(output_file)
-            await message.delete()  # Ensure to delete the message after completion
+            return await message.edit(f"Error: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    if og_thumbnail and os.path.exists(og_thumbnail):
+        os.remove(og_thumbnail)
+    await message.delete()
+
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
