@@ -3799,8 +3799,15 @@ async def process_media(bot, message, selected_streams, downloaded):
 
 import json
 
+
 selected_streams = set()
 downloaded = None
+
+async def safe_edit_message(bot, chat_id, message_id, text, reply_markup=None):
+    try:
+        await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=reply_markup)
+    except Exception as e:
+        print(f"Error editing message: {e}")
 
 @Client.on_message(filters.command("streamremove") & filters.chat(GROUP))
 async def change_index_audio(bot, msg):
@@ -3913,7 +3920,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         return
 
     if data == "done":
-        await callback_query.message.edit("💠 Changing audio indexing... ⚡")
+        await safe_edit_message(bot, callback_query.message.chat.id, callback_query.message.id, "💠 Changing audio indexing... ⚡")
         await process_media(bot, callback_query.message, selected_streams, downloaded)
         return
 
@@ -3937,65 +3944,43 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
-import asyncio
-from pyrogram.errors import FloodWait
-
-# Function to handle Telegram requests with flood wait handling
-async def safe_send_document(bot, chat_id, document, thumb=None, caption=None, progress=None, progress_args=None):
-    while True:
-        try:
-            await bot.send_document(
-                chat_id,
-                document=document,
-                thumb=thumb,
-                caption=caption,
-                progress=progress,
-                progress_args=progress_args
-            )
-            break  # Exit loop if successful
-        except FloodWait as e:
-            print(f"Flood wait for {e.x} seconds")
-            await asyncio.sleep(e.x + 1)  # Wait for the required amount of time
-
-# Function to handle message edits with flood wait handling
-async def safe_edit_message(bot, chat_id, message_id, text):
-    while True:
-        try:
-            await bot.edit_message_text(
-                chat_id,
-                message_id,
-                text=text
-            )
-            break  # Exit loop if successful
-        except FloodWait as e:
-            print(f"Flood wait for {e.x} seconds")
-            await asyncio.sleep(e.x + 1)  # Wait for the required amount of time
-
 async def process_media(bot, message, selected_streams, downloaded):
     output_file = os.path.splitext(downloaded)[0] + "_indexed" + os.path.splitext(downloaded)[1]
 
-    # FFmpeg command and execution
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded]
+
     for idx in selected_streams:
         ffmpeg_cmd.extend(['-map', f'0:{idx}'])
+
     ffmpeg_cmd.extend(['-map', '0:s?'])
+
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
+
     process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        await safe_edit_message(bot, message.chat.id, message.message_id, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        await message.edit(f"❗ FFmpeg error: {stderr.decode('utf-8')}")
         os.remove(downloaded)
         if os.path.exists(output_file):
             os.remove(output_file)
         return
 
-    # Upload logic
+    thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
+
+    if thumbnail_file_id:
+        try:
+            file_thumb = await bot.download_media(thumbnail_file_id)
+        except Exception as e:
+            file_thumb = None
+    else:
+        file_thumb = None
+
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
     cap = f"{os.path.basename(output_file)}\n\n🌟 Size: {filesize_human}"
 
-    await safe_edit_message(bot, message.chat.id, message.message_id, "💠 Uploading... ⚡")
+    await safe_edit_message(bot, message.chat.id, message.id, "💠 Uploading... ⚡")
     c_time = time.time()
 
     if filesize > FILE_SIZE_LIMIT:
@@ -4011,21 +3996,25 @@ async def process_media(bot, message, selected_streams, downloaded):
             reply_markup=InlineKeyboardMarkup(button)
         )
     else:
-        await safe_send_document(
-            bot,
-            message.chat.id,
-            output_file,
-            thumb=file_thumb,
-            caption=cap,
-            progress=progress_message,
-            progress_args=("💠 Upload Started... ⚡️", message, c_time)
-        )
+        try:
+            await bot.send_document(
+                chat_id=message.chat.id,
+                document=output_file,
+                thumb=file_thumb,
+                caption=cap,
+                progress=progress_message,
+                progress_args=("🚀 Upload Started... ⚡️", message, c_time)
+            )
+        except Exception as e:
+            await message.edit(f"❌ Error uploading file: {e}")
 
+    # Cleanup
     os.remove(downloaded)
     os.remove(output_file)
-    if file_thumb and os.path.exists(file_thumb):
+    if file_thumb:
         os.remove(file_thumb)
-    await message.delete()
+
+    await safe_edit_message(bot, message.chat.id, message.id, "✅ Upload complete!")
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
