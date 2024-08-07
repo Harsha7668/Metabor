@@ -3775,7 +3775,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
-async def process_media(bot, message, selected_streams, downloaded, custom_filename):
+async def process_media(bot, msg, selected_streams, downloaded, custom_filename):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
     output_filename = custom_filename or os.path.basename(output_file)
 
@@ -3802,7 +3802,7 @@ async def process_media(bot, message, selected_streams, downloaded, custom_filen
         output_file = custom_filename
 
     # Retrieve thumbnail from the database
-    thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
+    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
     og_thumbnail = None
     if thumbnail_file_id:
         try:
