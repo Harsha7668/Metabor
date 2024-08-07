@@ -3657,23 +3657,21 @@ async def change_index_audio(bot, msg):
         index = label.split()[0]
         buttons.append([InlineKeyboardButton(f"{label}", callback_data=f"toggle_{index}")])
 
-    buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel"), InlineKeyboardButton("Done", callback_data="done")])
+    buttons.append([InlineKeyboardButton("Reverse Selection", callback_data="reverse_selection"),
+                    InlineKeyboardButton("Cancel", callback_data="cancel"),
+                    InlineKeyboardButton("Done", callback_data="done")])
     markup = InlineKeyboardMarkup(buttons)
 
-    selected_streams.clear()  # Ensure selected_streams is defined and accessible
+    # Save initial state to the database
+    await db.insert_file_data(msg.message_id, msg.from_user.id, downloaded, stream_labels)
+
+    selected_streams.clear()
     await sts.edit("Select the streams you want to remove:", reply_markup=markup)
 
-    # Insert initial file data into the database
-    stream_info = {
-        "streams": stream_labels
-    }
-    await db.insert_file_data(msg.message_id, msg.from_user.id, downloaded, stream_info)
-
-@Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel'))
+@Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel|reverse_selection'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     global selected_streams
     global downloaded
-
     data = callback_query.data
 
     if data == "cancel":
@@ -3685,6 +3683,26 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
     if data == "done":
         await callback_query.message.edit("💠 Changing audio indexing... ⚡")
         await process_media(bot, callback_query.message, selected_streams, downloaded)
+        return
+
+    if data == "reverse_selection":
+        # Reverse the current selection
+        all_indices = {btn.callback_data.split('_')[1] for row in callback_query.message.reply_markup.inline_keyboard for btn in row if btn.callback_data.startswith('toggle_')}
+        selected_streams = all_indices - selected_streams
+        await db.update_selected_streams(callback_query.message.message_id, list(selected_streams))
+        # Update buttons to reflect new selection
+        buttons = callback_query.message.reply_markup.inline_keyboard
+        for row in buttons:
+            for button in row:
+                if button.callback_data.startswith('toggle_'):
+                    index = button.callback_data.split('_')[1]
+                    if index in selected_streams:
+                        if not button.text.startswith("✅"):
+                            button.text = f"✅ {button.text}"
+                    else:
+                        if button.text.startswith("✅"):
+                            button.text = button.text[2:]  # Remove the checkmark
+        await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
         return
 
     # Toggle selection state
@@ -3748,7 +3766,7 @@ async def process_media(bot, message, selected_streams, downloaded):
 
     if filesize > FILE_SIZE_LIMIT:
         file_link = await upload_to_google_drive(output_file, os.path.basename(output_file), message)
-        button = [[InlineKeyboardButton("☁️ Cloud URL ☁️", url=f"{file_link}")]]
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
         await bot.send_message(
             message.chat.id,
             f"**File successfully changed audio index and uploaded to Google Drive!**\n\n"
@@ -3771,12 +3789,12 @@ async def process_media(bot, message, selected_streams, downloaded):
         except Exception as e:
             await message.edit(f"Error: {e}")
 
+    # Clean up local files
     os.remove(downloaded)
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
-    await message.delete()
-
+    await message.delete()   
             
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
