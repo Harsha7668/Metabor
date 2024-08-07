@@ -3751,7 +3751,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
             custom_filename = command_text.split("-n")[1].strip()
         
         await safe_edit_message(bot, callback_query.message.chat.id, callback_query.message.id, "💠 Removing selected streams... ⚡")
-        await process_media(bot, callback_query.message, selected_streams, downloaded, custom_filename)
+        await process_media(bot, callback_query.message, selected_streams, downloaded, custom_filename, sts)
         return
 
     # Toggle selection state
