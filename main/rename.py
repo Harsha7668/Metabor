@@ -3627,6 +3627,11 @@ async def change_index_audio(bot, msg):
         os.remove(downloaded)
         return
 
+    # Save the JSON output to a file
+    json_file = downloaded + '.json'
+    with open(json_file, 'w') as f:
+        f.write(stdout.decode('utf-8'))
+
     streams = json.loads(stdout.decode('utf-8')).get('streams', [])
     stream_labels = []
 
@@ -3665,70 +3670,26 @@ async def change_index_audio(bot, msg):
     selected_streams.clear()
     await sts.edit("Select the streams you want to remove:", reply_markup=markup)
 
-@Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel|reverse'))
-async def callback_query_handler(bot, callback_query: CallbackQuery):
-    global selected_streams
-    global downloaded
-    data = callback_query.data
-
-    if data == "cancel":
-        await callback_query.message.delete()
-        if downloaded:
-            os.remove(downloaded)
-        return
-
-    if data == "reverse":
-        buttons = callback_query.message.reply_markup.inline_keyboard
-        all_indices = {btn.callback_data.split('_')[1] for row in buttons for btn in row if btn.callback_data.startswith('toggle_')}
-        selected_streams.symmetric_difference_update(all_indices)
-
-        for row in buttons:
-            for button in row:
-                if button.callback_data.startswith("toggle_"):
-                    index = button.callback_data.split('_')[1]
-                    if index in selected_streams:
-                        button.text = f"✅ {button.text.lstrip('✅').strip()}"
-                    else:
-                        button.text = button.text.lstrip('✅').strip()
-
-        await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
-        return
-
-    if data == "done":
-        await callback_query.message.edit("💠 Changing audio indexing... ⚡")
-        await process_media(bot, callback_query.message, selected_streams, downloaded)
-        return
-
-    # Toggle selection state
-    index = data.split('_')[1]
-    if index in selected_streams:
-        selected_streams.remove(index)
-    else:
-        selected_streams.add(index)
-
-    # Update buttons to reflect selection
-    buttons = callback_query.message.reply_markup.inline_keyboard
-    for row in buttons:
-        for button in row:
-            if button.callback_data == f"toggle_{index}":
-                if button.text.startswith("✅"):
-                    button.text = button.text[2:]  # Remove the checkmark
-                else:
-                    button.text = f"✅ {button.text}"  # Add the checkmark
-                break
-
-    await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
-
 async def process_media(bot, message, selected_streams, downloaded):
     # Parse the new filename from the message text
     command_args = message.text.split()
     new_filename = command_args[2] if len(command_args) > 2 else os.path.splitext(downloaded)[0] + "_indexed" + os.path.splitext(downloaded)[1]
     output_file = os.path.join(os.path.dirname(downloaded), new_filename)
 
+    # Load the JSON file containing stream information
+    json_file = downloaded + '.json'
+    if not os.path.exists(json_file):
+        await message.edit("❗ JSON file not found.")
+        os.remove(downloaded)
+        return
+
+    with open(json_file, 'r') as f:
+        streams_info = json.load(f)
+
     # Generate ffmpeg command to remove selected streams
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0:v?']
 
-    for idx in set(idx['index'] for idx in json.loads(open(downloaded + '.json').read())['streams']) - set(map(int, selected_streams)):
+    for idx in set(idx['index'] for idx in streams_info['streams']) - set(map(int, selected_streams)):
         ffmpeg_cmd.extend(['-map', f'0:{idx}'])
 
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
@@ -3789,11 +3750,12 @@ async def process_media(bot, message, selected_streams, downloaded):
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
+    if os.path.exists(json_file):
+        os.remove(json_file)
     await message.delete()
-    
 
-        
-            
+
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
