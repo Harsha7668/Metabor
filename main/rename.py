@@ -3563,7 +3563,11 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
     # Execute FFmpeg command
-    process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    process = await asyncio.create_subprocess_exec(
+        *ffmpeg_cmd, 
+        stdout=asyncio.subprocess.PIPE, 
+        stderr=asyncio.subprocess.PIPE
+    )
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
@@ -3594,47 +3598,49 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
 
     await safe_edit_message(sts, "💠 Uploading... ⚡")
     c_time = time.time()
-        
+
     if filesize > FILE_SIZE_LIMIT:
         file_link = await upload_to_google_drive(output_file, output_filename, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=file_link)]]
         await bot.send_message(
             chat_id=user_id,
-            text=f"**File successfully stream removed and uploaded to Google Drive!**\n\n"
-                 f"**Google Drive Link**: [View File]({file_link})\n\n"
-                 f"**Uploaded File**: {output_filename}\n"
-                 f"**Request User:** {callback_query.from_user.mention}\n\n"
-                 f"**Size**: {filesize_human}",
+            text=(
+                f"**File successfully stream removed and uploaded to Google Drive!**\n\n"
+                f"**Google Drive Link**: [View File]({file_link})\n\n"
+                f"**Uploaded File**: {output_filename}\n"
+                f"**Request User:** {callback_query.from_user.mention}\n\n"
+                f"**Size**: {filesize_human}"
+            ),
             reply_markup=InlineKeyboardMarkup(button)
         )
     else:
         try:
-           await bot.send_document(
-               chat_id=user_id,
-               document=output_file,
-               thumb=file_thumb,
-               caption=cap,
-               progress=progress_message,
-               progress_args=("💠 Upload Started... ⚡", sts, c_time)
-           )
-       except Exception as e:
-           await safe_edit_message(sts, f"Error: {e}")
+            await bot.send_document(
+                chat_id=user_id,
+                document=output_file,
+                thumb=file_thumb,
+                caption=cap,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, c_time)
+            )
+        except Exception as e:
+            await safe_edit_message(sts, f"Error: {e}")
 
     # Send a message to the user after the file is sent to their PM
-           group_message_text = (
-                  f"┗🚹 **Request User:** {callback_query.from_user.mention}\n\n"
-                  f"❄ **File has been sent in Bot PM!**"
-           )
-           await bot.send_message(
-               chat_id=user_id,  # Send the group message to the user
-               text=group_message_text
-           )
+    group_message_text = (
+        f"┗🚹 **Request User:** {callback_query.from_user.mention}\n\n"
+        f"❄ **File has been sent in Bot PM!**"
+    )
+    await bot.send_message(
+        chat_id=user_id,  # Send the group message to the user
+        text=group_message_text
+    )
 
-   os.remove(downloaded)
-   os.remove(output_file)
-   if file_thumb and os.path.exists(file_thumb):
-       os.remove(file_thumb)
-   await sts.delete()
+    os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
+    await sts.delete()
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
