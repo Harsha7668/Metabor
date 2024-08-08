@@ -3829,18 +3829,16 @@ async def process_media_and_change_metadata(bot, callback_query, selected_stream
     output_file = output_filename
 
     # Step 1: Stream Removal
-    # Construct FFmpeg command to process media
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0']
     for idx in selected_streams:
         ffmpeg_cmd.extend(['-map', f'-0:{idx}'])
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
-    # Execute FFmpeg command
     process = await asyncio.create_subprocess_exec(*ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        await safe_edit_message(sts, f"❗ FFmpeg error during stream removal: {stderr.decode('utf-8')}")
+        await safe_edit_message(sts, f"❗ FFmpeg error during stream removal: {stderr.decode('utf-8')[:4000]}")
         os.remove(downloaded)
         if os.path.exists(output_file):
             os.remove(output_file)
@@ -3857,7 +3855,9 @@ async def process_media_and_change_metadata(bot, callback_query, selected_stream
         try:
             change_video_metadata(output_file, video_title, audio_title, subtitle_title, output_file)
         except Exception as e:
-            await safe_edit_message(sts, f"❌ Error changing metadata: {e}")
+            # Split the error message if it's too long
+            error_message = str(e)
+            await safe_edit_message(sts, f"❌ Error changing metadata: {error_message[:4000]}")
             os.remove(downloaded)
             if os.path.exists(output_file):
                 os.remove(output_file)
@@ -3917,7 +3917,7 @@ async def process_media_and_change_metadata(bot, callback_query, selected_stream
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await sts.delete()
-
+        
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
