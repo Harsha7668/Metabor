@@ -4015,9 +4015,30 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 import asyncio
 import os
 import time
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from pyrogram.errors import FloodWait
 
+
+# Function to safely edit a message with retries
+async def safe_edit_message(message, text, reply_markup=None):
+    retry_attempts = 5
+    for attempt in range(retry_attempts):
+        try:
+            await message.edit_text(text, reply_markup=reply_markup)
+            break
+        except FloodWait as e:
+            await asyncio.sleep(e.value)
+        except Exception as e:
+            if attempt == retry_attempts - 1:
+                print(f"Failed to edit message after {retry_attempts} attempts: {e}")
+                break
+            await asyncio.sleep(2 ** attempt)  # Exponential backoff
+
+
+# Process media function
 async def process_media(bot, message, selected_streams, downloaded):
+    user_id = message.from_user.id
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
     output_filename = os.path.basename(output_file)
 
@@ -4032,24 +4053,24 @@ async def process_media(bot, message, selected_streams, downloaded):
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        await safe_edit_message(bot, message.chat.id, message.id, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        await safe_edit_message(message, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
         os.remove(downloaded)
         if os.path.exists(output_file):
             os.remove(output_file)
         return
 
     # Retrieve thumbnail from the database
-    thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
-    og_thumbnail = None
+    thumbnail_file_id = await db.get_thumbnail(user_id)
+    file_thumb = None
     if thumbnail_file_id:
         try:
-            og_thumbnail = await bot.download_media(thumbnail_file_id)
+            file_thumb = await bot.download_media(thumbnail_file_id)
         except Exception:
             pass
     else:
         if hasattr(message.reply_to_message, 'thumbs') and message.reply_to_message.thumbs:
             try:
-                og_thumbnail = await bot.download_media(message.reply_to_message.thumbs[0].file_id)
+                file_thumb = await bot.download_media(message.reply_to_message.thumbs[0].file_id)
             except Exception:
                 pass
 
@@ -4057,41 +4078,34 @@ async def process_media(bot, message, selected_streams, downloaded):
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
 
-    await safe_edit_message(bot, message.chat.id, message.id, "💠 Uploading... ⚡")
+    sts = await message.edit_text("💠 Uploading... ⚡")
     c_time = time.time()
 
     if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, output_filename, message)
-        await message.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {output_filename}\n💾 **Size:** {filesize_human}\n🔗 **Link:** {file_link}")
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await message.reply_text(
+            f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {output_filename}\n"
+            f"**Request User:** {message.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
     else:
         try:
-            await bot.send_document(message.chat.id, document=output_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", message, c_time))
-        except FloodWait as e:
-            await asyncio.sleep(e.value)
-            await bot.send_document(message.chat.id, document=output_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", message, c_time))
+            await bot.send_document(message.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
         except Exception as e:
-            await safe_edit_message(bot, message.chat.id, message.id, f"Error: {e}")
+            return await safe_edit_message(sts, f"Error: {e}")
 
     os.remove(downloaded)
     os.remove(output_file)
-    if og_thumbnail and os.path.exists(og_thumbnail):
-        os.remove(og_thumbnail)
-    await message.delete()
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
+    await sts.delete()
 
-async def safe_edit_message(bot, chat_id, message_id, text, reply_markup=None):
-    retry_attempts = 5
-    for attempt in range(retry_attempts):
-        try:
-            await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=reply_markup)
-            break
-        except FloodWait as e:
-            await asyncio.sleep(e.value)
-        except Exception as e:
-            if attempt == retry_attempts - 1:
-                print(f"Failed to edit message after {retry_attempts} attempts: {e}")
-                break
-            await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                
+
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
