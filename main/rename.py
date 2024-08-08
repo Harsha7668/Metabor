@@ -3870,7 +3870,6 @@ from pyrogram.errors import FloodWait
 CHANGE_INDEX_ENABLED = True
 selected_streams = set()
 downloaded = None
-GROUP = -1001234567890  # Replace with your group ID
 
 @Client.on_message(filters.command("streamremove") & filters.chat(GROUP))
 async def change_index_audio(bot, msg):
