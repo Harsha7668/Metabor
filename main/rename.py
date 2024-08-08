@@ -3960,17 +3960,17 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
     data = callback_query.data
 
     # Check if the user who initiated the command matches the callback query user
-    if callback_query.from_user.id != callback_query.msg.reply_to_message.from_user.id:
+    if callback_query.from_user.id != callback_query.message.reply_to_message.from_user.id:
         return
 
     if data == "cancel":
-        await callback_query.msg.delete()
+        await callback_query.message.delete()
         if downloaded:
             os.remove(downloaded)
         return
 
     if data == "reverse":
-        buttons = callback_query.msg.reply_markup.inline_keyboard
+        buttons = callback_query.message.reply_markup.inline_keyboard
         all_indices = {btn.callback_data.split('_')[1] for row in buttons for btn in row if btn.callback_data.startswith('toggle_')}
         selected_streams.symmetric_difference_update(all_indices)
 
@@ -3984,12 +3984,12 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
                     else:
                         button.text = button.text.lstrip('✅').strip()
 
-        await callback_query.msg.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+        await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
         return
 
     if data == "done":
-        sts = await callback_query.msg.edit_text("💠 Removing selected streams... ⚡")
-        await process_media(bot, callback_query.msg, selected_streams, downloaded)
+        sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
+        await process_media(bot, callback_query.message, selected_streams, downloaded)
         return
 
     # Toggle selection state
@@ -4000,7 +4000,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         selected_streams.add(index)
 
     # Update buttons to reflect selection
-    buttons = callback_query.msg.reply_markup.inline_keyboard
+    buttons = callback_query.message.reply_markup.inline_keyboard
     for row in buttons:
         for button in row:
             if button.callback_data == f"toggle_{index}":
@@ -4010,7 +4010,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
                     button.text = f"✅ {button.text}"  # Add the checkmark
                 break
 
-    await callback_query.msg.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+    await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
 import asyncio
 import os
