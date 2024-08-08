@@ -3858,6 +3858,13 @@ async def safe_edit_message(bot, chat_id, message_id, text, reply_markup=None):
         print(f"Error editing message: {e}")
 """
 
+import asyncio
+import os
+import time
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from pyrogram.errors import FloodWait
+
 @Client.on_message(filters.command("streamremove") & filters.chat(GROUP))
 async def change_index_audio(bot, msg):
     global CHANGE_INDEX_ENABLED
@@ -3870,6 +3877,14 @@ async def change_index_audio(bot, msg):
     reply = msg.reply_to_message
     if not reply:
         return await msg.reply_text("❗ Please reply to a media file with the command\nFormat: `/streamremove -n filename.mkv`")
+
+    if len(msg.command) < 3 or msg.command[1] != "-n":
+        return await msg.reply_text("Please provide the filename with the `-n` flag\nFormat: `/streamremove -n filename.mkv`")
+
+    output_filename = " ".join(msg.command[2:]).strip()
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
 
     media = reply.document or reply.audio or reply.video
     if not media:
@@ -3952,7 +3967,6 @@ async def change_index_audio(bot, msg):
             if downloaded:
                 os.remove(downloaded)
 
-# Handle callback queries
 @Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel|reverse'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     global selected_streams
@@ -3989,14 +4003,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     if data == "done":
         sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
-        # Define the output filename here
-        output_filename = f"processed_{os.path.basename(downloaded)}"
-        
-        # Retrieve media from the original reply message
-        reply = callback_query.message.reply_to_message
-        media = reply.document or reply.audio or reply.video
-        
-        await process_media(bot, callback_query.message, selected_streams, downloaded, output_filename, media)
+        await process_media(bot, callback_query.message, selected_streams, downloaded, output_filename)
         return
 
     # Toggle selection state
@@ -4019,7 +4026,23 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
-async def process_media(bot, msg, selected_streams, downloaded, output_filename, media):
+# Function to safely edit a message with retries
+async def safe_edit_message(message, text, reply_markup=None):
+    retry_attempts = 5
+    for attempt in range(retry_attempts):
+        try:
+            await message.edit_text(text, reply_markup=reply_markup)
+            break
+        except FloodWait as e:
+            await asyncio.sleep(e.value)
+        except Exception as e:
+            if attempt == retry_attempts - 1:
+                print(f"Failed to edit message after {retry_attempts} attempts: {e}")
+                break
+            await asyncio.sleep(2 ** attempt)  # Exponential backoff
+
+# Process media function
+async def process_media(bot, msg, selected_streams, downloaded, output_filename):
     user_id = msg.from_user.id
     output_file = output_filename
 
@@ -4052,21 +4075,21 @@ async def process_media(bot, msg, selected_streams, downloaded, output_filename,
         if hasattr(media, 'thumbs') and media.thumbs:
             try:
                 file_thumb = await bot.download_media(media.thumbs[0].file_id)
-            except Exception:
+            except Exception as e:
                 file_thumb = None
 
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
 
-    await safe_edit_message(msg, "💠 Uploading... ⚡")
+    await safe_edit_message(sts, "💠 Uploading... ⚡")
     c_time = time.time()
 
     if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, output_filename, msg)
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
         button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
         await msg.reply_text(
-            f"**File successfully changed index and uploaded to Google Drive!**\n\n"
+            f"**File successfully Stream Remove and uploaded to Google Drive!**\n\n"
             f"**Google Drive Link**: [View File]({file_link})\n\n"
             f"**Uploaded File**: {output_filename}\n"
             f"**Request User:** {msg.from_user.mention}\n\n"
@@ -4075,17 +4098,15 @@ async def process_media(bot, msg, selected_streams, downloaded, output_filename,
         )
     else:
         try:
-            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", msg, c_time))
+            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
         except Exception as e:
-            return await safe_edit_message(msg, f"Error: {e}")
+            return await safe_edit_message(sts, f"Error: {e}")
 
     os.remove(downloaded)
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
-    await msg.delete()
-
-
+    await sts.delete()    
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
