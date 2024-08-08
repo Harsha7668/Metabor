@@ -3841,8 +3841,8 @@ async def process_media(bot, message, selected_streams, downloaded, custom_filen
 """
 
 import json
-import time
 import os
+import time
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
@@ -3894,7 +3894,8 @@ async def change_index_audio(bot, msg):
         return
 
     streams = json.loads(stdout.decode('utf-8')).get('streams', [])
-    stream_labels = []
+    audio_labels = []
+    subtitle_labels = []
 
     for stream in streams:
         stream_index = stream['index']
@@ -3903,24 +3904,26 @@ async def change_index_audio(bot, msg):
 
         if codec_type == 'audio':
             if language == 'tel':
-                stream_labels.append(f"{stream_index} || 🎵 Telugu Audio")
+                audio_labels.append(f"{stream_index} 🎵 Telugu Audio")
             elif language == 'tam':
-                stream_labels.append(f"{stream_index} || 🎵 Tamil Audio")
+                audio_labels.append(f"{stream_index} 🎵 Tamil Audio")
             elif language == 'hin':
-                stream_labels.append(f"{stream_index} || 🎵 Hindi Audio")
+                audio_labels.append(f"{stream_index} 🎵 Hindi Audio")
             else:
-                stream_labels.append(f"{stream_index} || 🎵 Audio - {language}")
+                audio_labels.append(f"{stream_index} 🎵 Audio - {language}")
         elif codec_type == 'subtitle':
             if language == 'eng':
-                stream_labels.append(f"{stream_index} || 📝 English Subtitle")
+                subtitle_labels.append(f"{stream_index} 📝 English Subtitle")
             else:
-                stream_labels.append(f"{stream_index} || 📝 Subtitle - {language}")
-        elif codec_type == 'video':
-            stream_labels.append(f"{stream_index} || 📹 Video")
+                subtitle_labels.append(f"{stream_index} 📝 Subtitle - {language}")
 
     # Build the inline keyboard with available streams
     buttons = []
-    for label in stream_labels:
+    for label in audio_labels:
+        index = label.split()[0]
+        buttons.append([InlineKeyboardButton(f"{label}", callback_data=f"toggle_{index}")])
+
+    for label in subtitle_labels:
         index = label.split()[0]
         buttons.append([InlineKeyboardButton(f"{label}", callback_data=f"toggle_{index}")])
 
@@ -3943,7 +3946,6 @@ async def change_index_audio(bot, msg):
             await message.delete()
             if downloaded:
                 os.remove(downloaded)
-
 
 @Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel|reverse'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
@@ -3980,14 +3982,8 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         return
 
     if data == "done":
-        # Extract the custom filename from the message
-        command_text = callback_query.message.reply_to_message.text
-        custom_filename = None
-        if "-n" in command_text:
-            custom_filename = command_text.split("-n")[1].strip()
-        
         sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
-        await process_media(bot, callback_query.message, selected_streams, downloaded, custom_filename)
+        await process_media(bot, callback_query.message, selected_streams, downloaded)
         return
 
     # Toggle selection state
@@ -4010,9 +4006,9 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
-async def process_media(bot, message, selected_streams, downloaded, custom_filename):
+async def process_media(bot, message, selected_streams, downloaded):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
-    output_filename = custom_filename or os.path.basename(output_file)
+    output_filename = os.path.basename(output_file)
 
     # Construct FFmpeg command to process media
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0']
@@ -4030,11 +4026,6 @@ async def process_media(bot, message, selected_streams, downloaded, custom_filen
         if os.path.exists(output_file):
             os.remove(output_file)
         return
-
-    # Rename output file if custom filename provided
-    if custom_filename and custom_filename != output_filename:
-        os.rename(output_file, custom_filename)
-        output_file = custom_filename
 
     # Retrieve thumbnail from the database
     thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
@@ -4072,6 +4063,7 @@ async def process_media(bot, message, selected_streams, downloaded, custom_filen
     if og_thumbnail and os.path.exists(og_thumbnail):
         os.remove(og_thumbnail)
     await message.delete()
+    
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
