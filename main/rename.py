@@ -4050,8 +4050,8 @@ async def safe_edit_message(message, text, reply_markup=None):
             await asyncio.sleep(2 ** attempt)  # Exponential backoff
 
 # Process media function
-async def process_media(bot, msg, selected_streams, downloaded, output_filename):
-    user_id = msg.from_user.id
+async def process_media(bot, callback_query_msg, selected_streams, downloaded, output_filename):
+    user_id = callback_query_msg.from_user.id
     output_file = output_filename
 
     # Construct FFmpeg command to process media
@@ -4065,7 +4065,7 @@ async def process_media(bot, msg, selected_streams, downloaded, output_filename)
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        await safe_edit_message(msg, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        await safe_edit_message(callback_query_msg, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
         os.remove(downloaded)
         if os.path.exists(output_file):
             os.remove(output_file)
@@ -4081,9 +4081,9 @@ async def process_media(bot, msg, selected_streams, downloaded, output_filename)
             pass
     else:
         # Attempt to extract thumbnail from the media
-        if hasattr(msg.reply_to_message, 'thumbs') and msg.reply_to_message.thumbs:
+        if hasattr(callback_query_msg.reply_to_message, 'thumbs') and callback_query_msg.reply_to_message.thumbs:
             try:
-                file_thumb = await bot.download_media(msg.reply_to_message.thumbs[0].file_id)
+                file_thumb = await bot.download_media(callback_query_msg.reply_to_message.thumbs[0].file_id)
             except Exception as e:
                 print(f"Failed to download thumbnail: {e}")
 
@@ -4094,10 +4094,10 @@ async def process_media(bot, msg, selected_streams, downloaded, output_filename)
             document=output_file,
             thumb=file_thumb,
             caption=f"🎬 Processed file: `{os.path.basename(output_file)}`",
-            reply_to_message_id=msg.reply_to_message.message_id
+            reply_to_message_id=callback_query_msg.reply_to_message.message_id  # Correctly referencing reply_to_message
         )
     except Exception as e:
-        await safe_edit_message(msg, f"❗ Error sending processed file: {e}")
+        await safe_edit_message(callback_query_msg, f"❗ Error sending processed file: {e}")
     finally:
         # Clean up temporary files
         os.remove(downloaded)
@@ -4105,7 +4105,6 @@ async def process_media(bot, msg, selected_streams, downloaded, output_filename)
             os.remove(output_file)
         if file_thumb:
             os.remove(file_thumb)
-
 
 
 if __name__ == '__main__':
