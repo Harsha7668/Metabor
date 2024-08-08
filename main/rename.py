@@ -3628,6 +3628,9 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
 
     # Send a message to the user after the file is sent to their PM
     group_message_text = (
+        f"┏📥 **File Name:** {output_filename}\n"
+        f"┠💾 **Size:** {filesize_human}\n"
+        f"┠♻️ **Mode:** Stream Remove\n"                
         f"┗🚹 **Request User:** {callback_query.from_user.mention}\n\n"
         f"❄ **File has been sent in Bot PM!**"
     )
