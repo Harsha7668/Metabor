@@ -3861,15 +3861,23 @@ async def safe_edit_message(bot, chat_id, message_id, text, reply_markup=None):
 import asyncio
 import os
 import time
+import json
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from pyrogram.errors import FloodWait
+
+# Define your constants and global variables here
+CHANGE_INDEX_ENABLED = True
+selected_streams = set()
+downloaded = None
+GROUP = -1001234567890  # Replace with your group ID
 
 @Client.on_message(filters.command("streamremove") & filters.chat(GROUP))
 async def change_index_audio(bot, msg):
     global CHANGE_INDEX_ENABLED
     global selected_streams
     global downloaded
+    global output_filename
 
     if not CHANGE_INDEX_ENABLED:
         return await msg.reply_text("🚫 The streamremove feature is currently disabled.")
@@ -3971,6 +3979,7 @@ async def change_index_audio(bot, msg):
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     global selected_streams
     global downloaded
+    global output_filename
     data = callback_query.data
 
     # Check if the user who initiated the command matches the callback query user
@@ -4072,41 +4081,33 @@ async def process_media(bot, msg, selected_streams, downloaded, output_filename)
         except Exception:
             pass
     else:
-        if hasattr(media, 'thumbs') and media.thumbs:
+        # Attempt to extract thumbnail from the media
+        if hasattr(msg.reply_to_message, 'thumbs') and msg.reply_to_message.thumbs:
             try:
-                file_thumb = await bot.download_media(media.thumbs[0].file_id)
+                file_thumb = await bot.download_media(msg.reply_to_message.thumbs[0].file_id)
             except Exception as e:
-                file_thumb = None
+                print(f"Failed to download thumbnail: {e}")
 
-    filesize = os.path.getsize(output_file)
-    filesize_human = humanbytes(filesize)
-    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
-
-    await safe_edit_message(sts, "💠 Uploading... ⚡")
-    c_time = time.time()
-
-    if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, output_filename, sts)
-        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"**File successfully Stream Remove and uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {output_filename}\n"
-            f"**Request User:** {msg.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
-            reply_markup=InlineKeyboardMarkup(button)
+    # Send the processed file to the user
+    try:
+        await bot.send_document(
+            chat_id=user_id,
+            document=output_file,
+            thumb=file_thumb,
+            caption=f"🎬 Processed file: `{os.path.basename(output_file)}`",
+            reply_to_message_id=msg.reply_to_message.message_id
         )
-    else:
-        try:
-            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
-        except Exception as e:
-            return await safe_edit_message(sts, f"Error: {e}")
+    except Exception as e:
+        await safe_edit_message(msg, f"❗ Error sending processed file: {e}")
+    finally:
+        # Clean up temporary files
+        os.remove(downloaded)
+        if os.path.exists(output_file):
+            os.remove(output_file)
+        if file_thumb:
+            os.remove(file_thumb)
 
-    os.remove(downloaded)
-    os.remove(output_file)
-    if file_thumb and os.path.exists(file_thumb):
-        os.remove(file_thumb)
-    await sts.delete()    
+
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
