@@ -259,105 +259,71 @@ async def display_user_settings(client, msg, edit=False):
 @Client.on_message(filters.command("usersettings") & filters.chat(GROUP))
 async def display_user_settings(client, msg, edit=False):
     user_id = msg.from_user.id
-    
     settings = await db.get_user_settings(user_id)
     upload_preference = settings.get('upload_preference', {})
     
     below_2gb = upload_preference.get('below_2gb', 'Telegram')
     above_2gb_default = upload_preference.get('above_2gb_default', 'Google Drive')
     above_2gb_alternative = upload_preference.get('above_2gb_alternative', 'GoFile')
-    
-    gofile_enabled = upload_preference.get('above_2gb_alternative_enabled', False)
-    google_drive_enabled = upload_preference.get('above_2gb_default_enabled', True)
-    telegram_enabled = upload_preference.get('below_2gb_enabled', True)
+    google_drive_enabled = upload_preference.get('google_drive_enabled', True)
+    gofile_enabled = upload_preference.get('gofile_enabled', False)
+
+    google_drive_status = '✅ Enabled' if google_drive_enabled else '❌ Disabled'
+    gofile_status = '✅ Enabled' if gofile_enabled else '❌ Disabled'
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
-        [InlineKeyboardButton(f"Upload to Telegram: {'✅' if telegram_enabled else '❌'}", callback_data="toggle_telegram")],
-        [InlineKeyboardButton(f"Upload to Google Drive: {'✅' if google_drive_enabled else '❌'}", callback_data="toggle_google_drive")],
-        [InlineKeyboardButton(f"Upload to GoFile: {'✅' if gofile_enabled else '❌'}", callback_data="toggle_gofile")],
+        [InlineKeyboardButton("Upload Destination (<2GB):", callback_data="upload_below_2gb"),
+         InlineKeyboardButton(f"Current: {below_2gb}", callback_data="change_below_2gb")],
+        [InlineKeyboardButton("Upload Destination (>=2GB Default):", callback_data="upload_above_2gb_default"),
+         InlineKeyboardButton(f"Current: {above_2gb_default}", callback_data="change_above_2gb_default")],
+        [InlineKeyboardButton("Upload Destination (>=2GB Alternative):", callback_data="upload_above_2gb_alternative"),
+         InlineKeyboardButton(f"Current: {above_2gb_alternative}", callback_data="change_above_2gb_alternative")],
+        [InlineKeyboardButton(f"Google Drive {google_drive_status}", callback_data="toggle_google_drive")],
+        [InlineKeyboardButton(f"GoFile {gofile_status}", callback_data="toggle_gofile")],
         [InlineKeyboardButton("Close ❌", callback_data="del")]
     ])
     
     settings_text = (f"User Settings\n"
-                     f"Upload Destination (<2GB): {below_2gb} {'✅' if telegram_enabled else '❌'}\n"
-                     f"Upload Destination (>=2GB Default): {above_2gb_default} {'✅' if google_drive_enabled else '❌'}\n"
-                     f"Upload Destination (>=2GB Alternative): {above_2gb_alternative} {'✅' if gofile_enabled else '❌'}")
+                     f"Upload Destination (<2GB): {below_2gb}\n"
+                     f"Upload Destination (>=2GB Default): {above_2gb_default}\n"
+                     f"Upload Destination (>=2GB Alternative): {above_2gb_alternative}\n"
+                     f"Google Drive: {google_drive_status}\n"
+                     f"GoFile: {gofile_status}")
 
     if edit:
         await msg.edit_text(settings_text, reply_markup=keyboard)
     else:
         await msg.reply(settings_text, reply_markup=keyboard)
 
-@Client.on_callback_query(filters.regex(r"^toggle_telegram$"))
-async def toggle_telegram(client, callback_query):
-    user_id = callback_query.from_user.id
-    settings = await db.get_user_settings(user_id)
-    current_status = settings.get('upload_preference', {}).get('below_2gb_enabled', True)
-    
-    # Toggle between enabled and disabled
-    new_status = not current_status
-    await db.set_upload_preferences(
-        user_id,
-        below_2gb_enabled=new_status,
-        above_2gb_default=settings['upload_preference'].get('above_2gb_default'),
-        above_2gb_alternative=settings['upload_preference'].get('above_2gb_alternative'),
-        above_2gb_default_enabled=settings['upload_preference'].get('above_2gb_default_enabled'),
-        above_2gb_alternative_enabled=settings['upload_preference'].get('above_2gb_alternative_enabled'),
-    )
-
-    # Update the settings message to reflect the change
-    await display_user_settings(client, callback_query.message, edit=True)
-
-    # Provide feedback to the user
-    await callback_query.answer(f"Telegram upload enabled: {'✅' if new_status else '❌'}")
-
 @Client.on_callback_query(filters.regex(r"^toggle_google_drive$"))
 async def toggle_google_drive(client, callback_query):
     user_id = callback_query.from_user.id
     settings = await db.get_user_settings(user_id)
-    current_status = settings.get('upload_preference', {}).get('above_2gb_default_enabled', True)
-    
-    # Toggle between enabled and disabled
-    new_status = not current_status
-    await db.set_upload_preferences(
-        user_id,
-        below_2gb=settings['upload_preference'].get('below_2gb'),
-        above_2gb_default_enabled=new_status,
-        above_2gb_alternative=settings['upload_preference'].get('above_2gb_alternative'),
-        below_2gb_enabled=settings['upload_preference'].get('below_2gb_enabled'),
-        above_2gb_alternative_enabled=settings['upload_preference'].get('above_2gb_alternative_enabled'),
-    )
-
-    # Update the settings message to reflect the change
+    google_drive_enabled = not settings.get('upload_preference', {}).get('google_drive_enabled', True)
+    await db.update_user_settings(user_id, {
+        'upload_preference': {
+            'google_drive_enabled': google_drive_enabled,
+            'gofile_enabled': not google_drive_enabled  # Toggle GoFile status
+        }
+    })
+    status = 'enabled' if google_drive_enabled else 'disabled'
+    await callback_query.answer(f"Google Drive is now {status}.")
     await display_user_settings(client, callback_query.message, edit=True)
-
-    # Provide feedback to the user
-    await callback_query.answer(f"Google Drive upload enabled: {'✅' if new_status else '❌'}")
 
 @Client.on_callback_query(filters.regex(r"^toggle_gofile$"))
 async def toggle_gofile(client, callback_query):
     user_id = callback_query.from_user.id
     settings = await db.get_user_settings(user_id)
-    current_status = settings.get('upload_preference', {}).get('above_2gb_alternative_enabled', True)
-    
-    # Toggle between enabled and disabled
-    new_status = not current_status
-    await db.set_upload_preferences(
-        user_id,
-        below_2gb=settings['upload_preference'].get('below_2gb'),
-        above_2gb_default=settings['upload_preference'].get('above_2gb_default'),
-        above_2gb_alternative_enabled=new_status,
-        below_2gb_enabled=settings['upload_preference'].get('below_2gb_enabled'),
-        above_2gb_default_enabled=settings['upload_preference'].get('above_2gb_default_enabled'),
-    )
-
-    # Update the settings message to reflect the change
+    gofile_enabled = not settings.get('upload_preference', {}).get('gofile_enabled', False)
+    await db.update_user_settings(user_id, {
+        'upload_preference': {
+            'gofile_enabled': gofile_enabled,
+            'google_drive_enabled': not gofile_enabled  # Toggle Google Drive status
+        }
+    })
+    status = 'enabled' if gofile_enabled else 'disabled'
+    await callback_query.answer(f"GoFile is now {status}.")
     await display_user_settings(client, callback_query.message, edit=True)
-
-    # Provide feedback to the user
-    await callback_query.answer(f"GoFile upload enabled: {'✅' if new_status else '❌'}")
-
 
 
 
@@ -887,7 +853,13 @@ async def rename_file(client, msg):
     if filesize <= 2 * 1024 * 1024 * 1024:  # Below 2GB
         if below_2gb_enabled:
             try:
-                await client.send_document(msg.chat.id, document=downloaded, caption=f"{new_name}\n\n🌟 Size: {human_filesize}", progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+                await client.send_document(
+                    msg.chat.id,
+                    document=downloaded,
+                    caption=f"{new_name}\n\n🌟 Size: {human_filesize}",
+                    progress=progress_message,
+                    progress_args=("💠 Upload Started... ⚡", sts, c_time)
+                )
             except Exception as e:
                 return await sts.edit(f"Error: {e}")
         else:
@@ -895,7 +867,9 @@ async def rename_file(client, msg):
     else:  # Above 2GB
         if above_2gb_default_enabled:
             file_link = await upload_to_google_drive(downloaded, new_name, sts)
-            await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {human_filesize}\n🔗 **Link:** {file_link}")
+            await msg.reply_text(
+                f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {human_filesize}\n🔗 **Link:** {file_link}"
+            )
         elif above_2gb_alternative_enabled:
             user_id = msg.from_user.id
             gofile_api_key = await db.get_gofile_api_key(user_id)
@@ -932,7 +906,6 @@ async def rename_file(client, msg):
 
     os.remove(downloaded)
     await sts.delete()
-    
 
 #Change Metadata Code
 @Client.on_message(filters.command("changemetadata") & filters.chat(GROUP))
