@@ -3991,7 +3991,12 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
         # Define the output filename here
         output_filename = f"processed_{os.path.basename(downloaded)}"
-        await process_media(bot, callback_query.message, selected_streams, downloaded, output_filename)
+        
+        # Retrieve media from the original reply message
+        reply = callback_query.message.reply_to_message
+        media = reply.document or reply.audio or reply.video
+        
+        await process_media(bot, callback_query.message, selected_streams, downloaded, output_filename, media)
         return
 
     # Toggle selection state
@@ -4014,32 +4019,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
-
-
-import asyncio
-import os
-import time
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
-from pyrogram.errors import FloodWait
-
-# Function to safely edit a message with retries
-async def safe_edit_message(message, text, reply_markup=None):
-    retry_attempts = 5
-    for attempt in range(retry_attempts):
-        try:
-            await message.edit_text(text, reply_markup=reply_markup)
-            break
-        except FloodWait as e:
-            await asyncio.sleep(e.value)
-        except Exception as e:
-            if attempt == retry_attempts - 1:
-                print(f"Failed to edit message after {retry_attempts} attempts: {e}")
-                break
-            await asyncio.sleep(2 ** attempt)  # Exponential backoff
-
-# Process media function
-async def process_media(bot, msg, selected_streams, downloaded, output_filename):
+async def process_media(bot, msg, selected_streams, downloaded, output_filename, media):
     user_id = msg.from_user.id
     output_file = output_filename
 
@@ -4104,7 +4084,6 @@ async def process_media(bot, msg, selected_streams, downloaded, output_filename)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await msg.delete()
-
 
 
 
