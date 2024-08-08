@@ -3994,7 +3994,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     if data == "done":
         sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
-        await process_media(bot, callback_query, selected_streams, downloaded, output_filename)
+        await process_media(bot, callback_query, selected_streams, downloaded, output_filename, sts)
         return
 
     # Toggle selection state
@@ -4033,7 +4033,7 @@ async def safe_edit_message(message, text, reply_markup=None):
             await asyncio.sleep(2 ** attempt)  # Exponential backoff
 
 # Process media function
-async def process_media(bot, callback_query, selected_streams, downloaded, output_filename):
+async def process_media(bot, callback_query, selected_streams, downloaded, output_filename, sts):
     user_id = callback_query.from_user.id
     original_message = callback_query.message.reply_to_message
     output_file = output_filename
@@ -4049,7 +4049,7 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        await safe_edit_message(callback_query.message, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        await safe_edit_message(sts, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
         os.remove(downloaded)
         if os.path.exists(output_file):
             os.remove(output_file)
@@ -4064,9 +4064,9 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
         except Exception:
             pass
     else:
-        if hasattr(media, 'thumbs') and media.thumbs:
+        if hasattr(original_message, 'thumbs') and original_message.thumbs:
             try:
-                file_thumb = await bot.download_media(media.thumbs[0].file_id)
+                file_thumb = await bot.download_media(original_message.thumbs[0].file_id)
             except Exception as e:
                 file_thumb = None
 
@@ -4080,28 +4080,33 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
     if filesize > FILE_SIZE_LIMIT:
         file_link = await upload_to_google_drive(output_file, output_filename, sts)
         button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await msg.reply_text(
-            f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
-            f"**Google Drive Link**: [View File]({file_link})\n\n"
-            f"**Uploaded File**: {output_filename}\n"
-            f"**Request User:** {msg.from_user.mention}\n\n"
-            f"**Size**: {filesize_human}",
+        await bot.send_message(
+            chat_id=user_id,
+            text=f"**File successfully stream remove and uploaded to Google Drive!**\n\n"
+                 f"**Google Drive Link**: [View File]({file_link})\n\n"
+                 f"**Uploaded File**: {output_filename}\n"
+                 f"**Request User:** {callback_query.from_user.mention}\n\n"
+                 f"**Size**: {filesize_human}",
             reply_markup=InlineKeyboardMarkup(button)
         )
     else:
         try:
-            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+            await bot.send_document(
+                chat_id=user_id,
+                document=output_file,
+                thumb=file_thumb,
+                caption=cap,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, c_time)
+            )
         except Exception as e:
-            return await safe_edit_message(sts, f"Error: {e}")
+            await safe_edit_message(sts, f"Error: {e}")
 
     os.remove(downloaded)
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await sts.delete()
-
-    
-
             
 
 if __name__ == '__main__':
