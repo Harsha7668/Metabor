@@ -4,7 +4,6 @@ from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from datetime import datetime
 
-
 class Database:
     def __init__(self, uri, database_name):        
         self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
@@ -17,37 +16,40 @@ class Database:
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
         self.photo_col = self.db['photos']
-    
-    async def update_user_settings(self, user_id, settings):
-        await self.users_col.update_one(
-            {'id': user_id},
-            {'$set': {'settings': settings}},
-            upsert=True
-        )
-    
+
     async def get_user_settings(self, user_id):
         default_settings = {
-            'sample_video_duration': "Not set",
-            'screenshots': "Not set",
-            'thumbnail_path': None,
-            'gofile_api_key': None,
-            'gdrive_folder_id': None,
-            'metadata_titles': {
-                'video_title': '',
-                'audio_title': '',
-                'subtitle_title': ''
-            },
             'upload_preference': {
                 'below_2gb': 'Telegram',
                 'above_2gb_default': 'Google Drive',
                 'above_2gb_alternative': 'GoFile',
-                'enabled': True
+                'below_2gb_enabled': True,
+                'above_2gb_default_enabled': True,
+                'above_2gb_alternative_enabled': False
             }
         }
         user = await self.users_col.find_one({'id': user_id})
         if user:
             return user.get('settings', default_settings)
         return default_settings
+
+    async def set_upload_preferences(self, user_id, below_2gb=None, above_2gb_default=None, above_2gb_alternative=None, below_2gb_enabled=None, above_2gb_default_enabled=None, above_2gb_alternative_enabled=None):
+        update_fields = {}
+        if below_2gb is not None:
+            update_fields['upload_preference.below_2gb'] = below_2gb
+        if above_2gb_default is not None:
+            update_fields['upload_preference.above_2gb_default'] = above_2gb_default
+        if above_2gb_alternative is not None:
+            update_fields['upload_preference.above_2gb_alternative'] = above_2gb_alternative
+        if below_2gb_enabled is not None:
+            update_fields['upload_preference.below_2gb_enabled'] = below_2gb_enabled
+        if above_2gb_default_enabled is not None:
+            update_fields['upload_preference.above_2gb_default_enabled'] = above_2gb_default_enabled
+        if above_2gb_alternative_enabled is not None:
+            update_fields['upload_preference.above_2gb_alternative_enabled'] = above_2gb_alternative_enabled
+
+        await self.users_col.update_one({'id': user_id}, {'$set': update_fields}, upsert=True)
+
     
     async def save_gdrive_folder_id(self, user_id, folder_id):
         await self.users_col.update_one(
@@ -62,24 +64,7 @@ class Database:
             return user.get('settings', {}).get('gdrive_folder_id')
         return None
     
-    async def set_upload_preferences(self, user_id, below_2gb, above_2gb_default, above_2gb_alternative, enabled):
-        settings = await self.get_user_settings(user_id)
-        settings['upload_preference'] = {
-            'below_2gb': below_2gb,
-            'above_2gb_default': above_2gb_default,
-            'above_2gb_alternative': above_2gb_alternative,
-            'enabled': enabled
-        }
-        await self.update_user_settings(user_id, settings)
     
-    async def get_upload_preferences(self, user_id):
-        settings = await self.get_user_settings(user_id)
-        return settings.get('upload_preference', {
-            'below_2gb': 'Telegram',
-            'above_2gb_default': 'Google Drive',
-            'above_2gb_alternative': 'GoFile',
-            'enabled': True
-        })
     
     
     async def save_photo(self, user_id, file_id):
