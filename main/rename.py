@@ -3840,24 +3840,6 @@ async def process_media(bot, message, selected_streams, downloaded, custom_filen
 
 """
 
-import json
-import os
-import time
-import asyncio
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-
-selected_streams = set()
-downloaded = None
-
-"""
-async def safe_edit_message(bot, chat_id, message_id, text, reply_markup=None):
-    try:
-        await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=reply_markup)
-    except Exception as e:
-        print(f"Error editing message: {e}")
-"""
-
 import asyncio
 import os
 import time
@@ -3870,6 +3852,7 @@ from pyrogram.errors import FloodWait
 CHANGE_INDEX_ENABLED = True
 selected_streams = set()
 downloaded = None
+GROUP = -1001234567890  # Replace with your group ID
 
 @Client.on_message(filters.command("streamremove") & filters.chat(GROUP))
 async def change_index_audio(bot, msg):
@@ -4011,7 +3994,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     if data == "done":
         sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
-        await process_media(bot, callback_query.message, selected_streams, downloaded, output_filename)
+        await process_media(bot, callback_query, selected_streams, downloaded, output_filename)
         return
 
     # Toggle selection state
@@ -4050,8 +4033,9 @@ async def safe_edit_message(message, text, reply_markup=None):
             await asyncio.sleep(2 ** attempt)  # Exponential backoff
 
 # Process media function
-async def process_media(bot, callback_query_msg, selected_streams, downloaded, output_filename):
-    user_id = callback_query_msg.from_user.id
+async def process_media(bot, callback_query, selected_streams, downloaded, output_filename):
+    user_id = callback_query.from_user.id
+    original_message = callback_query.message.reply_to_message
     output_file = output_filename
 
     # Construct FFmpeg command to process media
@@ -4065,7 +4049,7 @@ async def process_media(bot, callback_query_msg, selected_streams, downloaded, o
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        await safe_edit_message(callback_query_msg, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        await safe_edit_message(callback_query.message, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
         os.remove(downloaded)
         if os.path.exists(output_file):
             os.remove(output_file)
@@ -4081,9 +4065,9 @@ async def process_media(bot, callback_query_msg, selected_streams, downloaded, o
             pass
     else:
         # Attempt to extract thumbnail from the media
-        if hasattr(callback_query_msg.reply_to_message, 'thumbs') and callback_query_msg.reply_to_message.thumbs:
+        if hasattr(original_message, 'thumbs') and original_message.thumbs:
             try:
-                file_thumb = await bot.download_media(callback_query_msg.reply_to_message.thumbs[0].file_id)
+                file_thumb = await bot.download_media(original_message.thumbs[0].file_id)
             except Exception as e:
                 print(f"Failed to download thumbnail: {e}")
 
@@ -4094,18 +4078,19 @@ async def process_media(bot, callback_query_msg, selected_streams, downloaded, o
             document=output_file,
             thumb=file_thumb,
             caption=f"🎬 Processed file: `{os.path.basename(output_file)}`",
-            reply_to_message_id=callback_query_msg.reply_to_message.message_id  # Correctly referencing reply_to_message
+            reply_to_message_id=original_message.message_id
         )
     except Exception as e:
-        await safe_edit_message(callback_query_msg, f"❗ Error sending processed file: {e}")
+        await safe_edit_message(callback_query.message, f"❗ Error sending processed file: {e}")
     finally:
         # Clean up temporary files
         os.remove(downloaded)
         if os.path.exists(output_file):
             os.remove(output_file)
-        if file_thumb:
+        if file_thumb and os.path.exists(file_thumb):
             os.remove(file_thumb)
-
+        
+            
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
