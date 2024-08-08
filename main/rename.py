@@ -4039,7 +4039,7 @@ async def safe_edit_message(message, text, reply_markup=None):
 # Process media function
 async def process_media(bot, message, selected_streams, downloaded):
     user_id = message.from_user.id
-    output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
+    output_file = output_filename
     output_filename = os.path.basename(output_file)
 
     # Construct FFmpeg command to process media
@@ -4068,33 +4068,33 @@ async def process_media(bot, message, selected_streams, downloaded):
         except Exception:
             pass
     else:
-        if hasattr(message.reply_to_message, 'thumbs') and message.reply_to_message.thumbs:
+        if hasattr(media, 'thumbs') and media.thumbs:
             try:
-                file_thumb = await bot.download_media(message.reply_to_message.thumbs[0].file_id)
-            except Exception:
-                pass
+                file_thumb = await bot.download_media(media.thumbs[0].file_id)
+            except Exception as e:
+                file_thumb = None
 
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
 
-    sts = await message.edit_text("💠 Uploading... ⚡")
+    await safe_edit_message(sts, "💠 Uploading... ⚡")
     c_time = time.time()
 
     if filesize > FILE_SIZE_LIMIT:
         file_link = await upload_to_google_drive(output_file, output_filename, sts)
         button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
-        await message.reply_text(
-            f"**File successfully changed metadata and uploaded to Google Drive!**\n\n"
+        await msg.reply_text(
+            f"**File successfully changed index and uploaded to Google Drive!**\n\n"
             f"**Google Drive Link**: [View File]({file_link})\n\n"
             f"**Uploaded File**: {output_filename}\n"
-            f"**Request User:** {message.from_user.mention}\n\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
             f"**Size**: {filesize_human}",
             reply_markup=InlineKeyboardMarkup(button)
         )
     else:
         try:
-            await bot.send_document(message.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
         except Exception as e:
             return await safe_edit_message(sts, f"Error: {e}")
 
@@ -4103,6 +4103,7 @@ async def process_media(bot, message, selected_streams, downloaded):
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await sts.delete()
+
 
 
 
