@@ -227,6 +227,7 @@ async def sample_video_option(client, callback_query: CallbackQuery):
 async def back_to_settings(client, callback_query: CallbackQuery):
     await display_user_settings(client, callback_query.message, edit=True)
 
+"""
 @Client.on_message(filters.command("usersettings") & filters.chat(GROUP))
 async def display_user_settings(client, msg, edit=False):
     user_id = msg.from_user.id
@@ -253,6 +254,91 @@ async def display_user_settings(client, msg, edit=False):
         await msg.edit_text(f"User Settings\nCurrent sample video duration: {current_duration}\nCurrent screenshots setting: {current_screenshots}", reply_markup=keyboard)
     else:
         await msg.reply(f"User Settings\nCurrent sample video duration: {current_duration}\nCurrent screenshots setting: {current_screenshots}", reply_markup=keyboard)
+"""
+
+@Client.on_message(filters.command("usersettings") & filters.chat(GROUP))
+async def display_user_settings(client, msg, edit=False):
+    user_id = msg.from_user.id
+    
+    settings = await db.get_user_settings(user_id)
+    upload_preference = settings.get('upload_preference', {})
+    
+    below_2gb = upload_preference.get('below_2gb', 'Telegram')
+    above_2gb_default = upload_preference.get('above_2gb_default', 'Google Drive')
+    above_2gb_alternative = upload_preference.get('above_2gb_alternative', 'GoFile')
+    enabled = upload_preference.get('enabled', True)
+    
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
+        [InlineKeyboardButton("Upload Destination (<2GB):", callback_data="upload_below_2gb"),
+         InlineKeyboardButton(f"Current: {below_2gb}", callback_data="change_below_2gb")],
+        [InlineKeyboardButton("Upload Destination (>=2GB Default):", callback_data="upload_above_2gb_default"),
+         InlineKeyboardButton(f"Current: {above_2gb_default}", callback_data="change_above_2gb_default")],
+        [InlineKeyboardButton("Upload Destination (>=2GB Alternative):", callback_data="upload_above_2gb_alternative"),
+         InlineKeyboardButton(f"Current: {above_2gb_alternative}", callback_data="change_above_2gb_alternative")],
+        [InlineKeyboardButton(f"Preferences Enabled: {'Yes' if enabled else 'No'}", callback_data="toggle_preferences")],
+        [InlineKeyboardButton("Close ❌", callback_data="del")]
+    ])
+    
+    settings_text = (f"User Settings\n"
+                     f"Upload Destination (<2GB): {below_2gb}\n"
+                     f"Upload Destination (>=2GB Default): {above_2gb_default}\n"
+                     f"Upload Destination (>=2GB Alternative): {above_2gb_alternative}\n"
+                     f"Preferences Enabled: {'Yes' if enabled else 'No'}")
+
+    if edit:
+        await msg.edit_text(settings_text, reply_markup=keyboard)
+    else:
+        await msg.reply(settings_text, reply_markup=keyboard)
+
+@Client.on_callback_query(filters.regex(r"^toggle_preferences$"))
+async def toggle_preferences(client, callback_query):
+    user_id = callback_query.from_user.id
+    settings = await db.get_user_settings(user_id)
+    current_status = settings.get('upload_preference', {}).get('enabled', True)
+    
+    # Toggle between enabled and disabled
+    new_status = not current_status
+    await db.set_upload_preferences(
+        user_id,
+        below_2gb=settings['upload_preference']['below_2gb'],
+        above_2gb_default=settings['upload_preference']['above_2gb_default'],
+        above_2gb_alternative=settings['upload_preference']['above_2gb_alternative'],
+        enabled=new_status
+    )
+
+    # Update the settings message to reflect the change
+    await display_user_settings(client, callback_query.message, edit=True)
+
+    # Provide feedback to the user
+    await callback_query.answer(f"Preferences enabled: {'Yes' if new_status else 'No'}.")
+
+@Client.on_callback_query(filters.regex(r"^change_below_2gb$"))
+async def change_below_2gb(client, callback_query):
+    user_id = callback_query.from_user.id
+    await client.send_message(
+        chat_id=user_id,
+        text="Please send the new destination for files below 2GB (e.g., Telegram, Google Drive, GoFile):"
+    )
+    # Implement a message handler to process the user input
+
+@Client.on_callback_query(filters.regex(r"^change_above_2gb_default$"))
+async def change_above_2gb_default(client, callback_query):
+    user_id = callback_query.from_user.id
+    await client.send_message(
+        chat_id=user_id,
+        text="Please send the new default upload destination for files above 2GB (e.g., Google Drive, GoFile):"
+    )
+    # Implement a message handler to process the user input
+
+@Client.on_callback_query(filters.regex(r"^change_above_2gb_alternative$"))
+async def change_above_2gb_alternative(client, callback_query):
+    user_id = callback_query.from_user.id
+    await client.send_message(
+        chat_id=user_id,
+        text="Please send the new alternative upload destination for files above 2GB (e.g., GoFile, Google Drive):"
+    )
+    # Implement a message handler to process the user input
         
 @Client.on_callback_query(filters.regex("^screenshots_option$"))
 async def screenshots_option(client, callback_query: CallbackQuery):
@@ -691,7 +777,7 @@ async def mirror_to_google_drive(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"Error: {e}")
         
-
+"""
 #Rename Command
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
 async def rename_file(bot, msg):
@@ -746,6 +832,134 @@ async def rename_file(bot, msg):
 
     os.remove(downloaded)
     await sts.delete()
+
+"""
+
+from pyrogram import Client, filters
+import aiohttp
+import os
+import time
+
+@Client.on_message(filters.command("rename") & filters.chat(GROUP))
+async def rename_file(bot, msg):
+    if len(msg.command) < 2 or not msg.reply_to_message:
+        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
+
+    reply = msg.reply_to_message
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
+
+    new_name = msg.text.split(" ", 1)[1]
+    
+    # Retrieve user settings
+    user_id = msg.from_user.id
+    user_settings = await db.get_user_settings(user_id)
+    upload_preference = user_settings.get('upload_preference', {})
+
+    # Determine upload destination based on file size
+    file_size = media.file_size
+    file_size_limit = 2 * 1024 * 1024 * 1024  # 2 GB in bytes
+
+    sts = await msg.reply_text("🚀 Downloading... ⚡")
+    c_time = time.time()
+    
+    downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    filesize = humanbytes(file_size)
+
+    if CAPTION:
+        try:
+            cap = CAPTION.format(file_name=new_name, file_size=filesize)
+        except KeyError as e:
+            return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
+    else:
+        cap = f"{new_name}\n\n🌟 Size: {filesize}"
+
+    # Retrieve thumbnail from the database
+    thumbnail_file_id = await db.get_thumbnail(user_id)
+    og_thumbnail = None
+    if thumbnail_file_id:
+        try:
+            og_thumbnail = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
+    else:
+        if hasattr(media, 'thumbs') and media.thumbs:
+            try:
+                og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
+            except Exception:
+                pass
+
+    if file_size > file_size_limit:
+        # Determine where to upload based on settings
+        if upload_preference.get('enabled', True):
+            if upload_preference.get('above_2gb_default') == 'Google Drive':
+                # Upload to Google Drive
+                file_link = await upload_to_google_drive(downloaded, new_name, sts)
+                await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
+            elif upload_preference.get('above_2gb_alternative') == 'GoFile':
+                # Upload to GoFile
+                await gofile_upload_to_server(downloaded, new_name, sts, user_id)
+            else:
+                await sts.edit("Upload destination is not set properly.")
+        else:
+            await sts.edit("File upload to any destination is disabled.")
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except Exception as e:
+            return await sts.edit(f"Error: {e}")
+
+    os.remove(downloaded)
+    await sts.delete()
+
+async def gofile_upload_to_server(downloaded_file, file_name, sts, user_id):
+    # Retrieve the user's Gofile API key from database
+    gofile_api_key = await db.get_gofile_api_key(user_id)
+
+    if not gofile_api_key:
+        return await sts.edit("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Get the server to upload the file
+            async with session.get("https://api.gofile.io/getServer") as resp:
+                if resp.status != 200:
+                    return await sts.edit(f"Failed to get server. Status code: {resp.status}")
+
+                data = await resp.json()
+                server = data["data"]["server"]
+
+            # Upload the file to Gofile
+            with open(downloaded_file, "rb") as file:
+                form_data = aiohttp.FormData()
+                form_data.add_field("file", file, filename=file_name)
+                form_data.add_field("token", gofile_api_key)
+
+                async with session.post(
+                    f"https://{server}.gofile.io/uploadFile",
+                    data=form_data
+                ) as resp:
+                    if resp.status != 200:
+                        return await sts.edit(f"Upload failed: Status code {resp.status}")
+
+                    response = await resp.json()
+                    if response["status"] == "ok":
+                        download_url = response["data"]["downloadPage"]
+                        await sts.edit(f"Upload successful!\nDownload link: {download_url}")
+                    else:
+                        await sts.edit(f"Upload failed: {response['message']}")
+
+    except Exception as e:
+        await sts.edit(f"Error during upload: {e}")
+
+    finally:
+        try:
+            if downloaded_file and os.path.exists(downloaded_file):
+                os.remove(downloaded_file)
+        except Exception as e:
+            print(f"Error deleting file: {e}")
+    
 
 #Change Metadata Code
 @Client.on_message(filters.command("changemetadata") & filters.chat(GROUP))
