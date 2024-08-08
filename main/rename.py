@@ -3850,11 +3850,13 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQ
 selected_streams = set()
 downloaded = None
 
+"""
 async def safe_edit_message(bot, chat_id, message_id, text, reply_markup=None):
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=reply_markup)
     except Exception as e:
         print(f"Error editing message: {e}")
+"""
 
 @Client.on_message(filters.command("streamremove") & filters.chat(GROUP))
 async def change_index_audio(bot, msg):
@@ -4010,6 +4012,11 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
+import asyncio
+import os
+import time
+from pyrogram.errors import FloodWait
+
 async def process_media(bot, message, selected_streams, downloaded):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
     output_filename = os.path.basename(output_file)
@@ -4025,7 +4032,7 @@ async def process_media(bot, message, selected_streams, downloaded):
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        await message.edit(f"❗ FFmpeg error: {stderr.decode('utf-8')}")
+        await safe_edit_message(bot, message.chat.id, message.id, f"❗ FFmpeg error: {stderr.decode('utf-8')}")
         os.remove(downloaded)
         if os.path.exists(output_file):
             os.remove(output_file)
@@ -4050,7 +4057,7 @@ async def process_media(bot, message, selected_streams, downloaded):
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
 
-    await message.edit("💠 Uploading... ⚡")
+    await safe_edit_message(bot, message.chat.id, message.id, "💠 Uploading... ⚡")
     c_time = time.time()
 
     if filesize > FILE_SIZE_LIMIT:
@@ -4059,8 +4066,11 @@ async def process_media(bot, message, selected_streams, downloaded):
     else:
         try:
             await bot.send_document(message.chat.id, document=output_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", message, c_time))
+        except FloodWait as e:
+            await asyncio.sleep(e.value)
+            await bot.send_document(message.chat.id, document=output_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", message, c_time))
         except Exception as e:
-            return await message.edit(f"Error: {e}")
+            await safe_edit_message(bot, message.chat.id, message.id, f"Error: {e}")
 
     os.remove(downloaded)
     os.remove(output_file)
@@ -4068,6 +4078,20 @@ async def process_media(bot, message, selected_streams, downloaded):
         os.remove(og_thumbnail)
     await message.delete()
 
+async def safe_edit_message(bot, chat_id, message_id, text, reply_markup=None):
+    retry_attempts = 5
+    for attempt in range(retry_attempts):
+        try:
+            await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, reply_markup=reply_markup)
+            break
+        except FloodWait as e:
+            await asyncio.sleep(e.value)
+        except Exception as e:
+            if attempt == retry_attempts - 1:
+                print(f"Failed to edit message after {retry_attempts} attempts: {e}")
+                break
+            await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
