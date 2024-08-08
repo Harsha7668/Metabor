@@ -857,13 +857,8 @@ async def rename_file(bot, msg):
 
 """
 
-from pyrogram import Client, filters
-import aiohttp
-import os
-import time
-
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
-async def rename_file(bot, msg):
+async def rename_file(client, msg):
     if len(msg.command) < 2 or not msg.reply_to_message:
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
@@ -873,114 +868,70 @@ async def rename_file(bot, msg):
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
     new_name = msg.text.split(" ", 1)[1]
-    
-    # Retrieve user settings
-    user_id = msg.from_user.id
-    user_settings = await db.get_user_settings(user_id)
-    upload_preference = user_settings.get('upload_preference', {})
-
-    # Determine upload destination based on file size
-    file_size = media.file_size
-    file_size_limit = 2 * 1024 * 1024 * 1024  # 2 GB in bytes
-
     sts = await msg.reply_text("🚀 Downloading... ⚡")
     c_time = time.time()
-    
     downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-    filesize = humanbytes(file_size)
+    filesize = os.path.getsize(downloaded)
+    human_filesize = humanbytes(filesize)
 
-    if CAPTION:
-        try:
-            cap = CAPTION.format(file_name=new_name, file_size=filesize)
-        except KeyError as e:
-            return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
-    else:
-        cap = f"{new_name}\n\n🌟 Size: {filesize}"
+    settings = await db.get_user_settings(msg.from_user.id)
+    upload_preference = settings.get('upload_preference', {})
+    
+    below_2gb = upload_preference.get('below_2gb', 'Telegram')
+    above_2gb_default = upload_preference.get('above_2gb_default', 'Google Drive')
+    above_2gb_alternative = upload_preference.get('above_2gb_alternative', 'GoFile')
+    below_2gb_enabled = upload_preference.get('below_2gb_enabled', True)
+    above_2gb_default_enabled = upload_preference.get('above_2gb_default_enabled', True)
+    above_2gb_alternative_enabled = upload_preference.get('above_2gb_alternative_enabled', False)
 
-    # Retrieve thumbnail from the database
-    thumbnail_file_id = await db.get_thumbnail(user_id)
-    og_thumbnail = None
-    if thumbnail_file_id:
-        try:
-            og_thumbnail = await bot.download_media(thumbnail_file_id)
-        except Exception:
-            pass
-    else:
-        if hasattr(media, 'thumbs') and media.thumbs:
+    if filesize <= 2 * 1024 * 1024 * 1024:  # Below 2GB
+        if below_2gb_enabled:
             try:
-                og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
-            except Exception:
-                pass
-
-    if file_size > file_size_limit:
-        # Determine where to upload based on settings
-        if upload_preference.get('enabled', True):
-            if upload_preference.get('above_2gb_default') == 'Google Drive':
-                # Upload to Google Drive
-                file_link = await upload_to_google_drive(downloaded, new_name, sts)
-                await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
-            elif upload_preference.get('above_2gb_alternative') == 'GoFile':
-                # Upload to GoFile
-                await gofile_upload_to_server(downloaded, new_name, sts, user_id)
-            else:
-                await sts.edit("Upload destination is not set properly.")
+                await client.send_document(msg.chat.id, document=downloaded, caption=f"{new_name}\n\n🌟 Size: {human_filesize}", progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+            except Exception as e:
+                return await sts.edit(f"Error: {e}")
         else:
-            await sts.edit("File upload to any destination is disabled.")
-    else:
-        try:
-            await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
-        except Exception as e:
-            return await sts.edit(f"Error: {e}")
+            await sts.edit("Uploading to Telegram is disabled in your settings.")
+    else:  # Above 2GB
+        if above_2gb_default_enabled:
+            file_link = await upload_to_google_drive(downloaded, new_name, sts)
+            await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {human_filesize}\n🔗 **Link:** {file_link}")
+        elif above_2gb_alternative_enabled:
+            user_id = msg.from_user.id
+            gofile_api_key = await db.get_gofile_api_key(user_id)
+            if not gofile_api_key:
+                await sts.edit("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
+                return
+
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get("https://api.gofile.io/getServer") as resp:
+                        if resp.status != 200:
+                            return await sts.edit(f"Failed to get server. Status code: {resp.status}")
+                        data = await resp.json()
+                        server = data["data"]["server"]
+
+                    with open(downloaded, "rb") as file:
+                        form_data = aiohttp.FormData()
+                        form_data.add_field("file", file, filename=new_name)
+                        form_data.add_field("token", gofile_api_key)
+                        async with session.post(f"https://{server}.gofile.io/uploadFile", data=form_data) as resp:
+                            if resp.status != 200:
+                                return await sts.edit(f"Upload failed: Status code {resp.status}")
+
+                            response = await resp.json()
+                            if response["status"] == "ok":
+                                download_url = response["data"]["downloadPage"]
+                                await sts.edit(f"Upload successful!\nDownload link: {download_url}")
+                            else:
+                                await sts.edit(f"Upload failed: {response['message']}")
+            except Exception as e:
+                await sts.edit(f"Error during upload: {e}")
+        else:
+            await sts.edit("Both Google Drive and GoFile are disabled in your settings.")
 
     os.remove(downloaded)
     await sts.delete()
-
-async def gofile_upload_to_server(downloaded_file, file_name, sts, user_id):
-    # Retrieve the user's Gofile API key from database
-    gofile_api_key = await db.get_gofile_api_key(user_id)
-
-    if not gofile_api_key:
-        return await sts.edit("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            # Get the server to upload the file
-            async with session.get("https://api.gofile.io/getServer") as resp:
-                if resp.status != 200:
-                    return await sts.edit(f"Failed to get server. Status code: {resp.status}")
-
-                data = await resp.json()
-                server = data["data"]["server"]
-
-            # Upload the file to Gofile
-            with open(downloaded_file, "rb") as file:
-                form_data = aiohttp.FormData()
-                form_data.add_field("file", file, filename=file_name)
-                form_data.add_field("token", gofile_api_key)
-
-                async with session.post(
-                    f"https://{server}.gofile.io/uploadFile",
-                    data=form_data
-                ) as resp:
-                    if resp.status != 200:
-                        return await sts.edit(f"Upload failed: Status code {resp.status}")
-
-                    response = await resp.json()
-                    if response["status"] == "ok":
-                        download_url = response["data"]["downloadPage"]
-                        await sts.edit(f"Upload successful!\nDownload link: {download_url}")
-                    else:
-                        await sts.edit(f"Upload failed: {response['message']}")
-
-    except Exception as e:
-        await sts.edit(f"Error during upload: {e}")
-
-    finally:
-        try:
-            if downloaded_file and os.path.exists(downloaded_file):
-                os.remove(downloaded_file)
-        except Exception as e:
-            print(f"Error deleting file: {e}")
     
 
 #Change Metadata Code
