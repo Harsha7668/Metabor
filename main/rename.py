@@ -3894,8 +3894,8 @@ async def change_index_audio(bot, msg):
         return
 
     streams = json.loads(stdout.decode('utf-8')).get('streams', [])
-    audio_video_labels = []
-    subtitle_labels = []
+    audio_video_streams = []
+    subtitle_streams = []
 
     for stream in streams:
         stream_index = stream['index']
@@ -3904,33 +3904,31 @@ async def change_index_audio(bot, msg):
 
         if codec_type == 'audio':
             if language == 'tel':
-                audio_video_labels.append(f"{stream_index} 🎵 Telugu Audio")
+                audio_video_streams.append(f"{stream_index} 🎵 Telugu Audio")
             elif language == 'tam':
-                audio_video_labels.append(f"{stream_index} 🎵 Tamil Audio")
+                audio_video_streams.append(f"{stream_index} 🎵 Tamil Audio")
             elif language == 'hin':
-                audio_video_labels.append(f"{stream_index} 🎵 Hindi Audio")
+                audio_video_streams.append(f"{stream_index} 🎵 Hindi Audio")
             else:
-                audio_video_labels.append(f"{stream_index} 🎵 Audio - {language}")
+                audio_video_streams.append(f"{stream_index} 🎵 Audio - {language}")
         elif codec_type == 'subtitle':
             if language == 'eng':
-                subtitle_labels.append(f"{stream_index} 📝 English Subtitle")
+                subtitle_streams.append(f"{stream_index} 📝 English Subtitle")
             else:
-                subtitle_labels.append(f"{stream_index} 📝 Subtitle - {language}")
+                subtitle_streams.append(f"{stream_index} 📝 Subtitle - {language}")
         elif codec_type == 'video':
-            audio_video_labels.append(f"{stream_index} 📹 Video")
+            audio_video_streams.append(f"{stream_index} 📹 Video")
 
     # Build the inline keyboard with available streams
     buttons = []
-    for label in audio_video_labels:
-        index = label.split()[0]
-        buttons.append([InlineKeyboardButton(f"{label}", callback_data=f"toggle_{index}")])
-
-    if subtitle_labels:
-        buttons.append([InlineKeyboardButton("──────────", callback_data="separator")])  # Separator line for better visual separation
-
-    for label in subtitle_labels:
-        index = label.split()[0]
-        buttons.append([InlineKeyboardButton(f"{label}", callback_data=f"toggle_{index}")])
+    max_len = max(len(audio_video_streams), len(subtitle_streams))
+    for i in range(max_len):
+        row = []
+        if i < len(audio_video_streams):
+            row.append(InlineKeyboardButton(f"{audio_video_streams[i]}", callback_data=f"toggle_{audio_video_streams[i].split()[0]}"))
+        if i < len(subtitle_streams):
+            row.append(InlineKeyboardButton(f"{subtitle_streams[i]}", callback_data=f"toggle_{subtitle_streams[i].split()[0]}"))
+        buttons.append(row)
 
     buttons.append([InlineKeyboardButton("🔄 Reverse Selection", callback_data="reverse")])
     buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel"), InlineKeyboardButton("✅ Done", callback_data="done")])
@@ -3951,6 +3949,7 @@ async def change_index_audio(bot, msg):
             await message.delete()
             if downloaded:
                 os.remove(downloaded)
+
 
 @Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel|reverse'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
@@ -3987,14 +3986,8 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         return
 
     if data == "done":
-        # Extract the custom filename from the message
-        command_text = callback_query.message.reply_to_message.text
-        custom_filename = None
-        if "-n" in command_text:
-            custom_filename = command_text.split("-n")[1].strip()
-
         sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
-        await process_media(bot, callback_query.message, selected_streams, downloaded, custom_filename)
+        await process_media(bot, callback_query.message, selected_streams, downloaded)
         return
 
     # Toggle selection state
@@ -4017,9 +4010,9 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
-async def process_media(bot, message, selected_streams, downloaded, custom_filename):
+async def process_media(bot, message, selected_streams, downloaded):
     output_file = os.path.splitext(downloaded)[0] + "_output" + os.path.splitext(downloaded)[1]
-    output_filename = custom_filename or os.path.basename(output_file)
+    output_filename = os.path.basename(output_file)
 
     # Construct FFmpeg command to process media
     ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0']
@@ -4037,11 +4030,6 @@ async def process_media(bot, message, selected_streams, downloaded, custom_filen
         if os.path.exists(output_file):
             os.remove(output_file)
         return
-
-    # Rename output file if custom filename provided
-    if custom_filename and custom_filename != output_filename:
-        os.rename(output_file, custom_filename)
-        output_file = custom_filename
 
     # Retrieve thumbnail from the database
     thumbnail_file_id = await db.get_thumbnail(message.from_user.id)
@@ -4079,7 +4067,7 @@ async def process_media(bot, message, selected_streams, downloaded, custom_filen
     if og_thumbnail and os.path.exists(og_thumbnail):
         os.remove(og_thumbnail)
     await message.delete()
-        
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
