@@ -3632,7 +3632,7 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
         f"❄ **File has been sent in Bot PM!**"
     )
     await bot.send_message(
-        chat_id=user_id,  # Send the group message to the user
+        chat_id=GROUP,  # Send the group message to the user
         text=group_message_text
     )
 
