@@ -3915,7 +3915,7 @@ async def change_index_audio(bot, msg):
             if language == 'eng':
                 subtitle_streams.append(f"{stream_index} 📝 English Subtitle")
             else:
-                subtitle_streams.append(f"{stream_index} 📝 Subtitle - {language}")
+                subtitle_streams.append(f"{stream_index} 📝 {language} - Subtitle")
         elif codec_type == 'video':
             audio_video_streams.append(f"{stream_index} 📹 Video")
 
