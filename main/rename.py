@@ -266,79 +266,101 @@ async def display_user_settings(client, msg, edit=False):
     below_2gb = upload_preference.get('below_2gb', 'Telegram')
     above_2gb_default = upload_preference.get('above_2gb_default', 'Google Drive')
     above_2gb_alternative = upload_preference.get('above_2gb_alternative', 'GoFile')
-    enabled = upload_preference.get('enabled', True)
     
+    gofile_enabled = upload_preference.get('above_2gb_alternative_enabled', False)
+    google_drive_enabled = upload_preference.get('above_2gb_default_enabled', True)
+    telegram_enabled = upload_preference.get('below_2gb_enabled', True)
+
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("💠", callback_data="sunrises24_bot_updates")],
-        [InlineKeyboardButton("Upload Destination (<2GB):", callback_data="upload_below_2gb"),
-         InlineKeyboardButton(f"Current: {below_2gb}", callback_data="change_below_2gb")],
-        [InlineKeyboardButton("Upload Destination (>=2GB Default):", callback_data="upload_above_2gb_default"),
-         InlineKeyboardButton(f"Current: {above_2gb_default}", callback_data="change_above_2gb_default")],
-        [InlineKeyboardButton("Upload Destination (>=2GB Alternative):", callback_data="upload_above_2gb_alternative"),
-         InlineKeyboardButton(f"Current: {above_2gb_alternative}", callback_data="change_above_2gb_alternative")],
-        [InlineKeyboardButton(f"Preferences Enabled: {'Yes' if enabled else 'No'}", callback_data="toggle_preferences")],
+        [InlineKeyboardButton(f"Upload to Telegram: {'✅' if telegram_enabled else '❌'}", callback_data="toggle_telegram")],
+        [InlineKeyboardButton(f"Upload to Google Drive: {'✅' if google_drive_enabled else '❌'}", callback_data="toggle_google_drive")],
+        [InlineKeyboardButton(f"Upload to GoFile: {'✅' if gofile_enabled else '❌'}", callback_data="toggle_gofile")],
         [InlineKeyboardButton("Close ❌", callback_data="del")]
     ])
     
     settings_text = (f"User Settings\n"
-                     f"Upload Destination (<2GB): {below_2gb}\n"
-                     f"Upload Destination (>=2GB Default): {above_2gb_default}\n"
-                     f"Upload Destination (>=2GB Alternative): {above_2gb_alternative}\n"
-                     f"Preferences Enabled: {'Yes' if enabled else 'No'}")
+                     f"Upload Destination (<2GB): {below_2gb} {'✅' if telegram_enabled else '❌'}\n"
+                     f"Upload Destination (>=2GB Default): {above_2gb_default} {'✅' if google_drive_enabled else '❌'}\n"
+                     f"Upload Destination (>=2GB Alternative): {above_2gb_alternative} {'✅' if gofile_enabled else '❌'}")
 
     if edit:
         await msg.edit_text(settings_text, reply_markup=keyboard)
     else:
         await msg.reply(settings_text, reply_markup=keyboard)
 
-@Client.on_callback_query(filters.regex(r"^toggle_preferences$"))
-async def toggle_preferences(client, callback_query):
+@Client.on_callback_query(filters.regex(r"^toggle_telegram$"))
+async def toggle_telegram(client, callback_query):
     user_id = callback_query.from_user.id
     settings = await db.get_user_settings(user_id)
-    current_status = settings.get('upload_preference', {}).get('enabled', True)
+    current_status = settings.get('upload_preference', {}).get('below_2gb_enabled', True)
     
     # Toggle between enabled and disabled
     new_status = not current_status
     await db.set_upload_preferences(
         user_id,
-        below_2gb=settings['upload_preference']['below_2gb'],
-        above_2gb_default=settings['upload_preference']['above_2gb_default'],
-        above_2gb_alternative=settings['upload_preference']['above_2gb_alternative'],
-        enabled=new_status
+        below_2gb_enabled=new_status,
+        above_2gb_default=settings['upload_preference'].get('above_2gb_default'),
+        above_2gb_alternative=settings['upload_preference'].get('above_2gb_alternative'),
+        above_2gb_default_enabled=settings['upload_preference'].get('above_2gb_default_enabled'),
+        above_2gb_alternative_enabled=settings['upload_preference'].get('above_2gb_alternative_enabled'),
     )
 
     # Update the settings message to reflect the change
     await display_user_settings(client, callback_query.message, edit=True)
 
     # Provide feedback to the user
-    await callback_query.answer(f"Preferences enabled: {'Yes' if new_status else 'No'}.")
+    await callback_query.answer(f"Telegram upload enabled: {'✅' if new_status else '❌'}")
 
-@Client.on_callback_query(filters.regex(r"^change_below_2gb$"))
-async def change_below_2gb(client, callback_query):
+@Client.on_callback_query(filters.regex(r"^toggle_google_drive$"))
+async def toggle_google_drive(client, callback_query):
     user_id = callback_query.from_user.id
-    await client.send_message(
-        chat_id=user_id,
-        text="Please send the new destination for files below 2GB (e.g., Telegram, Google Drive, GoFile):"
+    settings = await db.get_user_settings(user_id)
+    current_status = settings.get('upload_preference', {}).get('above_2gb_default_enabled', True)
+    
+    # Toggle between enabled and disabled
+    new_status = not current_status
+    await db.set_upload_preferences(
+        user_id,
+        below_2gb=settings['upload_preference'].get('below_2gb'),
+        above_2gb_default_enabled=new_status,
+        above_2gb_alternative=settings['upload_preference'].get('above_2gb_alternative'),
+        below_2gb_enabled=settings['upload_preference'].get('below_2gb_enabled'),
+        above_2gb_alternative_enabled=settings['upload_preference'].get('above_2gb_alternative_enabled'),
     )
-    # Implement a message handler to process the user input
 
-@Client.on_callback_query(filters.regex(r"^change_above_2gb_default$"))
-async def change_above_2gb_default(client, callback_query):
-    user_id = callback_query.from_user.id
-    await client.send_message(
-        chat_id=user_id,
-        text="Please send the new default upload destination for files above 2GB (e.g., Google Drive, GoFile):"
-    )
-    # Implement a message handler to process the user input
+    # Update the settings message to reflect the change
+    await display_user_settings(client, callback_query.message, edit=True)
 
-@Client.on_callback_query(filters.regex(r"^change_above_2gb_alternative$"))
-async def change_above_2gb_alternative(client, callback_query):
+    # Provide feedback to the user
+    await callback_query.answer(f"Google Drive upload enabled: {'✅' if new_status else '❌'}")
+
+@Client.on_callback_query(filters.regex(r"^toggle_gofile$"))
+async def toggle_gofile(client, callback_query):
     user_id = callback_query.from_user.id
-    await client.send_message(
-        chat_id=user_id,
-        text="Please send the new alternative upload destination for files above 2GB (e.g., GoFile, Google Drive):"
+    settings = await db.get_user_settings(user_id)
+    current_status = settings.get('upload_preference', {}).get('above_2gb_alternative_enabled', True)
+    
+    # Toggle between enabled and disabled
+    new_status = not current_status
+    await db.set_upload_preferences(
+        user_id,
+        below_2gb=settings['upload_preference'].get('below_2gb'),
+        above_2gb_default=settings['upload_preference'].get('above_2gb_default'),
+        above_2gb_alternative_enabled=new_status,
+        below_2gb_enabled=settings['upload_preference'].get('below_2gb_enabled'),
+        above_2gb_default_enabled=settings['upload_preference'].get('above_2gb_default_enabled'),
     )
-    # Implement a message handler to process the user input
+
+    # Update the settings message to reflect the change
+    await display_user_settings(client, callback_query.message, edit=True)
+
+    # Provide feedback to the user
+    await callback_query.answer(f"GoFile upload enabled: {'✅' if new_status else '❌'}")
+
+
+
+
         
 @Client.on_callback_query(filters.regex("^screenshots_option$"))
 async def screenshots_option(client, callback_query: CallbackQuery):
