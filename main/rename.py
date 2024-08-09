@@ -3959,13 +3959,13 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
     if callback_query.from_user.id != callback_query.message.reply_to_message.from_user.id:
         return
 
-    if data == "multitask_cancel":
+    if data == "cancel":
         await callback_query.message.delete()
         if multitask_download:
             os.remove(multitask_download)
         return
 
-    if data == "multitask_reverse":
+    if data == "reverse":
         buttons = callback_query.message.reply_markup.inline_keyboard
         all_indices = {btn.callback_data.split('_')[1] for row in buttons for btn in row if btn.callback_data.startswith('multitask_toggle_')}
         multitask_selected_streams.symmetric_difference_update(all_indices)
@@ -3983,7 +3983,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
         return
 
-    if data == "multitask_done":
+    if data == "done":
         sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
         await process_media_and_change_metadata(bot, callback_query, multitask_selected_streams, multitask_download, output_filename, sts)
         return
