@@ -3826,11 +3826,34 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 # Process media and change metadata function
 async def process_media_and_change_metadata(bot, callback_query, selected_streams, downloaded, output_filename, sts):
     user_id = callback_query.from_user.id
-    original_message = callback_query.message.reply_to_message
     output_file = output_filename
 
-    # Step 1: Stream Removal
-    ffmpeg_cmd = ['ffmpeg', '-i', downloaded, '-map', '0']
+    # Step 1: Change Metadata (if metadata titles are available)
+    metadata_titles = await db.get_metadata_titles(user_id)
+    video_title = metadata_titles.get('video_title', '')
+    audio_title = metadata_titles.get('audio_title', '')
+    subtitle_title = metadata_titles.get('subtitle_title', '')
+
+    intermediate_file = os.path.splitext(output_file)[0] + "_metadata" + os.path.splitext(output_file)[1]
+
+    if any([video_title, audio_title, subtitle_title]):
+        await safe_edit_message(sts, "💠 Changing metadata... ⚡")
+        try:
+            change_video_metadata(downloaded, video_title, audio_title, subtitle_title, intermediate_file)
+        except Exception as e:
+            await safe_edit_message(sts, f"❌ Error changing metadata: {str(e)[:4000]}")
+            os.remove(downloaded)
+            if os.path.exists(intermediate_file):
+                os.remove(intermediate_file)
+            return
+    else:
+        # If no metadata to change, proceed with the original file
+        intermediate_file = downloaded
+
+    # Step 2: Stream Removal
+    output_file = os.path.splitext(output_file)[0] + "_final" + os.path.splitext(output_file)[1]
+
+    ffmpeg_cmd = ['ffmpeg', '-i', intermediate_file, '-map', '0']
     for idx in selected_streams:
         ffmpeg_cmd.extend(['-map', f'-0:{idx}'])
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
@@ -3840,29 +3863,10 @@ async def process_media_and_change_metadata(bot, callback_query, selected_stream
 
     if process.returncode != 0:
         await safe_edit_message(sts, f"❗ FFmpeg error during stream removal: {stderr.decode('utf-8')[:4000]}")
-        os.remove(downloaded)
+        os.remove(intermediate_file)
         if os.path.exists(output_file):
             os.remove(output_file)
         return
-
-    # Step 2: Change Metadata (optional, based on availability of metadata titles)
-    metadata_titles = await db.get_metadata_titles(user_id)
-    video_title = metadata_titles.get('video_title', '')
-    audio_title = metadata_titles.get('audio_title', '')
-    subtitle_title = metadata_titles.get('subtitle_title', '')
-
-    if any([video_title, audio_title, subtitle_title]):
-        await safe_edit_message(sts, "💠 Changing metadata... ⚡")
-        try:
-            change_video_metadata(output_file, video_title, audio_title, subtitle_title, output_file)
-        except Exception as e:
-            # Split the error message if it's too long
-            error_message = str(e)
-            await safe_edit_message(sts, f"❌ Error changing metadata: {error_message[:4000]}")
-            os.remove(downloaded)
-            if os.path.exists(output_file):
-                os.remove(output_file)
-            return
 
     # Step 3: Prepare Thumbnail (if available)
     thumbnail_file_id = await db.get_thumbnail(user_id)
@@ -3870,16 +3874,16 @@ async def process_media_and_change_metadata(bot, callback_query, selected_stream
     if thumbnail_file_id:
         try:
             file_thumb = await bot.download_media(thumbnail_file_id)
-        except Exception:
-            pass
+        except Exception as e:
+            file_thumb = None
     else:
-        if hasattr(original_message, 'thumbs') and original_message.thumbs:
+        media = callback_query.message.reply_to_message.document or callback_query.message.reply_to_message.audio or callback_query.message.reply_to_message.video
+        if hasattr(media, 'thumbs') and media.thumbs:
             try:
-                file_thumb = await bot.download_media(original_message.thumbs[0].file_id)
+                file_thumb = await bot.download_media(media.thumbs[0].file_id)
             except Exception as e:
                 file_thumb = None
 
-    # Step 4: Upload the Final File
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
@@ -3891,29 +3895,30 @@ async def process_media_and_change_metadata(bot, callback_query, selected_stream
         file_link = await upload_to_google_drive(output_file, output_filename, sts)
         button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
         await bot.send_message(
-            chat_id=user_id,
-            text=f"**File successfully processed and uploaded to Google Drive!**\n\n"
-                 f"**Google Drive Link**: [View File]({file_link})\n\n"
-                 f"**Uploaded File**: {output_filename}\n"
-                 f"**Request User:** {callback_query.from_user.mention}\n\n"
-                 f"**Size**: {filesize_human}",
+            callback_query.message.chat.id,
+            f"**File successfully changed metadata and removed streams, then uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {output_filename}\n"
+            f"**Request User:** {callback_query.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
             reply_markup=InlineKeyboardMarkup(button)
         )
     else:
         try:
             await bot.send_document(
-                chat_id=user_id,
+                callback_query.message.chat.id,
                 document=output_file,
+                file_name=output_filename,
                 thumb=file_thumb,
                 caption=cap,
                 progress=progress_message,
                 progress_args=("💠 Upload Started... ⚡", sts, c_time)
             )
         except Exception as e:
-            await safe_edit_message(sts, f"Error: {e}")
+            await safe_edit_message(sts, f"❌ Error: {str(e)}")
 
-    # Clean up files
-    os.remove(downloaded)
+    # Cleanup
+    os.remove(intermediate_file)
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
