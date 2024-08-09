@@ -3967,13 +3967,13 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     if data == "reverse":
         buttons = callback_query.message.reply_markup.inline_keyboard
-        all_indices = {btn.callback_data.split('_')[1] for row in buttons for btn in row if btn.callback_data.startswith('multitask_toggle_')}
+        all_indices = {btn.callback_data.split('_')[1] for row in buttons for btn in row if btn.callback_data.startswith('toggle_')}
         multitask_selected_streams.symmetric_difference_update(all_indices)
 
         # Update button text
         for row in buttons:
             for button in row:
-                if button.callback_data.startswith("multitask_toggle_"):
+                if button.callback_data.startswith("toggle_"):
                     index = button.callback_data.split('_')[1]
                     if index in multitask_selected_streams:
                         button.text = f"✅ {button.text.lstrip('✅').strip()}"
@@ -3999,7 +3999,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
     buttons = callback_query.message.reply_markup.inline_keyboard
     for row in buttons:
         for button in row:
-            if button.callback_data == f"multitask_toggle_{index}":
+            if button.callback_data == f"toggle_{index}":
                 if button.text.startswith("✅"):
                     button.text = button.text[2:].strip()  # Remove the checkmark
                 else:
