@@ -3970,22 +3970,16 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         multitask_selected_streams.symmetric_difference_update(all_indices)
 
         # Update button text
-        updated_buttons = False
         for row in buttons:
             for button in row:
                 if button.callback_data.startswith("multitask_toggle_"):
                     index = button.callback_data.split('_')[1]
                     if index in multitask_selected_streams:
-                        if not button.text.startswith("✅"):
-                            button.text = f"✅ {button.text.lstrip('✅').strip()}"
-                            updated_buttons = True
+                        button.text = f"✅ {button.text.lstrip('✅').strip()}"
                     else:
-                        if button.text.startswith("✅"):
-                            button.text = button.text.lstrip('✅').strip()
-                            updated_buttons = True
+                        button.text = button.text.lstrip('✅').strip()
 
-        if updated_buttons:
-            await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+        await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
         return
 
     if data == "multitask_done":
@@ -4002,19 +3996,17 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     # Update buttons to reflect selection
     buttons = callback_query.message.reply_markup.inline_keyboard
-    updated_buttons = False
     for row in buttons:
         for button in row:
             if button.callback_data == f"multitask_toggle_{index}":
                 if button.text.startswith("✅"):
-                    button.text = button.text[2:]  # Remove the checkmark
+                    button.text = button.text[2:].strip()  # Remove the checkmark
                 else:
                     button.text = f"✅ {button.text}"  # Add the checkmark
-                updated_buttons = True
                 break
 
-    if updated_buttons:
-        await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+    await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+
 
 # Process media and change metadata function
 async def process_media_and_change_metadata(bot, callback_query, multitask_selected_streams, multitask_download, output_filename, sts):
