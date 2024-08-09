@@ -3737,9 +3737,9 @@ async def multitask_file(bot, msg):
     for i in range(max_len):
         row = []
         if i < len(audio_video_streams):
-            row.append(InlineKeyboardButton(f"{audio_video_streams[i]}", callback_data=f"toggle_{audio_video_streams[i].split()[0]}"))
+            row.append(InlineKeyboardButton(f"{audio_video_streams[i]}", callback_data=f"multitask_toggle_{audio_video_streams[i].split()[0]}"))
         if i < len(subtitle_streams):
-            row.append(InlineKeyboardButton(f"{subtitle_streams[i]}", callback_data=f"toggle_{subtitle_streams[i].split()[0]}"))
+            row.append(InlineKeyboardButton(f"{subtitle_streams[i]}", callback_data=f"multitask_toggle_{subtitle_streams[i].split()[0]}"))
         buttons.append(row)
 
     buttons.append([InlineKeyboardButton("🔄 Reverse Selection", callback_data="multitask_reverse")])
@@ -3762,7 +3762,7 @@ async def multitask_file(bot, msg):
             if downloaded:
                 os.remove(downloaded)
 
-@Client.on_callback_query(filters.regex(r'toggle_\d+|multitask_done|multitask_cancel|multitask_reverse'))
+@Client.on_callback_query(filters.regex(r'multitask_toggle_\d+|multitask_done|multitask_cancel|multitask_reverse'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     global selected_streams
     global downloaded
