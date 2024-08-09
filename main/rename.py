@@ -3646,7 +3646,7 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await sts.delete()
-
+"""
 
 """
 import asyncio
