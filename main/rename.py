@@ -3878,8 +3878,44 @@ async def multitask_file(bot, msg):
         await sts.edit(f"❌ Error downloading media: {e}")
         return
 
-    # Extract and display stream options (similar to streamremove command)
-    # Adjust the callback_data to be unique for multitask
+    # Get the available streams
+    ffprobe_cmd = [
+        'ffprobe', '-v', 'error', '-show_entries', 'stream=index:stream_tags=language:stream=codec_type', '-of', 'json', multitask_download
+    ]
+    process = await asyncio.create_subprocess_exec(*ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        await sts.edit(f"❗ FFprobe error: {stderr.decode('utf-8')}")
+        os.remove(multitask_download)
+        return
+
+    streams = json.loads(stdout.decode('utf-8')).get('streams', [])
+    audio_video_streams = []
+    subtitle_streams = []
+
+    for stream in streams:
+        stream_index = stream['index']
+        language = stream.get('tags', {}).get('language', 'unknown')
+        codec_type = stream['codec_type']
+
+        if codec_type == 'audio':
+            if language == 'tel':
+                audio_video_streams.append(f"{stream_index} 🎵 Telugu Audio")
+            elif language == 'tam':
+                audio_video_streams.append(f"{stream_index} 🎵 Tamil Audio")
+            elif language == 'hin':
+                audio_video_streams.append(f"{stream_index} 🎵 Hindi Audio")
+            else:
+                audio_video_streams.append(f"{stream_index} 🎵  {language} - Audio")
+        elif codec_type == 'subtitle':
+            if language == 'eng':
+                subtitle_streams.append(f"{stream_index} 📝 English Subtitle")
+            else:
+                subtitle_streams.append(f"{stream_index} 📝 {language} - Subtitle")
+        elif codec_type == 'video':
+            audio_video_streams.append(f"{stream_index} 📹 Video")
+
 
     buttons = []
     max_len = max(len(audio_video_streams), len(subtitle_streams))
