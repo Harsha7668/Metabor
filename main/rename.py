@@ -3947,7 +3947,6 @@ async def multitask_file(bot, msg):
             if multitask_download:
                 os.remove(multitask_download)
 
-
 @Client.on_callback_query(filters.regex(r'multitask_toggle_\d+|multitask_done|multitask_cancel|multitask_reverse'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     global multitask_selected_streams
@@ -3971,21 +3970,27 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
         multitask_selected_streams.symmetric_difference_update(all_indices)
 
         # Update button text
+        updated_buttons = False
         for row in buttons:
             for button in row:
-                if button.callback_data.startswith("toggle_"):
+                if button.callback_data.startswith("multitask_toggle_"):
                     index = button.callback_data.split('_')[1]
                     if index in multitask_selected_streams:
-                        button.text = f"✅ {button.text.lstrip('✅').strip()}"
+                        if not button.text.startswith("✅"):
+                            button.text = f"✅ {button.text.lstrip('✅').strip()}"
+                            updated_buttons = True
                     else:
-                        button.text = button.text.lstrip('✅').strip()
+                        if button.text.startswith("✅"):
+                            button.text = button.text.lstrip('✅').strip()
+                            updated_buttons = True
 
-        await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+        if updated_buttons:
+            await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
         return
 
     if data == "multitask_done":
         sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
-        await process_media(bot, callback_query, multitask_selected_streams, multitask_download, output_filename, sts)
+        await process_media_and_change_metadata(bot, callback_query, multitask_selected_streams, multitask_download, output_filename, sts)
         return
 
     # Toggle selection state
@@ -3997,6 +4002,7 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     # Update buttons to reflect selection
     buttons = callback_query.message.reply_markup.inline_keyboard
+    updated_buttons = False
     for row in buttons:
         for button in row:
             if button.callback_data == f"multitask_toggle_{index}":
@@ -4004,9 +4010,11 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
                     button.text = button.text[2:]  # Remove the checkmark
                 else:
                     button.text = f"✅ {button.text}"  # Add the checkmark
+                updated_buttons = True
                 break
 
-    await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+    if updated_buttons:
+        await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
 
 # Process media and change metadata function
 async def process_media_and_change_metadata(bot, callback_query, multitask_selected_streams, multitask_download, output_filename, sts):
