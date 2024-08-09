@@ -4115,13 +4115,13 @@ async def process_media_and_change_metadata(bot, callback_query, multitask_selec
 
 
 @Client.on_message(filters.command("audiomerge") & filters.chat(GROUP))
-async def start_merge_command(bot, msg: Message):
+async def start_videoaudiomerge_command(bot, msg: Message):
     user_id = msg.from_user.id
     merge_state[user_id] = {"video": None, "audio": None, "output_filename": None}
     await msg.reply_text("Send one video file and one audio file. Once done, send `/videomerge filename`.")
 
 @Client.on_message(filters.document | filters.video | filters.audio & filters.chat(GROUP))
-async def handle_media_files(bot, msg: Message):
+async def handle_videoaudiomedia_files(bot, msg: Message):
     user_id = msg.from_user.id
     if user_id in merge_state:
         if not merge_state[user_id]["video"] and msg.video:
