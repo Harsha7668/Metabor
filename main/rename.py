@@ -3275,7 +3275,7 @@ async def restart_bot(client, message):
 
 
 
-
+"""
 
 import asyncio
 import os
@@ -3472,7 +3472,8 @@ async def safe_edit_message(message, text, reply_markup=None):
                 print(f"Failed to edit message after {retry_attempts} attempts: {e}")
                 break
             await asyncio.sleep(2 ** attempt)  # Exponential backoff
-"""
+
+#process media for pvt 
 # Process media function
 async def process_media(bot, callback_query, selected_streams, downloaded, output_filename, sts):
     user_id = callback_query.from_user.id
@@ -3547,9 +3548,9 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
-    await sts.delete()"""
+    await sts.delete()
 
-
+#group branch 
 # Process media function
 async def process_media(bot, callback_query, selected_streams, downloaded, output_filename, sts):
     user_id = callback_query.from_user.id
@@ -3643,7 +3644,7 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
-    await sts.delete()
+    await sts.delete()"""
 
 import asyncio
 import os
