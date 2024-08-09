@@ -4114,20 +4114,10 @@ async def process_media_and_change_metadata(bot, callback_query, multitask_selec
     await sts.delete()
 
 
-import os
-import asyncio
-import time
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-
-# Initialize merge state
-merge_state = {}
-
 @Client.on_message(filters.command("audiomerge") & filters.chat(GROUP))
 async def start_merge_command(bot, msg: Message):
     user_id = msg.from_user.id
     merge_state[user_id] = {"video": None, "audio": None, "output_filename": None}
-
     await msg.reply_text("Send one video file and one audio file. Once done, send `/videomerge filename`.")
 
 @Client.on_message(filters.document | filters.video | filters.audio & filters.chat(GROUP))
@@ -4151,7 +4141,6 @@ async def start_video_audio_merge_command(bot, msg: Message):
 
     output_filename = msg.text.split(' ', 1)[1].strip()  # Extract output filename from command
     merge_state[user_id]["output_filename"] = output_filename
-
     await videoaudiomerge_and_upload(bot, msg)
 
 async def videoaudiomerge_and_upload(bot, msg: Message):
@@ -4161,7 +4150,7 @@ async def videoaudiomerge_and_upload(bot, msg: Message):
 
     video_msg = merge_state[user_id]["video"]
     audio_msg = merge_state[user_id]["audio"]
-    output_filename = merge_state[user_id].get("output_filename", "merged_output.mkv")  # Default output filename
+    output_filename = merge_state[user_id].get("output_filename", "merged_output.mka")  # Default output filename
     output_path = f"{output_filename}"
 
     sts = await msg.reply_text("🚀 Starting merge process...")
@@ -4174,7 +4163,8 @@ async def videoaudiomerge_and_upload(bot, msg: Message):
         # Construct FFmpeg command to merge video and audio
         ffmpeg_cmd = [
             "ffmpeg", "-i", video_file, "-i", audio_file,
-            "-c:v", "copy", "-c:a", "aac", "-strict", "experimental", output_path
+            "-c:v", "copy", "-c:a", "copy",  # Use "copy" to retain original audio format
+            "-strict", "experimental", output_path
         ]
 
         await sts.edit("💠 Merging video and audio... ⚡")
@@ -4194,7 +4184,7 @@ async def videoaudiomerge_and_upload(bot, msg: Message):
 
         await sts.edit("💠 Uploading... ⚡")
 
-        # Thumbnail handling
+        # Handle thumbnail
         thumbnail_file_id = await db.get_thumbnail(user_id)
         file_thumb = None
         if thumbnail_file_id:
@@ -4239,10 +4229,9 @@ async def videoaudiomerge_and_upload(bot, msg: Message):
 
     finally:
         # Clean up temporary files
-        if os.path.exists(video_file):
-            os.remove(video_file)
-        if os.path.exists(audio_file):
-            os.remove(audio_file)
+        for file_path in [video_file, audio_file]:
+            if os.path.exists(file_path):
+                os.remove(file_path)
         if os.path.exists(output_path):
             os.remove(output_path)
         if file_thumb and os.path.exists(file_thumb):
@@ -4253,6 +4242,15 @@ async def videoaudiomerge_and_upload(bot, msg: Message):
             del merge_state[user_id]
 
         await sts.delete()
+
+
+async def get_audio_codec(audio_msg):
+    """Determine the appropriate audio codec based on the input file type"""
+    file_extension = os.path.splitext(audio_msg.file_name)[1].lower()
+    if file_extension in [".aac", ".mp3", ".m4a", ".opus"]:
+        return "copy"  # No need to re-encode if already in supported formats
+    elif file_extension == ".e
+
 
 
 
