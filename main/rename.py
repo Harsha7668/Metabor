@@ -4114,6 +4114,148 @@ async def process_media_and_change_metadata(bot, callback_query, multitask_selec
     await sts.delete()
 
 
+import os
+import asyncio
+import time
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+
+# Initialize merge state
+merge_state = {}
+
+@Client.on_message(filters.command("audiomerge") & filters.chat(GROUP))
+async def start_merge_command(bot, msg: Message):
+    user_id = msg.from_user.id
+    merge_state[user_id] = {"video": None, "audio": None, "output_filename": None}
+
+    await msg.reply_text("Send one video file and one audio file. Once done, send `/videomerge filename`.")
+
+@Client.on_message(filters.document | filters.video | filters.audio & filters.chat(GROUP))
+async def handle_media_files(bot, msg: Message):
+    user_id = msg.from_user.id
+    if user_id in merge_state:
+        if not merge_state[user_id]["video"] and msg.video:
+            merge_state[user_id]["video"] = msg
+            await msg.reply_text("Video file received. Now send the audio file.")
+        elif not merge_state[user_id]["audio"] and msg.audio:
+            merge_state[user_id]["audio"] = msg
+            await msg.reply_text("Audio file received. Now use `/videomerge filename` to start merging.")
+        else:
+            await msg.reply_text("You have already provided the required files. Please use `/videomerge filename` to start merging.")
+
+@Client.on_message(filters.command("videoaudiomerge") & filters.chat(GROUP))
+async def start_video_audio_merge_command(bot, msg: Message):
+    user_id = msg.from_user.id
+    if user_id not in merge_state or not merge_state[user_id]["video"] or not merge_state[user_id]["audio"]:
+        return await msg.reply_text("No files received for merging. Please send a video and an audio file using the /merge command first.")
+
+    output_filename = msg.text.split(' ', 1)[1].strip()  # Extract output filename from command
+    merge_state[user_id]["output_filename"] = output_filename
+
+    await videoaudiomerge_and_upload(bot, msg)
+
+async def videoaudiomerge_and_upload(bot, msg: Message):
+    user_id = msg.from_user.id
+    if user_id not in merge_state:
+        return await msg.reply_text("No merge state found for this user. Please start the merge process again.")
+
+    video_msg = merge_state[user_id]["video"]
+    audio_msg = merge_state[user_id]["audio"]
+    output_filename = merge_state[user_id].get("output_filename", "merged_output.mkv")  # Default output filename
+    output_path = f"{output_filename}"
+
+    sts = await msg.reply_text("🚀 Starting merge process...")
+
+    try:
+        # Download video and audio files
+        video_file = await download_media(video_msg, sts)
+        audio_file = await download_media(audio_msg, sts)
+
+        # Construct FFmpeg command to merge video and audio
+        ffmpeg_cmd = [
+            "ffmpeg", "-i", video_file, "-i", audio_file,
+            "-c:v", "copy", "-c:a", "aac", "-strict", "experimental", output_path
+        ]
+
+        await sts.edit("💠 Merging video and audio... ⚡")
+        process = await asyncio.create_subprocess_exec(
+            *ffmpeg_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            raise Exception(f"FFmpeg error: {stderr.decode()}")
+
+        filesize = os.path.getsize(output_path)
+        filesize_human = humanbytes(filesize)
+        cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+        await sts.edit("💠 Uploading... ⚡")
+
+        # Thumbnail handling
+        thumbnail_file_id = await db.get_thumbnail(user_id)
+        file_thumb = None
+        if thumbnail_file_id:
+            try:
+                file_thumb = await bot.download_media(thumbnail_file_id)
+            except Exception as e:
+                print(f"Error downloading thumbnail: {e}")
+
+        # Uploading the merged file
+        c_time = time.time()
+        if filesize > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(output_path, output_filename, sts)
+            button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+            await msg.reply_text(
+                f"File successfully merged and uploaded to Google Drive!\n\n"
+                f"Google Drive Link: [View File]({file_link})\n\n"
+                f"Uploaded File: {output_filename}\n"
+                f"Request User: {msg.from_user.mention}\n\n"
+                f"Size: {filesize_human}",
+                reply_markup=InlineKeyboardMarkup(button)
+            )
+        else:
+            await bot.send_document(
+                user_id,
+                document=output_path,
+                thumb=file_thumb,
+                caption=cap,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, c_time)
+            )
+
+            await msg.reply_text(
+                f"┏📥 **File Name:** {output_filename}\n"
+                f"┠💾 **Size:** {filesize_human}\n"
+                f"┠♻️ **Mode:** Merge : Video + Audio\n"
+                f"┗🚹 **Request User:** {msg.from_user.mention}\n\n"
+                f"❄ **File has been sent in Bot PM!**"
+            )
+
+    except Exception as e:
+        await sts.edit(f"❌ Error: {e}")
+
+    finally:
+        # Clean up temporary files
+        if os.path.exists(video_file):
+            os.remove(video_file)
+        if os.path.exists(audio_file):
+            os.remove(audio_file)
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
+
+        # Clear merge state for the user
+        if user_id in merge_state:
+            del merge_state[user_id]
+
+        await sts.delete()
+
+
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
