@@ -4249,7 +4249,10 @@ async def get_audio_codec(audio_msg):
     file_extension = os.path.splitext(audio_msg.file_name)[1].lower()
     if file_extension in [".aac", ".mp3", ".m4a", ".opus"]:
         return "copy"  # No need to re-encode if already in supported formats
-    elif file_extension == ".e
+    elif file_extension == ".eac3":
+        return "eac3"
+    else:
+        return "aac"  # Default to AAC if the format is unrecognized
 
 
 
