@@ -3646,6 +3646,8 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
         os.remove(file_thumb)
     await sts.delete()
 
+
+"""
 import asyncio
 import os
 import time
@@ -3925,7 +3927,7 @@ async def process_media_and_change_metadata(bot, callback_query, multitask_selec
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await sts.delete()
-
+"""
 
 
 
