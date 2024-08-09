@@ -3275,7 +3275,6 @@ async def restart_bot(client, message):
 
 
 
-"""
 
 import asyncio
 import os
@@ -3473,6 +3472,7 @@ async def safe_edit_message(message, text, reply_markup=None):
                 break
             await asyncio.sleep(2 ** attempt)  # Exponential backoff
 
+"""
 #process media for pvt 
 # Process media function
 async def process_media(bot, callback_query, selected_streams, downloaded, output_filename, sts):
@@ -3548,7 +3548,7 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
-    await sts.delete()
+    await sts.delete()"""
 
 #group branch 
 # Process media function
@@ -3644,7 +3644,7 @@ async def process_media(bot, callback_query, selected_streams, downloaded, outpu
     os.remove(output_file)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
-    await sts.delete()"""
+    await sts.delete()
 
 import asyncio
 import os
@@ -3722,7 +3722,7 @@ async def multitask_file(bot, msg):
             elif language == 'hin':
                 audio_video_streams.append(f"{stream_index} 🎵 Hindi Audio")
             else:
-                audio_video_streams.append(f"{stream_index} 🎵 Audio - {language}")
+                audio_video_streams.append(f"{stream_index} 🎵  {language} - Audio")
         elif codec_type == 'subtitle':
             if language == 'eng':
                 subtitle_streams.append(f"{stream_index} 📝 English Subtitle")
@@ -3742,8 +3742,8 @@ async def multitask_file(bot, msg):
             row.append(InlineKeyboardButton(f"{subtitle_streams[i]}", callback_data=f"toggle_{subtitle_streams[i].split()[0]}"))
         buttons.append(row)
 
-    buttons.append([InlineKeyboardButton("🔄 Reverse Selection", callback_data="reverse")])
-    buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel"), InlineKeyboardButton("✅ Done", callback_data="done")])
+    buttons.append([InlineKeyboardButton("🔄 Reverse Selection", callback_data="multitask_reverse")])
+    buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="multitask_cancel"), InlineKeyboardButton("✅ Done", callback_data="multitask_done")])
     markup = InlineKeyboardMarkup(buttons)
 
     selected_streams.clear()
@@ -3762,7 +3762,7 @@ async def multitask_file(bot, msg):
             if downloaded:
                 os.remove(downloaded)
 
-@Client.on_callback_query(filters.regex(r'toggle_\d+|done|cancel|reverse'))
+@Client.on_callback_query(filters.regex(r'toggle_\d+|multitask_done|multitask_cancel|multitask_reverse'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
     global selected_streams
     global downloaded
