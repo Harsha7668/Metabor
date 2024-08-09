@@ -3824,9 +3824,156 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
                 break
 
     await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+"""
 
 
-# Process media and change metadata function
+import asyncio
+import os
+import time
+import json
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from pyrogram.errors import FloodWait
+
+
+# Constants and global variables for multitask command
+MULTITASK_ENABLED = True
+multitask_selected_streams = set()
+multitask_download = None
+
+# Define your progress_message function here (not provided in the original snippet)
+
+
+@Client.on_message(filters.command("multitask") & filters.chat(GROUP))
+async def multitask_file(bot, msg):
+    global MULTITASK_ENABLED
+    global multitask_selected_streams
+    global multitask_download
+    global output_filename
+
+    if not MULTITASK_ENABLED:
+        return await msg.reply_text("🚫 The multitask feature is currently disabled.")
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("❗ Please reply to a media file with the command\nFormat: `/multitaskfile -n filename.mkv`")
+
+    if len(msg.command) < 3 or msg.command[1] != "-n":
+        return await msg.reply_text("Please provide the filename with the `-n` flag\nFormat: `/multitaskfile -n filename.mkv`")
+
+    output_filename = " ".join(msg.command[2:]).strip()
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("❗ Please reply to a valid media file (audio, video, or document) with the command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        multitask_download = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await sts.edit(f"❌ Error downloading media: {e}")
+        return
+
+    # Extract and display stream options (similar to streamremove command)
+    # Adjust the callback_data to be unique for multitask
+
+    buttons = []
+    max_len = max(len(audio_video_streams), len(subtitle_streams))
+    for i in range(max_len):
+        row = []
+        if i < len(audio_video_streams):
+            row.append(InlineKeyboardButton(f"{audio_video_streams[i]}", callback_data=f"multitask_toggle_{audio_video_streams[i].split()[0]}"))
+        if i < len(subtitle_streams):
+            row.append(InlineKeyboardButton(f"{subtitle_streams[i]}", callback_data=f"multitask_toggle_{subtitle_streams[i].split()[0]}"))
+        buttons.append(row)
+
+    buttons.append([InlineKeyboardButton("🔄 Reverse Selection", callback_data="multitask_reverse")])
+    buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="multitask_cancel"), InlineKeyboardButton("✅ Done", callback_data="multitask_done")])
+    markup = InlineKeyboardMarkup(buttons)
+
+    multitask_selected_streams.clear()
+    start_time = time.time()
+    message = await sts.edit("Select the streams you want to remove (you have 60 seconds):", reply_markup=markup)
+
+    # Wait for 60 seconds
+    await asyncio.sleep(60)
+
+    if time.time() - start_time < 60:
+        # If the user has not interacted within 60 seconds, cancel the process
+        if message:
+            await message.edit("🕒 Time's up! Selection process has been canceled.")
+            await asyncio.sleep(5)  # Keep the message visible for a short time before deleting
+            await message.delete()
+            if multitask_download:
+                os.remove(multitask_download)
+
+
+@Client.on_callback_query(filters.regex(r'multitask_toggle_\d+|multitask_done|multitask_cancel|multitask_reverse'))
+async def multitask_callback_query_handler(bot, callback_query: CallbackQuery):
+    global multitask_selected_streams
+    global multitask_download
+    global output_filename
+    data = callback_query.data
+
+    # Check if the user who initiated the command matches the callback query user
+    if callback_query.from_user.id != callback_query.message.reply_to_message.from_user.id:
+        return
+
+    if data == "multitask_cancel":
+        await callback_query.message.delete()
+        if multitask_download:
+            os.remove(multitask_download)
+        return
+
+    if data == "multitask_reverse":
+        buttons = callback_query.message.reply_markup.inline_keyboard
+        all_indices = {btn.callback_data.split('_')[2] for row in buttons for btn in row if btn.callback_data.startswith('multitask_toggle_')}
+        multitask_selected_streams.symmetric_difference_update(all_indices)
+
+        # Update button text
+        for row in buttons:
+            for button in row:
+                if button.callback_data.startswith("multitask_toggle_"):
+                    index = button.callback_data.split('_')[2]
+                    if index in multitask_selected_streams:
+                        button.text = f"✅ {button.text.lstrip('✅').strip()}"
+                    else:
+                        button.text = button.text.lstrip('✅').strip()
+
+        await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+        return
+
+    if data == "multitask_done":
+        sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
+        await process_multitask_media(bot, callback_query, multitask_selected_streams, multitask_download, output_filename, sts)
+        return
+
+    # Toggle selection state
+    index = data.split('_')[2]
+    if index in multitask_selected_streams:
+        multitask_selected_streams.remove(index)
+    else:
+        multitask_selected_streams.add(index)
+
+    # Update buttons to reflect selection
+    buttons = callback_query.message.reply_markup.inline_keyboard
+    for row in buttons:
+        for button in row:
+            if button.callback_data == f"multitask_toggle_{index}":
+                if button.text.startswith("✅"):
+                    button.text = button.text[2:]  # Remove the checkmark
+                else:
+                    button.text = f"✅ {button.text}"  # Add the checkmark
+                break
+
+    await callback_query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+
+
+
 # Process media and change metadata function
 async def process_media_and_change_metadata(bot, callback_query, multitask_selected_streams, multitask_download, output_filename, sts):
     user_id = callback_query.from_user.id
@@ -3927,8 +4074,6 @@ async def process_media_and_change_metadata(bot, callback_query, multitask_selec
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await sts.delete()
-"""
-
 
 
 if __name__ == '__main__':
