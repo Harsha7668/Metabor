@@ -3656,14 +3656,14 @@ from pyrogram.errors import FloodWait
 
 # Define your constants and global variables here
 MULTITASK_ENABLED = True
-selected_streams = set()
-downloaded = None
+multitask_selected_streams = set()
+multitask_download = None
 
 @Client.on_message(filters.command("multitask") & filters.chat(GROUP))
 async def multitask_file(bot, msg):
     global MULTITASK_ENABLED
-    global selected_streams
-    global downloaded
+    global multitask_selected_streams
+    global multitask_download
     global output_filename
 
     if not MULTITASK_ENABLED:
@@ -3688,21 +3688,21 @@ async def multitask_file(bot, msg):
     sts = await msg.reply_text("🚀 Downloading media... ⚡")
     c_time = time.time()
     try:
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+        multitask_download = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
     except Exception as e:
         await sts.edit(f"❌ Error downloading media: {e}")
         return
 
     # Get the available streams
     ffprobe_cmd = [
-        'ffprobe', '-v', 'error', '-show_entries', 'stream=index:stream_tags=language:stream=codec_type', '-of', 'json', downloaded
+        'ffprobe', '-v', 'error', '-show_entries', 'stream=index:stream_tags=language:stream=codec_type', '-of', 'json', multitask_download
     ]
     process = await asyncio.create_subprocess_exec(*ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
         await sts.edit(f"❗ FFprobe error: {stderr.decode('utf-8')}")
-        os.remove(downloaded)
+        os.remove(multitask_download)
         return
 
     streams = json.loads(stdout.decode('utf-8')).get('streams', [])
@@ -3746,7 +3746,7 @@ async def multitask_file(bot, msg):
     buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="multitask_cancel"), InlineKeyboardButton("✅ Done", callback_data="multitask_done")])
     markup = InlineKeyboardMarkup(buttons)
 
-    selected_streams.clear()
+    multitask_selected_streams.clear()
     start_time = time.time()
     message = await sts.edit("Select the streams you want to remove (you have 60 seconds):", reply_markup=markup)
 
@@ -3759,13 +3759,14 @@ async def multitask_file(bot, msg):
             await message.edit("🕒 Time's up! Selection process has been canceled.")
             await asyncio.sleep(5)  # Keep the message visible for a short time before deleting
             await message.delete()
-            if downloaded:
-                os.remove(downloaded)
+            if multitask_download:
+                os.remove(multitask_download)
+
 
 @Client.on_callback_query(filters.regex(r'multitask_toggle_\d+|multitask_done|multitask_cancel|multitask_reverse'))
 async def callback_query_handler(bot, callback_query: CallbackQuery):
-    global selected_streams
-    global downloaded
+    global multitask_selected_streams
+    global multitask_download
     global output_filename
     data = callback_query.data
 
@@ -3775,21 +3776,21 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     if data == "cancel":
         await callback_query.message.delete()
-        if downloaded:
-            os.remove(downloaded)
+        if multitask_download:
+            os.remove(multitask_download)
         return
 
     if data == "reverse":
         buttons = callback_query.message.reply_markup.inline_keyboard
         all_indices = {btn.callback_data.split('_')[1] for row in buttons for btn in row if btn.callback_data.startswith('toggle_')}
-        selected_streams.symmetric_difference_update(all_indices)
+        multitask_selected_streams.symmetric_difference_update(all_indices)
 
         # Update button text
         for row in buttons:
             for button in row:
                 if button.callback_data.startswith("toggle_"):
                     index = button.callback_data.split('_')[1]
-                    if index in selected_streams:
+                    if index in multitask_selected_streams:
                         button.text = f"✅ {button.text.lstrip('✅').strip()}"
                     else:
                         button.text = button.text.lstrip('✅').strip()
@@ -3799,15 +3800,15 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
     if data == "done":
         sts = await callback_query.message.edit_text("💠 Removing selected streams... ⚡")
-        await process_media_and_change_metadata(bot, callback_query, selected_streams, downloaded, output_filename, sts)
+        await process_media_and_change_metadata(bot, callback_query, multitask_selected_streams, multitask_download, output_filename, sts)
         return
 
     # Toggle selection state
     index = data.split('_')[1]
-    if index in selected_streams:
-        selected_streams.remove(index)
+    if index in multitask_selected_streams:
+        multitask_selected_streams.remove(index)
     else:
-        selected_streams.add(index)
+        multitask_selected_streams.add(index)
 
     # Update buttons to reflect selection
     buttons = callback_query.message.reply_markup.inline_keyboard
@@ -3824,7 +3825,8 @@ async def callback_query_handler(bot, callback_query: CallbackQuery):
 
 
 # Process media and change metadata function
-async def process_media_and_change_metadata(bot, callback_query, selected_streams, downloaded, output_filename, sts):
+# Process media and change metadata function
+async def process_media_and_change_metadata(bot, callback_query, multitask_selected_streams, multitask_download, output_filename, sts):
     user_id = callback_query.from_user.id
     output_file = output_filename
 
@@ -3839,22 +3841,22 @@ async def process_media_and_change_metadata(bot, callback_query, selected_stream
     if any([video_title, audio_title, subtitle_title]):
         await safe_edit_message(sts, "💠 Changing metadata... ⚡")
         try:
-            change_video_metadata(downloaded, video_title, audio_title, subtitle_title, intermediate_file)
+            change_video_metadata(multitask_download, video_title, audio_title, subtitle_title, intermediate_file)
         except Exception as e:
             await safe_edit_message(sts, f"❌ Error changing metadata: {str(e)[:4000]}")
-            os.remove(downloaded)
+            os.remove(multitask_download)
             if os.path.exists(intermediate_file):
                 os.remove(intermediate_file)
             return
     else:
         # If no metadata to change, proceed with the original file
-        intermediate_file = downloaded
+        intermediate_file = multitask_download
 
     # Step 2: Stream Removal
     output_file = os.path.splitext(output_file)[0] + "_final" + os.path.splitext(output_file)[1]
 
     ffmpeg_cmd = ['ffmpeg', '-i', intermediate_file, '-map', '0']
-    for idx in selected_streams:
+    for idx in multitask_selected_streams:
         ffmpeg_cmd.extend(['-map', f'-0:{idx}'])
     ffmpeg_cmd.extend(['-c', 'copy', output_file, '-y'])
 
@@ -3923,7 +3925,10 @@ async def process_media_and_change_metadata(bot, callback_query, selected_stream
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
     await sts.delete()
-        
+
+
+
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
