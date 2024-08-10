@@ -1,7 +1,7 @@
 import math, time
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
-import os, asyncio
+import os, asyncio,re 
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
@@ -130,69 +130,28 @@ async def upload_files(bot, chat_id, directory, base_path=""):
         elif os.path.isdir(item_path):
             await upload_files(bot, chat_id, item_path, base_path=os.path.join(base_path, item))
         
-async def convert_video(video_file, output_file, bot, msg, sts):
-    progress = "progress.txt"
-    command = (
-        f"ffmpeg -hide_banner -loglevel quiet -progress {progress} -i {video_file} "
-        f"-vf drawtext=fontfile=font.ttf:fontsize=27:fontcolor=white:bordercolor=black@0.50:x=w-tw-10:y=10:box=1:boxcolor=black@0.5:boxborderw=6:text='@Anime_Sensei' "
-        f"-c:v libx264 -crf 28 -pix_fmt yuv420p -s 854x480 -b:v 150k -c:a libopus -b:a 35k -preset veryfast {output_file} -y"
-    )
+async def encode_progress_message(current, total, message, start):
+    now = time.time()
+    diff = now - start
+    percentage = current * 100 / total if total != -1 else 0
+    speed = humanbytes(current / diff) + "/s" if diff > 0 else "N/A"
+    elapsed_time_ms = round(diff * 1000)
+    time_to_completion_ms = round((total - current) / (current / diff)) * 1000 if total != -1 else 0
+    estimated_total_time_ms = elapsed_time_ms + time_to_completion_ms
 
-    process = await asyncio.create_subprocess_shell(
-        command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
+    elapsed_time = TimeFormatter(elapsed_time_ms)
+    estimated_total_time = TimeFormatter(estimated_total_time_ms)
 
-    COMPRESSION_START_TIME = time.time()
-    while process.returncode is None:
-        await asyncio.sleep(3)
-        with open(progress, 'r') as file:
-            text = file.read()
-            frame = re.findall("frame=(\d+)", text)
-            time_in_us = re.findall("out_time_ms=(\d+)", text)
-            progress = re.findall("progress=(\w+)", text)
-            speed = re.findall("speed=(\d+\.?\d*)", text)
-            if frame:
-                frame = int(frame[-1])
-            else:
-                frame = 1
-            if speed:
-                speed = speed[-1]
-            else:
-                speed = 1
-            if time_in_us:
-                time_in_us = time_in_us[-1]
-            else:
-                time_in_us = 1
-            if progress and progress[-1] == "end":
-                break
+    progress_str = f"📈 <b>Progress:</b> {round(percentage, 2)}%\n" \
+                   f"[{'█' * math.floor(percentage / 10)}{'.' * (10 - math.floor(percentage / 10))}]"
+    stats = f'🗳 <b>ENCODING IN PROGRESS</b>\n\n' \
+            f'⌚ <b>TIME LEFT:</b> {estimated_total_time}\n\n' \
+            f'{progress_str}\n'
 
-            elapsed_time = int(time_in_us) / 1000000
-            execution_time = int((time.time() - COMPRESSION_START_TIME) * 1000)
-            difference = math.floor((elapsed_time / float(speed)))
-            ETA = "-" if difference <= 0 else TimeFormatter(difference * 1000)
-            percentage = math.floor(elapsed_time * 100 / execution_time)
-            progress_str = f"📈 <b>Progress:</b> {round(percentage, 2)}%\n" \
-                           f"[{'█' * math.floor(percentage / 10)}{'.' * (10 - math.floor(percentage / 10))}]"
-            stats = f'🗳 <b>ENCODING IN PROGRESS</b>\n\n' \
-                    f'⌚ <b>TIME LEFT:</b> {ETA}\n\n' \
-                    f'{progress_str}\n'
-
-            try:
-                await msg.edit_text(stats)
-            except:
-                pass
-
-    stdout, stderr = await process.communicate()
-    e_response = stderr.decode().strip()
-    if process.returncode != 0:
-        await msg.edit_text(f"**ERROR:** {e_response}\n\nContact @TheBatmanShan")
-        os.remove(video_file)
-        os.remove(output_file)
-        return None
-
-    if os.path.exists(output_file):
-        return output_file
-    else:
-        return None
+    try:
+        await message.edit(
+            text=stats,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+        )
+    except Exception as e:
+        print(f"Error editing message: {e}")
