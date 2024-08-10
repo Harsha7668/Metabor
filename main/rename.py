@@ -597,6 +597,8 @@ async def compress_media(bot, msg: Message):
     await sts.delete()
 
 
+import subprocess
+
 def compress_video(input_path, output_path):
     command = [
         'ffmpeg',
@@ -611,17 +613,22 @@ def compress_video(input_path, output_path):
         '-c:a', 'libopus',
         '-b:a', '35k',
         '-preset', 'veryfast',
-        '-metadata', 'title=Video Title: ENCODED BY SUNRISES HARSHA 24',
-        '-metadata:s:a:0', 'title=Audio Title: ENCODED BY SUNRISES HARSHA 24',
-        '-metadata:s:s:0', 'title=Subtitle Title: ENCODED BY SUNRISES HARSHA 24',
-        output_path,
-        '-y'
+        '-map', '0:v:0',  # Map the first video stream
+        '-map', '0:a',    # Map all audio streams
+        '-map', '0:s?',   # Map all subtitle streams if present
+        '-metadata', 'title=ENCODED BY SUNRISES HARSHA 24',
+        '-metadata:s:v:0', 'title=ENCODED BY SUNRISES HARSHA 24',
+        '-metadata:s:a', 'title=ENCODED BY SUNRISES HARSHA 24',
+        '-metadata:s:s', 'title=ENCODED BY SUNRISES HARSHA 24',
+        '-y',
+        output_path
     ]
     
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     if process.returncode != 0:
         raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
+
             
 # Command handler for /mirror
 @Client.on_message(filters.command("mirror") & filters.chat(GROUP))
