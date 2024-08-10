@@ -507,8 +507,6 @@ async def inline_preview_gofile_api_key(bot, callback_query):
     
     await callback_query.message.reply_text(f"Current Gofile API Key for user `{user_id}`: {api_key}")
 
-
-
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 import os
@@ -600,7 +598,7 @@ async def compress_media(bot, msg: Message):
 
 def compress_video(input_path, output_path):
     command = (
-        f"ffmpeg -hide_banner -loglevel quiet -progress {progress} -i {input_path} "
+        f"ffmpeg -hide_banner -loglevel quiet -i {input_path} "
         f"-vf drawtext=fontfile=font.ttf:fontsize=27:fontcolor=white:bordercolor=black@0.50:x=w-tw-10:y=10:box=1:boxcolor=black@0.5:boxborderw=6:text='@Sunrises24Rips' "
         f"-c:v libx264 -crf 28 -pix_fmt yuv420p -s 854x480 -b:v 150k -c:a libopus -b:a 35k -preset veryfast {output_path} -y"
     )
@@ -608,6 +606,7 @@ def compress_video(input_path, output_path):
     stdout, stderr = process.communicate()
     if process.returncode != 0:
         raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
+
 
 
 # Command handler for /mirror
