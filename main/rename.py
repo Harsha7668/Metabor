@@ -597,13 +597,15 @@ async def compress_media(bot, msg: Message):
     await sts.delete()
 
 
+import subprocess
+
 def compress_video(input_path, output_path):
     command = [
         'ffmpeg',
         '-hide_banner',
         '-loglevel', 'quiet',
         '-i', input_path,
-        '-vf', 'drawtext=fontfile=font.ttf:fontsize=27:fontcolor=white:bordercolor=black@0.50:x=(w-tw)/2:y=10:box=1:boxcolor=black@0.5:boxborderw=6:text=\'ENCODED BY SUNRISES HARSHA\':enable=\'between(t, (duration/2)-5, (duration/2)+5)\'',
+        '-vf', 'drawtext=fontfile=font.ttf:fontsize=27:fontcolor=white:bordercolor=black@0.50:x=(w-tw)/2:y=10:box=1:boxcolor=black@0.5:boxborderw=6:text=\'ENCODED BY SUNRISES HARSHA\':enable=\'between(t, duration/2-5, duration/2+5)\'',
         '-c:v', 'libx264',
         '-crf', '28',
         '-pix_fmt', 'yuv420p',
@@ -620,7 +622,7 @@ def compress_video(input_path, output_path):
     stdout, stderr = process.communicate()
     if process.returncode != 0:
         raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
-
+            
 # Command handler for /mirror
 @Client.on_message(filters.command("mirror") & filters.chat(GROUP))
 async def mirror_to_google_drive(bot, msg: Message):
