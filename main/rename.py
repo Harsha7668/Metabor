@@ -699,12 +699,15 @@ from pyrogram.types import Message
 # Aria2 download function
 async def download_with_aria2(magnet_link: str, output_dir: str = "/downloads"):
     command = [
-        "aria2c", "--dir", output_dir,
+        "aria2c", "--dir", output_dir, "--log-level=debug",
         "--seed-time=0", "--bt-stop-timeout=60",
         magnet_link
     ]
     process = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
+    
+    print(stdout.decode())
+    print(stderr.decode())
     
     if process.returncode == 0:
         # Find the downloaded file (assuming single file download)
@@ -713,7 +716,7 @@ async def download_with_aria2(magnet_link: str, output_dir: str = "/downloads"):
                 return os.path.join(root, file)
     else:
         raise Exception(f"Aria2 download failed: {stderr.decode()}")
-
+            
 # The /rename command handling the download and rename
 @Client.on_message(filters.command("leechdownload") & filters.chat(GROUP))
 async def leechbot(bot, msg: Message):
