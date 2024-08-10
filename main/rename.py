@@ -597,15 +597,12 @@ async def compress_media(bot, msg: Message):
     await sts.delete()
 
 
-import subprocess
-
 def compress_video(input_path, output_path):
     command = [
         'ffmpeg',
         '-hide_banner',
         '-loglevel', 'quiet',
         '-i', input_path,
-        '-vf', 'drawtext=fontfile=font.ttf:fontsize=27:fontcolor=white:bordercolor=black@0.50:x=(w-tw)/2:y=10:box=1:boxcolor=black@0.5:boxborderw=6:text=\'ENCODED BY SUNRISES HARSHA\':enable=\'between(t, duration/2-5, duration/2+5)\'',
         '-c:v', 'libx264',
         '-crf', '28',
         '-pix_fmt', 'yuv420p',
@@ -614,6 +611,9 @@ def compress_video(input_path, output_path):
         '-c:a', 'libopus',
         '-b:a', '35k',
         '-preset', 'veryfast',
+        '-metadata', 'title=Video Title: ENCODED BY SUNRISES HARSHA 24',
+        '-metadata:s:a:0', 'title=Audio Title: ENCODED BY SUNRISES HARSHA 24',
+        '-metadata:s:s:0', 'title=Subtitle Title: ENCODED BY SUNRISES HARSHA 24',
         output_path,
         '-y'
     ]
