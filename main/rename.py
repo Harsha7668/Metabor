@@ -597,18 +597,29 @@ async def compress_media(bot, msg: Message):
     await sts.delete()
 
 def compress_video(input_path, output_path):
-    command = (
-        f"ffmpeg -hide_banner -loglevel quiet -i {input_path} "
-        f"-vf drawtext=fontfile=font.ttf:fontsize=27:fontcolor=white:bordercolor=black@0.50:x=w-tw-10:y=10:box=1:boxcolor=black@0.5:boxborderw=6:text='@Sunrises24Rips' "
-        f"-c:v libx264 -crf 28 -pix_fmt yuv420p -s 854x480 -b:v 150k -c:a libopus -b:a 35k -preset veryfast {output_path} -y"
-    )
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    command = [
+        'ffmpeg',
+        '-hide_banner',
+        '-loglevel', 'quiet',
+        '-i', input_path,
+        '-vf', 'drawtext=fontfile=font.ttf:fontsize=27:fontcolor=white:bordercolor=black@0.50:x=w-tw-10:y=10:box=1:boxcolor=black@0.5:boxborderw=6:text=\'@Sunrises24Rips\'',
+        '-c:v', 'libx264',
+        '-crf', '28',
+        '-pix_fmt', 'yuv420p',
+        '-s', '854x480',
+        '-b:v', '150k',
+        '-c:a', 'libopus',
+        '-b:a', '35k',
+        '-preset', 'veryfast',
+        output_path,
+        '-y'
+    ]
+    
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     if process.returncode != 0:
         raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
-
-
-
+            
 # Command handler for /mirror
 @Client.on_message(filters.command("mirror") & filters.chat(GROUP))
 async def mirror_to_google_drive(bot, msg: Message):
