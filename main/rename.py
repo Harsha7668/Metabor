@@ -691,7 +691,69 @@ async def mirror_to_google_drive(bot, msg: Message):
     except Exception as e:
         await sts.edit(f"Error: {e}")
         
+import os
+import asyncio
+from pyrogram import Client, filters
+from pyrogram.types import Message
 
+# Aria2 download function
+async def download_with_aria2(magnet_link: str, output_dir: str = "/downloads"):
+    command = [
+        "aria2c", "--dir", output_dir,
+        "--seed-time=0", "--bt-stop-timeout=60",
+        magnet_link
+    ]
+    process = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+    
+    if process.returncode == 0:
+        # Find the downloaded file (assuming single file download)
+        for root, dirs, files in os.walk(output_dir):
+            for file in files:
+                return os.path.join(root, file)
+    else:
+        raise Exception(f"Aria2 download failed: {stderr.decode()}")
+
+# The /rename command handling the download and rename
+@Client.on_message(filters.command("l2") & filters.chat(GROUP))
+async def rename_file(bot, msg: Message):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide the new filename with the extension (e.g., .mkv, .mp4, .zip).")
+
+    if "magnet:?" not in msg.text:
+        return await msg.reply_text("Please provide a valid magnet link.")
+
+    new_name = msg.text.split(" ", 1)[1]
+    magnet_link = msg.text.split(" ")[0]
+
+    output_dir = "/downloads"
+    try:
+        sts = await msg.reply_text("🚀 Downloading with Aria2... ⚡")
+        downloaded_file = await download_with_aria2(magnet_link, output_dir)
+        downloaded_file_path = os.path.join(output_dir, downloaded_file)
+        
+        # Rename the file
+        new_path = os.path.join(output_dir, new_name)
+        os.rename(downloaded_file_path, new_path)
+
+        filesize = humanbytes(os.path.getsize(new_path))
+        caption = f"{new_name}\n\n🌟 Size: {filesize}"
+
+        await sts.edit("💠 Uploading... ⚡")
+        c_time = time.time()
+
+        if os.path.getsize(new_path) > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(new_path, new_name, sts)
+            await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
+        else:
+            await bot.send_document(msg.chat.id, document=new_path, caption=caption, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+
+        os.remove(new_path)
+        await sts.delete()
+
+    except Exception as e:
+        await sts.edit(f"Error: {str(e)}")
+            
 #Rename Command
 @Client.on_message(filters.command("rename") & filters.chat(GROUP))
 async def rename_file(bot, msg):
