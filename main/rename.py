@@ -715,8 +715,8 @@ async def download_with_aria2(magnet_link: str, output_dir: str = "/downloads"):
         raise Exception(f"Aria2 download failed: {stderr.decode()}")
 
 # The /rename command handling the download and rename
-@Client.on_message(filters.command("l2") & filters.chat(GROUP))
-async def rename_file(bot, msg: Message):
+@Client.on_message(filters.command("leechdownload") & filters.chat(GROUP))
+async def leechbot(bot, msg: Message):
     if len(msg.command) < 2:
         return await msg.reply_text("Please provide the new filename with the extension (e.g., .mkv, .mp4, .zip).")
 
