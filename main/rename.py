@@ -16,7 +16,7 @@ from pyrogram.errors import MessageNotModified
 from main.utils import progress_message, humanbytes
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup,CallbackQuery
 from config import AUTH_USERS, ADMIN, CAPTION, GROUP, CHANNEL_ID
-from main.utils import heroku_restart, upload_files, download_media, convert_video
+from main.utils import heroku_restart, upload_files, download_media, encode_progress_message
 import aiohttp
 from pyrogram.errors import RPCError, FloodWait
 import asyncio
@@ -528,21 +528,22 @@ async def compress_media(bot, msg: Message):
     if not media:
         return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the compress command.")
 
-    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    # Downloading Phase
+    download_sts = await msg.reply_text("🚀 Downloading media... ⚡")
     c_time = time.time()
     try:
-        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+        downloaded = await reply.download(progress=progress_message, progress_args=("Downloading", download_sts, c_time, "Downloading"))
     except Exception as e:
-        await safe_edit_message(sts, f"Error downloading media: {e}")
+        await safe_edit_message(download_sts, f"Error downloading media: {e}")
         return
 
-    output_file = output_filename
-
-    await safe_edit_message(sts, "💠 Compressing media... ⚡")
+    # Encoding Phase
+    encode_sts = await msg.reply_text("💠 Encoding media... ⚡")
+    c_time = time.time()
     try:
-        await convert_video(downloaded, output_file, bot, msg, sts)
+        await compress_video(downloaded, output_filename, encode_sts, c_time)
     except Exception as e:
-        await safe_edit_message(sts, f"Error compressing media: {e}")
+        await safe_edit_message(encode_sts, f"Error compressing media: {e}")
         os.remove(downloaded)
         return
 
@@ -561,15 +562,15 @@ async def compress_media(bot, msg: Message):
             except Exception as e:
                 file_thumb = None
 
-    filesize = os.path.getsize(output_file)
+    filesize = os.path.getsize(output_filename)
     filesize_human = humanbytes(filesize)
     cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
 
-    await safe_edit_message(sts, "💠 Uploading... ⚡")
+    await safe_edit_message(encode_sts, "💠 Uploading... ⚡")
     c_time = time.time()
 
     if filesize > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        file_link = await upload_to_google_drive(output_filename, output_filename, encode_sts)
         button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
         await msg.reply_text(
             f"**File successfully compressed and uploaded to Google Drive!**\n\n"
@@ -581,17 +582,32 @@ async def compress_media(bot, msg: Message):
         )
     else:
         try:
-            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+            await bot.send_document(msg.chat.id, document=output_filename, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("Uploading", encode_sts, c_time, "Uploading"))
         except Exception as e:
-            return await safe_edit_message(sts, f"Error: {e}")
+            return await safe_edit_message(encode_sts, f"Error: {e}")
 
     os.remove(downloaded)
-    os.remove(output_file)
+    os.remove(output_filename)
     if file_thumb and os.path.exists(file_thumb):
         os.remove(file_thumb)
-    await sts.delete()
+    await download_sts.delete()
+    await encode_sts.delete()
 
+async def compress_video(input_path, output_path, status_message, start_time):
+    command = (
+        f"ffmpeg -hide_banner -loglevel quiet -progress - -i {input_path} "
+        f"-vf drawtext=fontfile=font.ttf:fontsize=27:fontcolor=white:bordercolor=black@0.50:x=w-tw-10:y=10:box=1:boxcolor=black@0.5:boxborderw=6:text='@Sunrises24Rips' "
+        f"-c:v libx264 -crf 28 -pix_fmt yuv420p -s 854x480 -b:v 150k -c:a libopus -b:a 35k -preset veryfast {output_path} -y"
+    )
 
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    for line in process.stdout:
+        if "out_time_ms=" in line:
+            progress = int(line.split("out_time_ms=")[1].split()[0])
+            await encode_progress_message(progress, -1, status_message, start_time)
+    process.wait()
+    if process.returncode != 0:
+        raise Exception(f"FFmpeg error: {process.stderr.read()}")
 
 
 # Command handler for /mirror
