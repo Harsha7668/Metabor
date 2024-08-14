@@ -3277,7 +3277,7 @@ async def gofile_upload(bot: Client, msg: Message):
 
     # Retrieve the user's Gofile API key and saved channel ID from the database
     gofile_api_key = await db.get_gofile_api_key(user_id)
-    saved_channel = await get_user_channel(user_id)
+    saved_channel = await db.get_user_channel(user_id)
 
     if not gofile_api_key:
         return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
