@@ -3266,7 +3266,7 @@ async def save_channel(bot: Client, msg: Message):
         return await msg.reply_text("Invalid channel ID. Please provide a valid channel ID starting with -100.")
 
     # Save the channel ID to the database
-    await update_user_channel(user_id, channel_id)
+    await db.update_user_channel(user_id, channel_id)
 
     await msg.reply_text(f"Channel ID saved successfully! Make sure to add the bot as an admin in {channel_id}.")
 
