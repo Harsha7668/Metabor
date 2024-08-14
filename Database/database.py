@@ -16,9 +16,23 @@ class Database:
         self.user_quality_selection_col = self.db['user_quality_selection']
         self.file_data_col = self.db['file_data']
         self.photo_col = self.db['photos']
+        self.user_requirements_col = self.db['user_requirements']  # Add this line
 
-    
-    
+
+async def get_user_channel(user_id: int):
+    # Retrieve the user's saved channel ID from the database
+    user_data = await db.user_requirements_col.find_one({"user_id": user_id})
+    return user_data.get("saved_channel") if user_data else None
+
+async def update_user_channel(user_id: int, channel_id: str):
+    # Save the user's channel ID to the database
+    await db.user_requirements_col.update_one(
+        {"user_id": user_id},
+        {"$set": {"saved_channel": channel_id}},
+        upsert=True
+    )
+
+        
     async def save_photo(self, user_id, file_id):
         try:
             await self.photo_col.update_one(
