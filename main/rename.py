@@ -1501,7 +1501,7 @@ async def merge_and_upload(bot, msg: Message):
 
         await sts.delete()
 
-
+"""
 # Leech command handler
 @Client.on_message(filters.command("leech") & filters.chat(GROUP))
 async def linktofile(bot, msg: Message):
@@ -1635,7 +1635,130 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
         print(f"Error deleting files: {e}")
 
     await sts.delete()
+"""
 
+import os
+import time
+import aria2p
+import aiohttp
+from pyrogram import Client, filters
+from pyrogram.types import Message
+from magnetrex import Magnet
+
+# Initialize aria2p
+aria2 = aria2p.API(
+    aria2p.Client(
+        host="http://localhost",
+        port=6800,
+        secret=""
+    )
+)
+
+
+@Client.on_message(filters.command("leech") & filters.chat(GROUP))
+async def linktofile(bot, msg: Message):
+    if len(msg.command) < 2 or not msg.reply_to_message:
+        return await msg.reply_text("Please reply to a file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
+
+    reply = msg.reply_to_message
+    new_name = msg.text.split(" ", 1)[1]
+
+    if not new_name.endswith((".mkv", ".mp4", ".zip")):
+        return await msg.reply_text("Please specify a filename ending with .mkv, .mp4, or .zip.")
+
+    media = reply.document or reply.audio or reply.video or reply.text
+
+    sts = await msg.reply_text("🚀 Downloading... ⚡")
+    c_time = time.time()
+
+    if "magnet:?" in reply.text:
+        await handle_magnet_link(reply.text, new_name, sts, c_time)
+    elif reply.text and ("http" in reply.text):
+        await handle_link_download(bot, msg, reply.text, new_name, media, sts, c_time)
+    else:
+        if not media:
+            return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
+
+        try:
+            downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+        except Exception as e:
+            return await sts.edit(f"Download failed: {e}")
+
+        await process_and_upload(bot, msg, new_name, media, downloaded, sts)
+
+async def handle_magnet_link(magnet_link, new_name, sts, c_time):
+    try:
+        magnet_info = Magnet.from_url(magnet_link)
+        download = aria2.add_magnet(magnet_info.url)
+        await sts.edit("Magnet link added. Downloading with Aria2...")
+        while not download.is_complete:
+            download.update()
+            progress = download.progress_string()
+            await sts.edit(f"🚀 Downloading... {progress}%")
+            await asyncio.sleep(5)
+
+        downloaded_path = download.files[0].path
+        os.rename(downloaded_path, new_name)
+        await process_and_upload(None, None, new_name, None, new_name, sts)
+    except Exception as e:
+        await sts.edit(f"Magnet download failed: {e}")
+
+async def handle_link_download(bot, msg: Message, link: str, new_name: str, media, sts, c_time):
+    try:
+        download = aria2.add_uris([link])
+        await sts.edit("Link added. Downloading with Aria2...")
+        while not download.is_complete:
+            download.update()
+            progress = download.progress_string()
+            await sts.edit(f"🚀 Downloading... {progress}%")
+            await asyncio.sleep(5)
+
+        downloaded_path = download.files[0].path
+        os.rename(downloaded_path, new_name)
+        await process_and_upload(bot, msg, new_name, media, new_name, sts)
+    except Exception as e:
+        await sts.edit(f"Link download failed: {e}")
+
+async def process_and_upload(bot, msg, new_name, media, downloaded_path, sts):
+    filesize = humanbytes(os.path.getsize(downloaded_path))
+
+    # Thumbnail handling
+    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
+    og_thumbnail = None
+    if thumbnail_file_id:
+        try:
+            og_thumbnail = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
+    else:
+        if hasattr(media, 'thumbs') and media.thumbs:
+            try:
+                og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
+            except Exception:
+                pass
+
+    await sts.edit("💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if os.path.getsize(downloaded_path) > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(downloaded_path, new_name, sts)
+        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=downloaded_path, thumb=og_thumbnail, caption=f"{new_name}\n\n🌟 Size: {filesize}", progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except ValueError as e:
+            return await sts.edit(f"Upload failed: {e}")
+        except TimeoutError as e:
+            return await sts.edit(f"Upload timed out: {e}")
+
+    try:
+        if og_thumbnail:
+            os.remove(og_thumbnail)
+        os.remove(downloaded_path)
+    except Exception as e:
+        print(f"Error deleting files: {e}")
+
+    await sts.delete()
 
 
 #Removetags command 
