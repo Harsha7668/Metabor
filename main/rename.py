@@ -1637,11 +1637,6 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
     await sts.delete()
 """
 
-
-from pathlib import Path
-
-
-# Leech command handler
 @Client.on_message(filters.command("leech") & filters.chat(GROUP))
 async def leechlink(bot, msg: Message):
     if len(msg.command) < 2 or not msg.reply_to_message:
@@ -1666,17 +1661,17 @@ async def leechlink(bot, msg: Message):
 
         try:
             downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
-        except Exception as e:
+        except RPCError as e:
             return await sts.edit(f"Download failed: {e}")
 
-        downloaded_path = Path(downloaded)
-        if not downloaded_path.exists():
+        if not os.path.exists(downloaded):
             return await sts.edit("File not found after download. Please check the reply and try again.")
 
-        filesize = humanbytes(downloaded_path.stat().st_size)
+        filesize = humanbytes(os.path.getsize(downloaded))
 
         # Metadata handling
-        await change_metadata(bot, msg, downloaded_path, new_name, media, sts, c_time)
+        if len(msg.command) > 2:
+            await change_metadata(bot, msg, downloaded, new_name, media, sts, c_time)
 
         # Thumbnail handling
         thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
@@ -1696,12 +1691,12 @@ async def leechlink(bot, msg: Message):
         await sts.edit("💠 Uploading... ⚡")
         c_time = time.time()
 
-        if downloaded_path.stat().st_size > FILE_SIZE_LIMIT:
-            file_link = await upload_to_google_drive(downloaded_path, new_name, sts)
+        if os.path.getsize(downloaded) > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(downloaded, new_name, sts)
             await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
         else:
             try:
-                await bot.send_document(msg.chat.id, document=downloaded_path, thumb=og_thumbnail, caption=new_name, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+                await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=new_name, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
             except ValueError as e:
                 return await sts.edit(f"Upload failed: {e}")
             except TimeoutError as e:
@@ -1710,12 +1705,13 @@ async def leechlink(bot, msg: Message):
         try:
             if og_thumbnail and os.path.exists(og_thumbnail):
                 os.remove(og_thumbnail)
-            if downloaded_path.exists():
-                os.remove(downloaded_path)
+            if os.path.exists(downloaded):
+                os.remove(downloaded)
         except Exception as e:
             print(f"Error deleting files: {e}")
 
         await sts.delete()
+
 
 async def handle_link_download(bot, msg: Message, link: str, new_name: str, media, sts, c_time):
     try:
@@ -1731,15 +1727,15 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
         await sts.edit(f"Error during download: {e}")
         return
 
-    downloaded_path = Path(new_name)
-    if not downloaded_path.exists():
+    if not os.path.exists(new_name):
         await sts.edit("File not found after download. Please check the link and try again.")
         return
 
-    filesize = humanbytes(downloaded_path.stat().st_size)
+    filesize = humanbytes(os.path.getsize(new_name))
 
     # Metadata handling
-    await change_metadata(bot, msg, downloaded_path, new_name, media, sts, c_time)
+    if len(msg.command) > 2:
+        await change_metadata(bot, msg, new_name, new_name, media, sts, c_time)
 
     # Thumbnail handling
     thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
@@ -1754,17 +1750,17 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
             try:
                 og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
             except Exception:
-                og_thumbnail = None
+                pass
 
     await sts.edit("💠 Uploading... ⚡")
     c_time = time.time()
 
-    if downloaded_path.stat().st_size > FILE_SIZE_LIMIT:
-        file_link = await upload_to_google_drive(downloaded_path, new_name, sts)
+    if os.path.getsize(new_name) > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(new_name, new_name, sts)
         await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
     else:
         try:
-            await bot.send_document(msg.chat.id, document=downloaded_path, thumb=og_thumbnail, caption=f"{new_name}\n\n🌟 Size: {filesize}", progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+            await bot.send_document(msg.chat.id, document=new_name, thumb=og_thumbnail, caption=f"{new_name}\n\n🌟 Size: {filesize}", progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
         except ValueError as e:
             return await sts.edit(f"Upload failed: {e}")
         except TimeoutError as e:
@@ -1773,14 +1769,20 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
     try:
         if og_thumbnail and os.path.exists(og_thumbnail):
             os.remove(og_thumbnail)
-        if downloaded_path.exists():
-            os.remove(downloaded_path)
+        if os.path.exists(new_name):
+            os.remove(new_name)
     except Exception as e:
         print(f"Error deleting files: {e}")
 
     await sts.delete()
 
-async def change_metadata(bot, msg, downloaded_path, new_name, media, sts, c_time):
+async def change_metadata(bot, msg, downloaded, new_name, media, sts, c_time):
+    global METADATA_ENABLED
+
+    if not METADATA_ENABLED:
+        await msg.reply_text("Metadata feature is currently disabled.")
+        return
+
     user_id = msg.from_user.id
 
     # Fetch metadata titles from the database
@@ -1797,11 +1799,10 @@ async def change_metadata(bot, msg, downloaded_path, new_name, media, sts, c_tim
 
     await safe_edit_message(sts, "💠 Changing metadata... ⚡")
     try:
-        change_video_metadata(downloaded_path, video_title, audio_title, subtitle_title, output_file)
+        change_video_metadata(downloaded, video_title, audio_title, subtitle_title, output_file)
     except Exception as e:
         await safe_edit_message(sts, f"Error changing metadata: {e}")
-        if downloaded_path.exists():
-            os.remove(downloaded_path)
+        os.remove(downloaded)
         return
 
     # Retrieve thumbnail from the database
@@ -1816,13 +1817,8 @@ async def change_metadata(bot, msg, downloaded_path, new_name, media, sts, c_tim
         if hasattr(media, 'thumbs') and media.thumbs:
             try:
                 file_thumb = await bot.download_media(media.thumbs[0].file_id)
-            except Exception:
+            except Exception as e:
                 file_thumb = None
-
-    # Ensure the file exists and then send it
-    if not os.path.exists(output_file):
-        await safe_edit_message(sts, "File not found after metadata change.")
-        return
 
     filesize = os.path.getsize(output_file)
     filesize_human = humanbytes(filesize)
@@ -1833,27 +1829,33 @@ async def change_metadata(bot, msg, downloaded_path, new_name, media, sts, c_tim
 
     if filesize > FILE_SIZE_LIMIT:
         file_link = await upload_to_google_drive(output_file, output_file, sts)
-        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {output_file}\n💾 **Size:** {filesize_human}\n🔗 **Link:** {file_link}")
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**File successfully updated with metadata and uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {output_file}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
     else:
         try:
-            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
-        except ValueError as e:
-            await sts.edit(f"Upload failed: {e}")
-        except TimeoutError as e:
-            await sts.edit(f"Upload timed out: {e}")
+            await bot.send_document(
+                msg.chat.id,
+                document=output_file,
+                file_name=output_file,
+                thumb=file_thumb,
+                caption=cap,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, c_time)
+            )
+        except Exception as e:
+            return await safe_edit_message(sts, f"Error: {e}")
 
-    # Clean up
-    try:
-        if file_thumb and os.path.exists(file_thumb):
-            os.remove(file_thumb)
-        if os.path.exists(output_file):
-            os.remove(output_file)
-    except Exception as e:
-        print(f"Error deleting files: {e}")
-
+    os.remove(downloaded)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
     await sts.delete()
-
-
 
 #Removetags command 
 async def safe_edit_message(message, new_text):
