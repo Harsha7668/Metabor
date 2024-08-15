@@ -20,3 +20,6 @@ lxml_html_clean
 motor
 pymongo
 datetime
+ 
+aria2p 
+magnet-rex
