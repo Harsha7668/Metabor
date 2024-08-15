@@ -1655,9 +1655,14 @@ async def progress_message(current, total, message, start_time):
     eta_str = f"{int(eta // 60)}m {int(eta % 60)}s"
     await message.edit(f"Downloading... {percent}%\nSpeed: {speed_str}\nETA: {eta_str}")
 
+import subprocess
+import os
+
 async def download_magnet(link, output_file):
     command = [
         "aria2c",
+        "--disable-ipv6",  # Disable IPv6
+        "--rpc-listen-port=8080",  # Set RPC port to 8080
         "-x16",  # Number of connections
         "--seed-time=0",
         "--summary-interval=1",
