@@ -21,5 +21,3 @@ motor
 pymongo
 datetime
  
-aria2p 
-magnet-rex
