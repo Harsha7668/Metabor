@@ -1636,14 +1636,16 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
 
     await sts.delete()
 """
+
+
 @Client.on_message(filters.command("leech") & filters.chat(GROUP))
-async def linktofile(bot, msg: Message):
+async def leech(bot, msg: Message):
     if len(msg.command) < 2 or not msg.reply_to_message:
         return await msg.reply_text("Please reply to a file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
 
     reply = msg.reply_to_message
     new_name = msg.text.split(" ", 1)[1]
-    
+
     if not new_name.endswith((".mkv", ".mp4", ".zip")):
         return await msg.reply_text("Please specify a filename ending with .mkv, .mp4, or .zip.")
 
@@ -1652,9 +1654,8 @@ async def linktofile(bot, msg: Message):
     sts = await msg.reply_text("🚀 Downloading... ⚡")
     c_time = time.time()
 
-    # Handle link download
     if reply.text and ("seedr" in reply.text or "workers" in reply.text):
-        await handle_link_download(bot, msg, reply.text, new_name, media, sts, c_time)
+        await handle_link_download_multi(bot, msg, reply.text, new_name, media, sts, c_time)
     else:
         if not media:
             return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
@@ -1664,7 +1665,13 @@ async def linktofile(bot, msg: Message):
         except RPCError as e:
             return await sts.edit(f"Download failed: {e}")
 
+        if not os.path.exists(downloaded):
+            return await sts.edit("File not found after download. Please check the reply and try again.")
+
         filesize = humanbytes(os.path.getsize(downloaded))
+
+        # Metadata handling
+        await change_metadata(bot, msg, downloaded, new_name, media, sts, c_time)
 
         # Thumbnail handling
         thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
@@ -1681,53 +1688,31 @@ async def linktofile(bot, msg: Message):
                 except Exception:
                     pass
 
-        # Check for metadata change command
-        if METADATA_ENABLED:
-            metadata_titles = await db.get_metadata_titles(msg.from_user.id)
-            video_title = metadata_titles.get('video_title', '')
-            audio_title = metadata_titles.get('audio_title', '')
-            subtitle_title = metadata_titles.get('subtitle_title', '')
-
-            if any([video_title, audio_title, subtitle_title]):
-                output_file = f"metadata_{new_name}"
-                await safe_edit_message(sts, "💠 Changing metadata... ⚡")
-                try:
-                    change_video_metadata(downloaded, video_title, audio_title, subtitle_title, output_file)
-                except Exception as e:
-                    await safe_edit_message(sts, f"Error changing metadata: {e}")
-                    os.remove(downloaded)
-                    return
-            else:
-                output_file = downloaded
-        else:
-            output_file = downloaded
-
         await sts.edit("💠 Uploading... ⚡")
         c_time = time.time()
 
-        if os.path.getsize(output_file) > FILE_SIZE_LIMIT:
-            file_link = await upload_to_google_drive(output_file, new_name, sts)
+        if os.path.getsize(downloaded) > FILE_SIZE_LIMIT:
+            file_link = await upload_to_google_drive(downloaded, new_name, sts)
             await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
         else:
             try:
-                await bot.send_document(msg.chat.id, document=output_file, thumb=og_thumbnail, caption=f"{new_name}\n\n🌟 Size: {filesize}", progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+                await bot.send_document(msg.chat.id, document=downloaded, thumb=og_thumbnail, caption=new_name, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
             except ValueError as e:
                 return await sts.edit(f"Upload failed: {e}")
             except TimeoutError as e:
                 return await sts.edit(f"Upload timed out: {e}")
 
         try:
-            if og_thumbnail:
+            if og_thumbnail and os.path.exists(og_thumbnail):
                 os.remove(og_thumbnail)
-            os.remove(downloaded)
-            if os.path.exists(output_file):
-                os.remove(output_file)
+            if os.path.exists(downloaded):
+                os.remove(downloaded)
         except Exception as e:
             print(f"Error deleting files: {e}")
 
         await sts.delete()
 
-async def handle_link_download(bot, msg: Message, link: str, new_name: str, media, sts, c_time):
+async def handle_link_download_multi(bot, msg: Message, link: str, new_name: str, media, sts, c_time):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(link) as resp:
@@ -1747,6 +1732,9 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
 
     filesize = humanbytes(os.path.getsize(new_name))
 
+    # Metadata handling
+    await change_metadata(bot, msg, new_name, new_name, media, sts, c_time)
+
     # Thumbnail handling
     thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
     og_thumbnail = None
@@ -1759,8 +1747,8 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
         if hasattr(media, 'thumbs') and media.thumbs:
             try:
                 og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
-            except Exception:
-                pass
+            except Exception as e:
+                og_thumbnail = None
 
     await sts.edit("💠 Uploading... ⚡")
     c_time = time.time()
@@ -1777,14 +1765,88 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
             return await sts.edit(f"Upload timed out: {e}")
 
     try:
-        if og_thumbnail:
+        if og_thumbnail and os.path.exists(og_thumbnail):
             os.remove(og_thumbnail)
-        os.remove(new_name)
+        if os.path.exists(new_name):
+            os.remove(new_name)
     except Exception as e:
         print(f"Error deleting files: {e}")
 
     await sts.delete()
-    
+
+async def change_metadata(bot, msg, downloaded, new_name, media, sts, c_time):
+    user_id = msg.from_user.id
+
+    # Fetch metadata titles from the database
+    metadata_titles = await db.get_metadata_titles(user_id)
+    video_title = metadata_titles.get('video_title', '')
+    audio_title = metadata_titles.get('audio_title', '')
+    subtitle_title = metadata_titles.get('subtitle_title', '')
+
+    if not any([video_title, audio_title, subtitle_title]):
+        await msg.reply_text("Metadata titles are not set. Please set metadata titles using `/setmetadata video_title audio_title subtitle_title`.")
+        return
+
+    output_file = new_name
+
+    await safe_edit_message(sts, "💠 Changing metadata... ⚡")
+    try:
+        change_video_metadata(downloaded, video_title, audio_title, subtitle_title, output_file)
+    except Exception as e:
+        await safe_edit_message(sts, f"Error changing metadata: {e}")
+        os.remove(downloaded)
+        return
+
+    # Retrieve thumbnail from the database
+    thumbnail_file_id = await db.get_thumbnail(user_id)
+    file_thumb = None
+    if thumbnail_file_id:
+        try:
+            file_thumb = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
+    else:
+        if hasattr(media, 'thumbs') and media.thumbs:
+            try:
+                file_thumb = await bot.download_media(media.thumbs[0].file_id)
+            except Exception:
+                file_thumb = None
+
+    # Ensure the file exists and then send it
+    if not os.path.exists(output_file):
+        await safe_edit_message(sts, "File not found after metadata change.")
+        return
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{output_file}\n\n🌟 Size: {filesize_human}"
+
+    await safe_edit_message(sts, "💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_file, sts)
+        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {output_file}\n💾 **Size:** {filesize_human}\n🔗 **Link:** {file_link}")
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except ValueError as e:
+            await sts.edit(f"Upload failed: {e}")
+        except TimeoutError as e:
+            await sts.edit(f"Upload timed out: {e}")
+
+    # Clean up
+    try:
+        if file_thumb and os.path.exists(file_thumb):
+            os.remove(file_thumb)
+        if os.path.exists(output_file):
+            os.remove(output_file)
+    except Exception as e:
+        print(f"Error deleting files: {e}")
+
+    await sts.delete()
+
+
 
 #Removetags command 
 async def safe_edit_message(message, new_text):
