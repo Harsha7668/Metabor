@@ -507,6 +507,7 @@ async def inline_preview_gofile_api_key(bot, callback_query):
     
     await callback_query.message.reply_text(f"Current Gofile API Key for user `{user_id}`: {api_key}")
 
+"""
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 import os
@@ -628,8 +629,159 @@ def compress_video(input_path, output_path):
     stdout, stderr = process.communicate()
     if process.returncode != 0:
         raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
+"""
 
-            
+
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
+import os
+import time
+import subprocess
+import telegraph
+
+@Client.on_message(filters.command("compress") & filters.chat(GROUP))
+async def compress_media(bot, msg: Message):
+    user_id = msg.from_user.id
+
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a media file with the compress command\nFormat: `compress -n output_filename`")
+
+    if len(msg.command) < 3 or msg.command[1] != "-n":
+        return await msg.reply_text("Please provide the output filename with the `-n` flag\nFormat: `compress -n output_filename`")
+
+    output_filename = " ".join(msg.command[2:]).strip()
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
+
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid media file (audio, video, or document) with the compress command.")
+
+    sts = await msg.reply_text("🚀 Downloading media... ⚡")
+    c_time = time.time()
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+    except Exception as e:
+        await safe_edit_message(sts, f"Error downloading media: {e}")
+        return
+
+    output_file = output_filename
+
+    # Retrieve metadata from the database
+    metadata_titles = await db.get_metadata_titles(user_id)
+    video_title = metadata_titles.get('video_title', '')
+    audio_title = metadata_titles.get('audio_title', '')
+    subtitle_title = metadata_titles.get('subtitle_title', '')
+
+    await safe_edit_message(sts, "💠 Compressing media... ⚡")
+    try:
+        compress_video(downloaded, output_file, video_title, audio_title, subtitle_title)
+    except Exception as e:
+        await safe_edit_message(sts, f"Error compressing media: {e}")
+        os.remove(downloaded)
+        return
+
+    # Retrieve thumbnail from the database
+    thumbnail_file_id = await db.get_thumbnail(user_id)
+    file_thumb = None
+    if thumbnail_file_id:
+        try:
+            file_thumb = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
+    else:
+        if hasattr(media, 'thumbs') and media.thumbs:
+            try:
+                file_thumb = await bot.download_media(media.thumbs[0].file_id)
+            except Exception as e:
+                file_thumb = None
+
+    # Get media info and upload to Telegraph
+    media_info_html, media_info_link = await get_and_upload_mediainfo(bot, output_file, media)
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}\n\n[MediaInfo ℹ️]({media_info_link})"
+
+    await safe_edit_message(sts, "💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**File successfully compressed and uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {output_filename}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}\n"
+            f"[MediaInfo ℹ️]({media_info_link})",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=output_file, thumb=file_thumb, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except Exception as e:
+            return await safe_edit_message(sts, f"Error: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    if file_thumb and os.path.exists(file_thumb):
+        os.remove(file_thumb)
+    await sts.delete()
+
+def compress_video(input_path, output_path, video_title, audio_title, subtitle_title):
+    command = [
+        'ffmpeg',
+        '-hide_banner',
+        '-loglevel', 'quiet',
+        '-i', input_path,
+        '-c:v', 'libx264',
+        '-crf', '28',
+        '-pix_fmt', 'yuv420p',
+        '-s', '854x480',
+        '-b:v', '150k',
+        '-c:a', 'libopus',
+        '-b:a', '35k',
+        '-preset', 'veryfast',
+        '-map', '0:v:0',  # Map the first video stream
+        '-map', '0:a',    # Map all audio streams
+        '-map', '0:s?',   # Map all subtitle streams if present
+        '-metadata', f'title={video_title}',
+        '-metadata:s:v:0', f'title={video_title}',
+        '-metadata:s:a', f'title={audio_title}',
+        '-metadata:s:s', f'title={subtitle_title}',
+        '-y',
+        output_path
+    ]
+    
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
+
+async def get_and_upload_mediainfo(bot, output_file, media):
+    media_info_html = get_mediainfo(output_file)
+
+    media_info_html = (
+        f"<strong>SUNRISES 24 BOT UPDATES</strong><br>"
+        f"<strong>MediaInfo X</strong><br>"
+        f"{media_info_html}"
+        f"<p>Rights Designed By Sᴜɴʀɪsᴇs Hᴀʀsʜᴀ 𝟸𝟺 🇮🇳 ᵀᴱᴸ</p>"
+    )
+
+    response = telegraph.post(
+        title="MediaInfo",
+        author="SUNRISES 24 BOT UPDATES",
+        author_url="https://t.me/Sunrises24BotUpdates",
+        text=media_info_html
+    )
+    link = f"https://graph.org/{response['path']}"
+
+    return media_info_html, link
+
 # Command handler for /mirror
 @Client.on_message(filters.command("mirror") & filters.chat(GROUP))
 async def mirror_to_google_drive(bot, msg: Message):
