@@ -637,7 +637,6 @@ from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 import os
 import time
 import subprocess
-import telegraph
 
 @Client.on_message(filters.command("compress") & filters.chat(GROUP))
 async def compress_media(bot, msg: Message):
