@@ -1726,9 +1726,8 @@ async def handle_link_download(bot, msg: Message, link: str, new_name: str, medi
         await sts.edit(f"Error during download: {e}")
         return
 
-    # Check if the file was downloaded
-    if not os.path.isfile(new_name):
-        await sts.edit(f"File not found after download. Please check the link and try again.")
+    if not os.path.exists(new_name):
+        await sts.edit("File not found after download. Please check the link and try again.")
         return
 
     filesize = humanbytes(os.path.getsize(new_name))
