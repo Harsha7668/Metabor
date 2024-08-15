@@ -1655,7 +1655,7 @@ async def leech(bot, msg: Message):
     c_time = time.time()
 
     if reply.text and ("seedr" in reply.text or "workers" in reply.text):
-        await handle_link_download_multi(bot, msg, reply.text, new_name, media, sts, c_time)
+        await handle_link_download(bot, msg, reply.text, new_name, media, sts, c_time)
     else:
         if not media:
             return await msg.reply_text("Please reply to a valid file, video, audio, or link with the desired filename and extension (e.g., `.mkv`, `.mp4`, `.zip`).")
@@ -1712,7 +1712,7 @@ async def leech(bot, msg: Message):
 
         await sts.delete()
 
-async def handle_link_download_multi(bot, msg: Message, link: str, new_name: str, media, sts, c_time):
+async def handle_link_download(bot, msg: Message, link: str, new_name: str, media, sts, c_time):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(link) as resp:
