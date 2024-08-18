@@ -54,6 +54,11 @@ CHANGE_INDEX_ENABLED = True
 MERGE_ENABLED = True
 EXTRACT_ENABLED = True
 
+import uuid
+
+def generate_task_id():
+    return str(uuid.uuid4())
+    
 task_id = generate_task_id()  # Your custom task ID generator
 user_id = message.from_user.id  # ID of the user who initiated the task
 process = start_process()  # This represents the task (e.g., download process)
