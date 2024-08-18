@@ -19,8 +19,15 @@ import time
 import math
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.errors import FloodWait
+import asyncio
+
+
 
 async def progress_message(current, total, ud_type, message, start, cancel_callback_data=None):
+    if message is None:
+        print("Error: message object is None")
+        return
+
     now = time.time()
     diff = now - start
     if round(diff % 5.00) == 0 or current == total:
@@ -66,11 +73,9 @@ async def progress_message(current, total, ud_type, message, start, cancel_callb
 async def handle_callback_query(client, query):
     if query.data == 'cancel':
         # Handle cancellation logic here
-        # For example, remove the task from your database and send a cancellation confirmation
         await query.message.delete()
         await query.answer("Task canceled.")
         # Add additional logic to handle task cancellation if necessary
-
 
 
 
