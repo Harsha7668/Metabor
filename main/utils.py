@@ -51,7 +51,7 @@ async def progress_message(current, total, ud_type, message, start):
             await message.reply_text("Unable to update progress. The message may have been removed.")
 
 
-ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 @Client.on_callback_query(filters.regex("del"))
 async def closed(bot, msg):
     try:
