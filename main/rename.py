@@ -54,32 +54,6 @@ CHANGE_INDEX_ENABLED = True
 MERGE_ENABLED = True
 EXTRACT_ENABLED = True
 
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-tasks = {}  # Dictionary to track tasks
-
-@Client.on_message(filters.command("cancel"))
-async def cancel_task(client, message):
-    try:
-        task_id = message.text.split(" ")[1]
-        if task_id in tasks:
-            # Cancel the task (this will depend on how you're managing tasks)
-            tasks[task_id].cancel()  # Or whatever method you're using to cancel the task
-            del tasks[task_id]
-            await message.reply("Task has been cancelled.")
-        else:
-            await message.reply("No such task ID found.")
-    except IndexError:
-        await message.reply("Please provide a task ID.")
-    except Exception as e:
-        print(f"Error in /cancel command: {e}")
-
-# Example of adding a task
-def start_task(task_id):
-    # Save the task to the dictionary
-    tasks[task_id] = some_task_function()  # Replace with your actual task function
-    # Remember to use a unique task_id for each task
 
         
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
