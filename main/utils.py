@@ -14,7 +14,6 @@ PROGRESS_BAR = """
 ├<b>⏱️**ETA** : {4}</b>
 ╰─────────────────⍟"""
 
-
 async def progress_message(current, total, ud_type, message, start, task_id):
     now = time.time()
     diff = now - start
@@ -44,12 +43,20 @@ async def progress_message(current, total, ud_type, message, start, task_id):
                     estimated_total_time if estimated_total_time != '' else '0 s',
                     progress
                 ),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")],
+                    [InlineKeyboardButton(f"Cancel {task_id}", callback_data=f"cancel_{task_id}")]
+                ])
             )
         except Exception as e:
             print(f"Error editing message: {e}")
 
-
+        # Optional: Automatically delete the message when complete
+        if current == total:
+            try:
+                await message.delete()
+            except Exception as e:
+                print(f"Error deleting message: {e}")
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
