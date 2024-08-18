@@ -2,7 +2,7 @@ import math, time
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
 import os, asyncio,re 
-from pyrogram import Client
+from pyrogram import Client, filters
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 PROGRESS_BAR = """
