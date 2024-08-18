@@ -14,8 +14,7 @@ PROGRESS_BAR = """
 ├<b>⏱️**ETA** : {4}</b>
 ╰─────────────────⍟"""
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-async def progress_message(current, total, ud_type, message, start, task_id):
+async def progress_message(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
     if round(diff % 5.00) == 0 or current == total:
@@ -29,14 +28,14 @@ async def progress_message(current, total, ud_type, message, start, task_id):
         estimated_total_time = TimeFormatter(estimated_total_time_ms)
 
         progress = "{0}{1}".format(
-            ''.join(["■" for i in range(math.floor(percentage / 5))]),
-            ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
+            ''.join(["▣" for i in range(math.floor(percentage / 5))]),
+            ''.join(["▢" for i in range(20 - math.floor(percentage / 5))])
         )
         tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
 
         try:
             await message.edit(
-                text=f"Task ID: {task_id}\n{ud_type}\n\n" + PROGRESS_BAR.format(
+                text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
                     round(percentage, 2),
                     humanbytes(current),
                     humanbytes(total),
@@ -44,10 +43,22 @@ async def progress_message(current, total, ud_type, message, start, task_id):
                     estimated_total_time if estimated_total_time != '' else '0 s',
                     progress
                 ),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✖️ Cancel ✖️", callback_data="del")]])
             )
         except Exception as e:
             print(f"Error editing message: {e}")
+            # Optionally: Notify the user if the edit fails
+            await message.reply_text("Unable to update progress. The message may have been removed.")
+
+
+ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+@Client.on_callback_query(filters.regex("del"))
+async def closed(bot, msg):
+    try:
+        await msg.message.delete()
+    except:
+        return
+        
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 def TimeFormatter(milliseconds: int) -> str:
