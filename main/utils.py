@@ -14,8 +14,8 @@ PROGRESS_BAR = """
 ├<b>⏱️**ETA** : {4}</b>
 ╰─────────────────⍟"""
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-async def progress_message(current, total, ud_type, message, start):
+
+async def progress_message(current, total, ud_type, message, start, task_id):
     now = time.time()
     diff = now - start
     if round(diff % 5.00) == 0 or current == total:
@@ -36,7 +36,7 @@ async def progress_message(current, total, ud_type, message, start):
 
         try:
             await message.edit(
-                text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
+                text=f"{ud_type}\n\nTask ID: {task_id}\n\n" + PROGRESS_BAR.format(
                     round(percentage, 2),
                     humanbytes(current),
                     humanbytes(total),
@@ -48,7 +48,8 @@ async def progress_message(current, total, ud_type, message, start):
             )
         except Exception as e:
             print(f"Error editing message: {e}")
-            
+
+
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
