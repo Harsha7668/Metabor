@@ -3,6 +3,7 @@ from config import DATABASE_NAME, DATABASE_URI
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from datetime import datetime
+import time
 
 class Database:
     def __init__(self, uri, database_name):        
@@ -17,7 +18,38 @@ class Database:
         self.file_data_col = self.db['file_data']
         self.photo_col = self.db['photos']
         self.user_requirements_col = self.db['user_requirements']  # Add this line
+        self.tasks_col = self.db["tasks"]  # Add this line for task management
 
+    async def add_task(self, task_id, user_id, status, details=None):
+        """Adds a new task to the tasks collection."""
+        await self.tasks_col.insert_one({
+            "task_id": task_id,
+            "user_id": user_id,
+            "status": status,
+            "details": details,
+            "created_at": time.time()
+        })
+
+    async def get_task(self, task_id):
+        """Retrieves a task by its task ID."""
+        return await self.tasks_col.find_one({"task_id": task_id})
+
+    async def update_task_status(self, task_id, status):
+        """Updates the status of a task."""
+        await self.tasks_col.update_one(
+            {"task_id": task_id},
+            {"$set": {"status": status, "updated_at": time.time()}}
+        )
+
+    async def remove_task(self, task_id):
+        """Removes a task from the tasks collection."""
+        await self.tasks_col.delete_one({"task_id": task_id})
+
+    async def get_all_tasks_for_user(self, user_id):
+        """Retrieve all tasks for a specific user."""
+        return await self.tasks_col.find({"user_id": user_id}).to_list(None)
+
+    
     async def get_user_channel(self, user_id: int):
         # Retrieve the user's saved channel ID from the database
         user_data = await self.user_requirements_col.find_one({"user_id": user_id})
