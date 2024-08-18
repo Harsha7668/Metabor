@@ -2,7 +2,7 @@ import math, time
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
 import os, asyncio,re 
-
+from pyrogram import Client
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 PROGRESS_BAR = """
@@ -14,20 +14,8 @@ PROGRESS_BAR = """
 ├<b>⏱️**ETA** : {4}</b>
 ╰─────────────────⍟"""
 
-
-import time
-import math
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from pyrogram.errors import FloodWait
-import asyncio
-
-
-
-async def progress_message(current, total, ud_type, message, start, cancel_callback_data=None):
-    if message is None:
-        print("Error: message object is None")
-        return
-
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+async def progress_message(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
     if round(diff % 5.00) == 0 or current == total:
@@ -46,11 +34,6 @@ async def progress_message(current, total, ud_type, message, start, cancel_callb
         )
         tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
 
-        inline_buttons = [
-            [InlineKeyboardButton("Cancel", callback_data=cancel_callback_data)],
-            [InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]
-        ]
-
         try:
             await message.edit(
                 text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
@@ -61,22 +44,18 @@ async def progress_message(current, total, ud_type, message, start, cancel_callb
                     estimated_total_time if estimated_total_time != '' else '0 s',
                     progress
                 ),
-                reply_markup=InlineKeyboardMarkup(inline_buttons)
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✖️ Cancel ✖️", callback_data="del")]])
             )
-        except FloodWait as e:
-            print(f"Flood wait error: {e}")
-            await asyncio.sleep(e.x)
-            await progress_message(current, total, ud_type, message, start, cancel_callback_data)
         except Exception as e:
             print(f"Error editing message: {e}")
 
-async def handle_callback_query(client, query):
-    if query.data == 'cancel':
-        # Handle cancellation logic here
-        await query.message.delete()
-        await query.answer("Task canceled.")
-        # Add additional logic to handle task cancellation if necessary
 
+@Client.on_callback_query(filters.regex("del"))
+async def closed(bot, msg):
+    try:
+        await msg.message.delete()
+    except:
+        return
 
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
