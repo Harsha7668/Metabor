@@ -54,7 +54,56 @@ CHANGE_INDEX_ENABLED = True
 MERGE_ENABLED = True
 EXTRACT_ENABLED = True
 
+task_id = generate_task_id()  # Your custom task ID generator
+user_id = message.from_user.id  # ID of the user who initiated the task
+process = start_process()  # This represents the task (e.g., download process)
 
+add_task(task_id, user_id, process)
+
+async def cancel_task_by_id(task_id):
+    task = get_task(task_id)
+    
+    if not task:
+        return False, "Task not found."
+    
+    process = task["process"]
+    
+    try:
+        # Cancel the process (e.g., stop a download or upload)
+        process.cancel()  # This will depend on how your process is handled
+        remove_task(task_id)
+        return True, f"Task {task_id} canceled successfully."
+    except Exception as e:
+        return False, f"Error canceling task {task_id}: {str(e)}"
+
+from pyrogram import Client, filters
+
+@Client.on_message(filters.command("cancel"))
+async def cancel_task(client, message):
+    if len(message.command) < 2:
+        await message.reply_text("Please provide the Task ID.")
+        return
+
+    task_id = message.command[1]
+    task = get_task(task_id)
+
+    if not task:
+        await message.reply_text(f"Task ID {task_id} not found.")
+        return
+
+    # Check if the user has permission to cancel this task
+    user_id = message.from_user.id
+    if task["user_id"] != user_id and not is_admin(user_id):
+        await message.reply_text("You don't have permission to cancel this task.")
+        return
+
+    # Cancel the task
+    success, response = await cancel_task_by_id(task_id)
+    
+    if success:
+        await message.reply_text(response)
+    else:
+        await message.reply_text(f"Failed to cancel task: {response}")
 
 
         
