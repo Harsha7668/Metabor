@@ -31,6 +31,7 @@ import psutil
 from pymongo.errors import PyMongoError
 from yt_dlp import YoutubeDL
 from html_telegraph_poster import TelegraphPoster
+from os import execl as osexecl
 
 # Initialize Telegraph
 telegraph = TelegraphPoster(use_api=True)
