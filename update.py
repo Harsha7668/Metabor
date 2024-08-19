@@ -13,12 +13,13 @@ if UPSTREAM_REPO is not None:
 
     update = srun([f"git init -q \
                      && git config --global user.email sunriseseditsoffical249@gmail.com \
-                     && git config --global user.name metamorpher \                 
+                     && git config --global user.name metamorpher \
                      && git add . \
                      && git commit -sm update -q \
                      && git remote add origin {UPSTREAM_REPO} \
                      && git fetch origin -q \
                      && git reset --hard origin/{UPSTREAM_BRANCH} -q"], shell=True)
+
 
     if update.returncode == 0:
         osexecl(executable, executable, "bot.py")
