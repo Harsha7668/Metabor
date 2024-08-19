@@ -1,1 +1,1 @@
-python update.py && python bot.py
+python3 update.py && python3 bot.py
