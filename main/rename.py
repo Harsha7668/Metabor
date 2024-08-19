@@ -54,7 +54,18 @@ CHANGE_INDEX_ENABLED = True
 MERGE_ENABLED = True
 EXTRACT_ENABLED = True
 
-
+@Client.on_message(filters.command('restart1'))
+async def font_message(app, message):
+    c = await check_chat(message, chat='Sudo')
+    if not c:
+        return
+    reply = await message.reply_text('Restarting...')
+    textx = f"Done Restart...✅"
+    await reply.edit_text(textx)
+    try:
+        exit()
+    finally:
+        osexecl(executable, executable, "bot.py")
         
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # Command handler to start the interaction (only in admin)
