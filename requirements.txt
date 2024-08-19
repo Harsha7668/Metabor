@@ -20,5 +20,4 @@ lxml_html_clean
 motor
 pymongo
 datetime
-pyrotgfork
- 
+pyrotgfork==2.1.33.2
