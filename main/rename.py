@@ -65,7 +65,24 @@ async def font_message(app, message):
     finally:
         osexecl(executable, executable, "bot.py")
 
+import logging
 
+logging.basicConfig(
+    filename='SunrisesBot.txt',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+
+# Example of logging a message
+logging.info('Bot started successfully!')
+
+
+@Client.on_message(filters.command('logs') & filters.user(ADMIN))
+async def log_file(b, m):
+    try:
+        await m.reply_document('SunrisesBot.txt')
+    except Exception as e:
+        await m.reply(str(e))
 
         
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
@@ -3781,49 +3798,6 @@ async def gofile_upload(bot: Client, msg: Message):
         except Exception as e:
             print(f"Error deleting file: {e}")
             
-
-@Client.on_message(filters.command('logs') & filters.user(ADMIN))
-async def log_file(b, m):
-    try:
-        await m.reply_document('SunrisesBot.txt')
-    except Exception as e:
-        await m.reply(str(e))
-
-
-from pyrogram.errors import InputUserDeactivated, UserIsBlocked, FloodWait
-
-import sys
-
-@Client.on_message(filters.private & filters.command("restart") & filters.user(ADMIN))
-async def restart_bot(client, message):
-    sh = await client.send_message(
-        chat_id=message.chat.id, 
-        text="**🔄 Processes stopped. Bot is restarting...**"
-    )
-
-    start_time = time.time()
-
-    all_users = await db.get_all_users()
-    async for user in all_users:
-        try:
-            restart_msg = f"Hey, {(await client.get_users(user['_id'])).mention}\n\n" \
-                          "**🔄 Processes stopped. Bot is restarting...\n\n✅️ Bot is restarted. Now you can use me.**"
-            await client.send_message(user['_id'], restart_msg)
-        except (InputUserDeactivated, UserIsBlocked):
-            pass
-        except Exception as e:
-            print(e)
-            pass
-
-        try:
-            await sh.edit("Restart in progress...")
-        except FloodWait as e:
-            await asyncio.sleep(e.value)
-
-    completed_restart = datetime.timedelta(seconds=int(time.time() - start_time))
-    await sh.edit(f"Completed restart in {completed_restart}")
-    os.execl(sys.executable, sys.executable, *sys.argv)
-
 
 
 
