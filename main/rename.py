@@ -303,7 +303,7 @@ async def gofile_upload(file_path, file_name, gofile_api_key):
                         return f"Error during GoFile upload: Status code {response.status}"
     except Exception as e:
         return f"Error during GoFile upload: {e}"
-
+        
 @Client.on_message(filters.command("dleech") & filters.chat(GROUP))
 async def driveleech(bot, msg: Message):
     global RENAME_ENABLED
