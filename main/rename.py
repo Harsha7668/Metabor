@@ -56,6 +56,153 @@ CHANGE_INDEX_ENABLED = True
 MERGE_ENABLED = True
 EXTRACT_ENABLED = True
 
+
+import os
+import re
+import pickle
+import time
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import InstalledAppFlow
+from pyrogram import Client, filters
+from pyrogram.types import Message
+import io
+
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+RENAME_ENABLED = True
+FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB
+CAPTION = "{file_name}\n\n🌟 Size: {file_size}"
+
+# Function to extract file ID from various Google Drive URL formats
+def extract_id_from_url(url):
+    file_id = None
+    # Match the different URL patterns for Google Drive links
+    patterns = [
+        r'id=([a-zA-Z0-9-_]+)',  # Format 1: ?id=FILE_ID
+        r'/d/([a-zA-Z0-9-_]+)',  # Format 2: /d/FILE_ID/
+        r'/file/d/([a-zA-Z0-9-_]+)'  # Format 3: /file/d/FILE_ID/
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            file_id = match.group(1)
+            break
+    
+    return file_id
+
+
+# Function to authenticate Google Drive
+def authenticate_google_drive():
+    creds = None
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+    return creds
+
+
+# Function to download a file from Google Drive
+def download_file_from_drive(service, file_id, file_name):
+    request = service.files().get_media(fileId=file_id)
+    file_buffer = io.BytesIO()
+    downloader = MediaIoBaseDownload(file_buffer, request)
+
+    done = False
+    while not done:
+        status, done = downloader.next_chunk()
+        print(f"Download {int(status.progress() * 100)}%.")
+
+    file_buffer.seek(0)
+    with open(file_name, 'wb') as f:
+        f.write(file_buffer.read())
+
+    return file_name
+
+
+# Authenticate and create the Drive service
+creds = authenticate_google_drive()
+drive_service = build('drive', 'v3', credentials=creds)
+
+
+@Client.on_message(filters.command("dleech") & filters.chat(GROUP))
+async def rename_leech(bot, msg: Message):
+    global RENAME_ENABLED
+
+    if not RENAME_ENABLED:
+        return await msg.reply_text("Rename feature is currently disabled.")
+
+    user_id = msg.from_user.id
+
+    if len(msg.command) < 2 or not msg.reply_to_message:
+        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
+
+    reply = msg.reply_to_message
+    media = reply.document or reply.audio or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
+
+    new_name = msg.text.split(" ", 1)[1]
+    sts = await msg.reply_text("🚀 Downloading... ⚡")
+    c_time = time.time()
+
+    # Extract the Google Drive link from the caption or message text
+    drive_url = reply.text or reply.caption
+    file_id = extract_id_from_url(drive_url)
+
+    if not file_id:
+        return await sts.edit("❌ Invalid Google Drive link.")
+
+    # Download the file from Google Drive
+    downloaded_file = download_file_from_drive(drive_service, file_id, new_name)
+    filesize = humanbytes(os.path.getsize(downloaded_file))
+
+    if CAPTION:
+        try:
+            cap = CAPTION.format(file_name=new_name, file_size=filesize)
+        except KeyError as e:
+            return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
+    else:
+        cap = f"{new_name}\n\n🌟 Size: {filesize}"
+
+    # Retrieve thumbnail from the database
+    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
+    og_thumbnail = None
+    if thumbnail_file_id:
+        try:
+            og_thumbnail = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
+    else:
+        if hasattr(media, 'thumbs') and media.thumbs:
+            try:
+                og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
+            except Exception:
+                pass
+
+    await sts.edit("💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if os.path.getsize(downloaded_file) > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(downloaded_file, new_name, sts)
+        await msg.reply_text(f"File uploaded to Google Drive!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except Exception as e:
+            return await sts.edit(f"Error: {e}")
+
+    os.remove(downloaded_file)
+    await sts.delete()
+
 @Client.on_message(filters.command('restartbot'))
 async def font_message(app, message):
     reply = await message.reply_text('Restarting...')
