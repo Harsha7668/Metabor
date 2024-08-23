@@ -33,6 +33,7 @@ from yt_dlp import YoutubeDL
 from html_telegraph_poster import TelegraphPoster
 from os import execl as osexecl
 from sys import executable
+from config import *
 
 # Initialize Telegraph
 telegraph = TelegraphPoster(use_api=True)
