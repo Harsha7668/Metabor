@@ -366,7 +366,7 @@ async def driveleech(bot, msg: Message):
             await msg.reply_text(upload_result)
     else:
         try:
-            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, time.time()))
+            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=drive_progress, progress_args=("💠 Upload Started... ⚡", sts, time.time()))
         except Exception as e:
             return await sts.edit(f"Error: {e}")
 
