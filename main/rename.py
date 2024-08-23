@@ -279,37 +279,36 @@ async def download_file_from_drive(service, file_id, file_name, message):
 
     return file_name
 
-import aiohttp
 
-async def gofile_upload(file_path, file_name, gofile_api_key):
-    upload_url = "https://store1.gofile.io/uploadFile"
 
-    try:
-        async with aiohttp.ClientSession() as session:
-            with open(file_path, 'rb') as file:
-                form_data = aiohttp.FormData()
-                form_data.add_field('file', file, filename=file_name)
-                headers = {"Authorization": f"Bearer {gofile_api_key}"} if gofile_api_key else {}
+STRING_SESSION = ""
+    
+# Initialize the string session client
+string_session_client = Client("my_session", api_id=API_ID, api_hash=API_HASH, session_string=STRING_SESSION)
 
-                async with session.post(upload_url, headers=headers, data=form_data) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        if data.get('status') == 'ok':
-                            download_url = data.get('data', {}).get('downloadPage')
-                            return download_url
-                        else:
-                            return f"GoFile upload failed: {data.get('message', 'Unknown error')}"
-                    else:
-                        return f"Error during GoFile upload: Status code {response.status}"
-    except Exception as e:
-        return f"Error during GoFile upload: {e}"
-        
-@Client.on_message(filters.command("dleech") & filters.chat(GROUP))
-async def driveleech(bot, msg: Message):
+# Function to split large files
+def split_file(file_path, split_size):
+    """Split file into chunks of split_size."""
+    with open(file_path, 'rb') as f:
+        chunk = 0
+        while True:
+            data = f.read(split_size)
+            if not data:
+                break
+            chunk_filename = f"{file_path}.part{chunk}"
+            with open(chunk_filename, 'wb') as chunk_file:
+                chunk_file.write(data)
+            chunk += 1
+    return chunk
+
+@Client.on_message(filters.command("driveleech") & filters.chat(GROUP))
+async def rename_leech(bot, msg: Message):
     global RENAME_ENABLED
 
     if not RENAME_ENABLED:
         return await msg.reply_text("Rename feature is currently disabled.")
+
+    user_id = msg.from_user.id
 
     if len(msg.command) < 2 or not msg.reply_to_message:
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
@@ -329,17 +328,18 @@ async def driveleech(bot, msg: Message):
     if not file_id:
         return await sts.edit("❌ Invalid Google Drive link.")
 
-    # Download the file from Google Drive
+    # Download the file from Google Drive with progress updates
     downloaded_file = await download_file_from_drive(drive_service, file_id, new_name, sts)
-    filesize = humanbytes(os.path.getsize(downloaded_file))
+    filesize = os.path.getsize(downloaded_file)
 
+    # Determine the caption
     if CAPTION:
         try:
-            cap = CAPTION.format(file_name=new_name, file_size=filesize)
+            cap = CAPTION.format(file_name=new_name, file_size=humanbytes(filesize))
         except KeyError as e:
             return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
     else:
-        cap = f"{new_name}\n\n🌟 Size: {filesize}"
+        cap = f"{new_name}\n\n🌟 Size: {humanbytes(filesize)}"
 
     # Retrieve thumbnail from the database
     thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
@@ -355,30 +355,66 @@ async def driveleech(bot, msg: Message):
                 og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
             except Exception:
                 pass
-                
-    await sts.edit("💠 Uploading... ⚡")
 
-    if os.path.getsize(downloaded_file) > FILE_SIZE_LIMIT:
-        # Get GoFile API key
-        gofile_api_key = await db.get_gofile_api_key(msg.from_user.id)
-        if not gofile_api_key:
-            return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
-        
-        # Upload to GoFile
-        upload_result = await gofile_upload(downloaded_file, new_name, gofile_api_key)
-        if "http" in upload_result:
-            await msg.reply_text(f"Upload successful!\nDownload link: {upload_result}")
+    if filesize > 2 * 1024 * 1024 * 1024:  # Filesize > 2GB
+        if Config.STRING_SESSION:
+            client_to_use = string_session_client
+            await sts.edit("💠 Uploading large file directly... ⚡")
         else:
-            await msg.reply_text(upload_result)
+            await sts.edit("🔄 Splitting the file... ✂️")
+            split_size = await get_split_size(user_id)
+            chunks = split_file(downloaded_file, split_size)
+            await sts.edit("💠 Uploading split files... ⚡")
+
+            # Upload each split file
+            async with bot:
+                for i in range(chunks):
+                    chunk_file = f"{downloaded_file}.part{i}"
+                    try:
+                        await bot.send_document(
+                            msg.chat.id,
+                            document=chunk_file,
+                            thumb=og_thumbnail,
+                            caption=f"{new_name} (Part {i+1})\n\n🌟 Size: {humanbytes(os.path.getsize(chunk_file))}",
+                            progress=progress_message,
+                            progress_args=("💠 Upload Started... ⚡", sts, time.time())
+                        )
+                    except Exception as e:
+                        await sts.edit(f"Error: {e}")
+                        break
+            # Remove split files
+            for i in range(chunks):
+                os.remove(f"{downloaded_file}.part{i}")
     else:
+        client_to_use = bot
+
+    async with client_to_use:
+        c_time = time.time()
         try:
-            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=drive_progress, progress_args=("💠 Upload Started... ⚡", sts, time.time()))
+            await client_to_use.send_document(
+                msg.chat.id,
+                document=downloaded_file,
+                thumb=og_thumbnail,
+                caption=cap,
+                progress=progress_message,
+                progress_args=("💠 Upload Started... ⚡", sts, c_time)
+            )
         except Exception as e:
             return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded_file)
     await sts.delete()
 
+async def get_split_size(user_id):
+    """Retrieve the split size based on user settings."""
+    if get_data()[user_id]['upload_tg']:
+        if get_data()[user_id]['split'] == '2GB':
+            split_size = 2 * 1024 * 1024 * 1024  # 2GB in bytes
+        else:
+            split_size = await check_size_limit()
+        return split_size
+    else:
+        return False
 
 @Client.on_message(filters.command('restartbot'))
 async def font_message(app, message):
