@@ -229,14 +229,14 @@ async def rename_leech(bot, msg: Message):
 
 
 # Function to upload file to GoFile
-async def gofile_upload(file_path, file_name, gofile_api_key=None):
+async def gofile_upload(file_path, gofile_api_key, file_name=None):
     upload_url = "https://store1.gofile.io/uploadFile"
 
     try:
         async with aiohttp.ClientSession() as session:
             with open(file_path, 'rb') as file:
                 form_data = aiohttp.FormData()
-                form_data.add_field('file', file, filename=file_name)
+                form_data.add_field('file', file, filename=file_name or os.path.basename(file_path))
                 headers = {"Authorization": f"Bearer {gofile_api_key}"} if gofile_api_key else {}
 
                 async with session.post(upload_url, headers=headers, data=form_data) as response:
