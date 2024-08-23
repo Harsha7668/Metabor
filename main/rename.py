@@ -228,29 +228,6 @@ async def rename_leech(bot, msg: Message):
 """
 
 
-# Function to upload file to GoFile
-async def gofile_upload(file_path, file_name, gofile_api_key):
-    upload_url = "https://store1.gofile.io/uploadFile"
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            with open(file_path, 'rb') as file:
-                form_data = aiohttp.FormData()
-                form_data.add_field('file', file, filename=file_name)
-                headers = {"Authorization": f"Bearer {gofile_api_key}"} if gofile_api_key else {}
-
-                async with session.post(upload_url, headers=headers, data=form_data) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        if data.get('status') == 'ok':
-                            download_url = data.get('data', {}).get('downloadPage')
-                            return download_url
-                        else:
-                            return f"GoFile upload failed: {data.get('message', 'Unknown error')}"
-                    else:
-                        return f"Error during GoFile upload: Status code {response.status}"
-    except Exception as e:
-        return f"Error during GoFile upload: {e}"
 
 # Rename file handler with GoFile integration
 
@@ -274,28 +251,58 @@ async def drive_progress(current, total, ud_type, message, start):
     except Exception as e:
         print(f"Error editing message: {e}")
 
+import io
+import os
+import time
+from googleapiclient.http import MediaIoBaseDownload
+
 async def download_file_from_drive(service, file_id, file_name, message):
     request = service.files().get_media(fileId=file_id)
     file_buffer = io.BytesIO()
     downloader = MediaIoBaseDownload(file_buffer, request)
 
     done = False
-    total_size = 0
     start_time = time.time()
 
     while not done:
         status, done = downloader.next_chunk()
-        total_size = status.total_size
-        current_size = status.resumable_progress
+        if status:
+            current_size = status.resumable_progress
+            total_size = status.total_size
 
-        # Call progress_message to update the bot message
-        await drive_progress(current_size, total_size, "🚀 Downloading from Google Drive... ⚡", message, start_time)
+            # Update progress message
+            await drive_progress(current_size, total_size, "🚀 Downloading from Google Drive... ⚡", message, start_time)
 
     file_buffer.seek(0)
     with open(file_name, 'wb') as f:
         f.write(file_buffer.read())
 
     return file_name
+
+import aiohttp
+
+async def gofile_upload(file_path, file_name, gofile_api_key):
+    upload_url = "https://store1.gofile.io/uploadFile"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            with open(file_path, 'rb') as file:
+                form_data = aiohttp.FormData()
+                form_data.add_field('file', file, filename=file_name)
+                headers = {"Authorization": f"Bearer {gofile_api_key}"} if gofile_api_key else {}
+
+                async with session.post(upload_url, headers=headers, data=form_data) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data.get('status') == 'ok':
+                            download_url = data.get('data', {}).get('downloadPage')
+                            return download_url
+                        else:
+                            return f"GoFile upload failed: {data.get('message', 'Unknown error')}"
+                    else:
+                        return f"Error during GoFile upload: Status code {response.status}"
+    except Exception as e:
+        return f"Error during GoFile upload: {e}"
 
 @Client.on_message(filters.command("dleech") & filters.chat(GROUP))
 async def driveleech(bot, msg: Message):
@@ -349,7 +356,6 @@ async def driveleech(bot, msg: Message):
             except Exception:
                 pass
                 
-    output_file = f"{new_name}"
     await sts.edit("💠 Uploading... ⚡")
 
     if os.path.getsize(downloaded_file) > FILE_SIZE_LIMIT:
@@ -359,7 +365,7 @@ async def driveleech(bot, msg: Message):
             return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
         
         # Upload to GoFile
-        upload_result = await gofile_upload(output_file, new_name, gofile_api_key)
+        upload_result = await gofile_upload(downloaded_file, new_name, gofile_api_key)
         if "http" in upload_result:
             await msg.reply_text(f"Upload successful!\nDownload link: {upload_result}")
         else:
@@ -371,9 +377,7 @@ async def driveleech(bot, msg: Message):
             return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded_file)
-    os.remove(output_file)
     await sts.delete()
-
 
 
 @Client.on_message(filters.command('restartbot'))
