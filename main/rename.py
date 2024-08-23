@@ -127,7 +127,7 @@ def download_file_from_drive(service, file_id, file_name):
 
     return file_name
 """
-
+"""
 async def download_file_from_drive(service, file_id, file_name, message):
     request = service.files().get_media(fileId=file_id)
     file_buffer = io.BytesIO()
@@ -150,7 +150,7 @@ async def download_file_from_drive(service, file_id, file_name, message):
         f.write(file_buffer.read())
 
     return file_name
-    
+"""    
 # Authenticate and create the Drive service
 creds = authenticate_google_drive()
 drive_service = build('drive', 'v3', credentials=creds)
@@ -331,6 +331,21 @@ async def driveleech(bot, msg: Message):
     os.remove(downloaded_file)
     await sts.delete()
 
+def download_file_from_drive(service, file_id, file_name):
+    request = service.files().get_media(fileId=file_id)
+    file_buffer = io.BytesIO()
+    downloader = MediaIoBaseDownload(file_buffer, request)
+
+    done = False
+    while not done:
+        status, done = downloader.next_chunk()
+        print(f"Download {int(status.progress() * 100)}%.")
+
+    file_buffer.seek(0)
+    with open(file_name, 'wb') as f:
+        f.write(file_buffer.read())
+
+    return file_name
 
 
 @Client.on_message(filters.command('restartbot'))
