@@ -109,7 +109,7 @@ def authenticate_google_drive():
             pickle.dump(creds, token)
     return creds
 
-
+"""
 # Function to download a file from Google Drive
 def download_file_from_drive(service, file_id, file_name):
     request = service.files().get_media(fileId=file_id)
@@ -126,8 +126,25 @@ def download_file_from_drive(service, file_id, file_name):
         f.write(file_buffer.read())
 
     return file_name
+"""
 
+def download_file_from_drive(service, file_id, file_name):
+    request = service.files().get_media(fileId=file_id)
+    file_buffer = io.BytesIO()
+    downloader = MediaIoBaseDownload(file_buffer, request)
 
+    done = False
+    while not done:
+        status, done = downloader.next_chunk()
+        # Remove or comment out the following line to avoid logging in the console
+        # print(f"Download {int(status.progress() * 100)}%.")  # Remove this line
+
+    file_buffer.seek(0)
+    with open(file_name, 'wb') as f:
+        f.write(file_buffer.read())
+
+    return file_name
+    
 # Authenticate and create the Drive service
 creds = authenticate_google_drive()
 drive_service = build('drive', 'v3', credentials=creds)
