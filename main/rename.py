@@ -128,16 +128,22 @@ def download_file_from_drive(service, file_id, file_name):
     return file_name
 """
 
-def download_file_from_drive(service, file_id, file_name):
+async def download_file_from_drive(service, file_id, file_name, message):
     request = service.files().get_media(fileId=file_id)
     file_buffer = io.BytesIO()
     downloader = MediaIoBaseDownload(file_buffer, request)
 
     done = False
+    total_size = 0
+    start_time = time.time()
+
     while not done:
         status, done = downloader.next_chunk()
-        # Remove or comment out the following line to avoid logging in the console
-        # print(f"Download {int(status.progress() * 100)}%.")  # Remove this line
+        total_size = status.total_size
+        current_size = status.resumable_progress
+
+        # Call progress_message to update the bot message
+        await progress_message(current_size, total_size, "🚀 Downloading from Google Drive... ⚡", message, start_time)
 
     file_buffer.seek(0)
     with open(file_name, 'wb') as f:
@@ -150,7 +156,7 @@ creds = authenticate_google_drive()
 drive_service = build('drive', 'v3', credentials=creds)
 
 
-@Client.on_message(filters.command("dleech") & filters.chat(GROUP))
+@Client.on_message(filters.command("driveleech") & filters.chat(GROUP))
 async def rename_leech(bot, msg: Message):
     global RENAME_ENABLED
 
@@ -163,14 +169,13 @@ async def rename_leech(bot, msg: Message):
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
     reply = msg.reply_to_message
-    media = reply.document or reply.audio or reply.video or reply.text
+    media = reply.document or reply.audio or reply.video
     if not media:
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
     new_name = msg.text.split(" ", 1)[1]
     sts = await msg.reply_text("🚀 Downloading... ⚡")
-    c_time = time.time()
-
+    
     # Extract the Google Drive link from the caption or message text
     drive_url = reply.text or reply.caption
     file_id = extract_id_from_url(drive_url)
@@ -178,8 +183,8 @@ async def rename_leech(bot, msg: Message):
     if not file_id:
         return await sts.edit("❌ Invalid Google Drive link.")
 
-    # Download the file from Google Drive
-    downloaded_file = download_file_from_drive(drive_service, file_id, new_name)
+    # Download the file from Google Drive with progress updates
+    downloaded_file = await download_file_from_drive(drive_service, file_id, new_name, sts)
     filesize = humanbytes(os.path.getsize(downloaded_file))
 
     if CAPTION:
