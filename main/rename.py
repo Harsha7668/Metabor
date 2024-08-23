@@ -229,7 +229,7 @@ async def rename_leech(bot, msg: Message):
 
 
 # Function to upload file to GoFile
-async def gofile_upload(file_path, file_name, gofile_api_key):
+async def gofile_upload(file_path, file_name, gofile_api_key=None):
     upload_url = "https://store1.gofile.io/uploadFile"
 
     try:
