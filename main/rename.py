@@ -240,21 +240,17 @@ async def drive_progress(current, total, ud_type, message, start):
     # Calculate the percentage and speed
     percentage = current * 100 / total
     speed = humanbytes(current / diff) + "/s"
-
     # Create a short progress message
     progress = f"{round(percentage, 2)}% - {humanbytes(current)} of {humanbytes(total)} @ {speed}"
-
     try:
         # Update the bot message with the short progress
         await message.edit(
             text=f"{ud_type}\n\nProgress: {progress}",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
         )
-    except FloodWait as e:
-        await asyncio.sleep(e.x)
-        await small_progress(current, total, ud_type, message, start)
-    except MessageNotModified:
-        pass  # Ignore this error as it means the message wasn't changed    
+    except Exception as e:
+        print(f"Error editing message: {e}")
+        
 
 import io
 import os
