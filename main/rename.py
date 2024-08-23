@@ -254,6 +254,50 @@ async def gofile_upload(file_path, file_name, gofile_api_key):
 
 
 # Rename file handler with GoFile integration
+
+async def drive_progress(current, total, ud_type, message, start):
+    now = time.time()
+    diff = now - start
+    
+    # Calculate the percentage and speed
+    percentage = current * 100 / total
+    speed = humanbytes(current / diff) + "/s"
+
+    # Create a short progress message
+    progress = f"{round(percentage, 2)}% - {humanbytes(current)} of {humanbytes(total)} @ {speed}"
+
+    try:
+        # Update the bot message with the short progress
+        await message.edit(
+            text=f"{ud_type}\n\nProgress: {progress}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+        )
+    except Exception as e:
+        print(f"Error editing message: {e}")
+
+async def download_file_from_drive(service, file_id, file_name, message):
+    request = service.files().get_media(fileId=file_id)
+    file_buffer = io.BytesIO()
+    downloader = MediaIoBaseDownload(file_buffer, request)
+
+    done = False
+    total_size = 0
+    start_time = time.time()
+
+    while not done:
+        status, done = downloader.next_chunk()
+        total_size = status.total_size
+        current_size = status.resumable_progress
+
+        # Call progress_message to update the bot message
+        await drive_progress(current_size, total_size, "🚀 Downloading from Google Drive... ⚡", message, start_time)
+
+    file_buffer.seek(0)
+    with open(file_name, 'wb') as f:
+        f.write(file_buffer.read())
+
+    return file_name
+
 @Client.on_message(filters.command("dleech") & filters.chat(GROUP))
 async def driveleech(bot, msg: Message):
     global RENAME_ENABLED
@@ -271,7 +315,6 @@ async def driveleech(bot, msg: Message):
 
     new_name = msg.text.split(" ", 1)[1]
     sts = await msg.reply_text("🚀 Downloading... ⚡")
-    c_time = time.time()
 
     # Extract the Google Drive link from the caption or message text
     drive_url = reply.text or reply.caption
@@ -281,7 +324,7 @@ async def driveleech(bot, msg: Message):
         return await sts.edit("❌ Invalid Google Drive link.")
 
     # Download the file from Google Drive
-    downloaded_file = download_file_from_drive(drive_service, file_id, new_name)
+    downloaded_file = await download_file_from_drive(drive_service, file_id, new_name, sts)
     filesize = humanbytes(os.path.getsize(downloaded_file))
 
     if CAPTION:
@@ -308,7 +351,6 @@ async def driveleech(bot, msg: Message):
                 pass
 
     await sts.edit("💠 Uploading... ⚡")
-    c_time = time.time()
 
     if os.path.getsize(downloaded_file) > FILE_SIZE_LIMIT:
         # Get GoFile API key
@@ -324,28 +366,13 @@ async def driveleech(bot, msg: Message):
             await msg.reply_text(upload_result)
     else:
         try:
-            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=drive_progress, progress_args=("💠 Upload Started... ⚡", sts, time.time()))
         except Exception as e:
             return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded_file)
     await sts.delete()
 
-def download_file_from_drive(service, file_id, file_name):
-    request = service.files().get_media(fileId=file_id)
-    file_buffer = io.BytesIO()
-    downloader = MediaIoBaseDownload(file_buffer, request)
-
-    done = False
-    while not done:
-        status, done = downloader.next_chunk()
-        print(f"Download {int(status.progress() * 100)}%.")
-
-    file_buffer.seek(0)
-    with open(file_name, 'wb') as f:
-        f.write(file_buffer.read())
-
-    return file_name
 
 
 @Client.on_message(filters.command('restartbot'))
