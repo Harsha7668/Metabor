@@ -231,6 +231,7 @@ async def rename_leech(bot, msg: Message):
 
 # Rename file handler with GoFile integration
 
+
 async def drive_progress(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
@@ -248,8 +249,11 @@ async def drive_progress(current, total, ud_type, message, start):
             text=f"{ud_type}\n\nProgress: {progress}",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
         )
-    except Exception as e:
-        print(f"Error editing message: {e}")
+    except FloodWait as e:
+        await asyncio.sleep(e.x)
+        await small_progress(current, total, ud_type, message, start)
+    except MessageNotModified:
+        pass  # Ignore this error as it means the message wasn't changed    
 
 import io
 import os
@@ -376,7 +380,7 @@ async def rename_leech(bot, msg: Message):
                             document=chunk_file,
                             thumb=og_thumbnail,
                             caption=f"{new_name} (Part {i+1})\n\n🌟 Size: {humanbytes(os.path.getsize(chunk_file))}",
-                            progress=progress_message,
+                            progress=drive_progress,
                             progress_args=("💠 Upload Started... ⚡", sts, time.time())
                         )
                     except Exception as e:
@@ -396,7 +400,7 @@ async def rename_leech(bot, msg: Message):
                 document=downloaded_file,
                 thumb=og_thumbnail,
                 caption=cap,
-                progress=progress_message,
+                progress=drive_progress,
                 progress_args=("💠 Upload Started... ⚡", sts, c_time)
             )
         except Exception as e:
