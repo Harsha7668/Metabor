@@ -3,8 +3,6 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import heroku3
 import os, asyncio,re 
 from pyrogram import Client, filters
-from pyrogram.errors import FloodWait
-from pyrogram.errors import MessageNotModified
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 PROGRESS_BAR = """
