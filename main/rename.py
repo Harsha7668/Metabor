@@ -348,7 +348,8 @@ async def driveleech(bot, msg: Message):
                 og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
             except Exception:
                 pass
-
+                
+    output_file = f"{new_name}"
     await sts.edit("💠 Uploading... ⚡")
 
     if os.path.getsize(downloaded_file) > FILE_SIZE_LIMIT:
@@ -358,7 +359,7 @@ async def driveleech(bot, msg: Message):
             return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
         
         # Upload to GoFile
-        upload_result = await gofile_upload(downloaded_file, new_name, gofile_api_key)
+        upload_result = await gofile_upload(output_file, new_name, gofile_api_key)
         if "http" in upload_result:
             await msg.reply_text(f"Upload successful!\nDownload link: {upload_result}")
         else:
@@ -370,6 +371,7 @@ async def driveleech(bot, msg: Message):
             return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded_file)
+    os.remove(output_file)
     await sts.delete()
 
 
