@@ -155,7 +155,7 @@ async def download_file_from_drive(service, file_id, file_name, message):
 creds = authenticate_google_drive()
 drive_service = build('drive', 'v3', credentials=creds)
 
-
+"""
 @Client.on_message(filters.command("driveleech") & filters.chat(GROUP))
 async def rename_leech(bot, msg: Message):
     global RENAME_ENABLED
@@ -224,6 +224,114 @@ async def rename_leech(bot, msg: Message):
 
     os.remove(downloaded_file)
     await sts.delete()
+
+"""
+
+
+# Function to upload file to GoFile
+async def gofile_upload(file_path, file_name, gofile_api_key):
+    upload_url = "https://store1.gofile.io/uploadFile"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            with open(file_path, 'rb') as file:
+                form_data = aiohttp.FormData()
+                form_data.add_field('file', file, filename=file_name)
+                headers = {"Authorization": f"Bearer {gofile_api_key}"} if gofile_api_key else {}
+
+                async with session.post(upload_url, headers=headers, data=form_data) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data.get('status') == 'ok':
+                            download_url = data.get('data', {}).get('downloadPage')
+                            return download_url
+                        else:
+                            return f"GoFile upload failed: {data.get('message', 'Unknown error')}"
+                    else:
+                        return f"Error during GoFile upload: Status code {response.status}"
+    except Exception as e:
+        return f"Error during GoFile upload: {e}"
+
+
+# Rename file handler with GoFile integration
+@Client.on_message(filters.command("dleech") & filters.chat(GROUP))
+async def driveleech(bot, msg: Message):
+    global RENAME_ENABLED
+
+    if not RENAME_ENABLED:
+        return await msg.reply_text("Rename feature is currently disabled.")
+
+    if len(msg.command) < 2 or not msg.reply_to_message:
+        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
+
+    reply = msg.reply_to_message
+    media = reply.document or reply.audio or reply.video or reply.text
+    if not media:
+        return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
+
+    new_name = msg.text.split(" ", 1)[1]
+    sts = await msg.reply_text("🚀 Downloading... ⚡")
+    c_time = time.time()
+
+    # Extract the Google Drive link from the caption or message text
+    drive_url = reply.text or reply.caption
+    file_id = extract_id_from_url(drive_url)
+
+    if not file_id:
+        return await sts.edit("❌ Invalid Google Drive link.")
+
+    # Download the file from Google Drive
+    downloaded_file = download_file_from_drive(drive_service, file_id, new_name)
+    filesize = humanbytes(os.path.getsize(downloaded_file))
+
+    if CAPTION:
+        try:
+            cap = CAPTION.format(file_name=new_name, file_size=filesize)
+        except KeyError as e:
+            return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
+    else:
+        cap = f"{new_name}\n\n🌟 Size: {filesize}"
+
+    # Retrieve thumbnail from the database
+    thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
+    og_thumbnail = None
+    if thumbnail_file_id:
+        try:
+            og_thumbnail = await bot.download_media(thumbnail_file_id)
+        except Exception:
+            pass
+    else:
+        if hasattr(media, 'thumbs') and media.thumbs:
+            try:
+                og_thumbnail = await bot.download_media(media.thumbs[0].file_id)
+            except Exception:
+                pass
+
+    await sts.edit("💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if os.path.getsize(downloaded_file) > FILE_SIZE_LIMIT:
+        # Get GoFile API key
+        gofile_api_key = await db.get_gofile_api_key(msg.from_user.id)
+        if not gofile_api_key:
+            return await msg.reply_text("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
+        
+        # Upload to GoFile
+        upload_result = await gofile_upload(downloaded_file, new_name, gofile_api_key)
+        if "http" in upload_result:
+            await msg.reply_text(f"Upload successful!\nDownload link: {upload_result}")
+        else:
+            await msg.reply_text(upload_result)
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except Exception as e:
+            return await sts.edit(f"Error: {e}")
+
+    os.remove(downloaded_file)
+    await sts.delete()
+
+
 
 @Client.on_message(filters.command('restartbot'))
 async def font_message(app, message):
