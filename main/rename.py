@@ -146,7 +146,7 @@ async def rename_leech(bot, msg: Message):
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
     reply = msg.reply_to_message
-    media = reply.document or reply.audio or reply.video
+    media = reply.document or reply.audio or reply.video or reply.text
     if not media:
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
 
