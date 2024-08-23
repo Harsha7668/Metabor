@@ -358,7 +358,7 @@ async def rename_leech(bot, msg: Message):
                 pass
 
     if filesize > 2 * 1024 * 1024 * 1024:  # Filesize > 2GB
-        if Config.STRING_SESSION:
+        if STRING_SESSION:
             client_to_use = string_session_client
             await sts.edit("💠 Uploading large file directly... ⚡")
         else:
