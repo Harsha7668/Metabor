@@ -229,14 +229,14 @@ async def rename_leech(bot, msg: Message):
 
 
 # Function to upload file to GoFile
-async def gofile_upload(file_path, gofile_api_key, file_name=None):
+async def gofile_upload(file_path, file_name, gofile_api_key):
     upload_url = "https://store1.gofile.io/uploadFile"
 
     try:
         async with aiohttp.ClientSession() as session:
             with open(file_path, 'rb') as file:
                 form_data = aiohttp.FormData()
-                form_data.add_field('file', file, filename=file_name or os.path.basename(file_path))
+                form_data.add_field('file', file, filename=file_name)
                 headers = {"Authorization": f"Bearer {gofile_api_key}"} if gofile_api_key else {}
 
                 async with session.post(upload_url, headers=headers, data=form_data) as response:
@@ -251,7 +251,6 @@ async def gofile_upload(file_path, gofile_api_key, file_name=None):
                         return f"Error during GoFile upload: Status code {response.status}"
     except Exception as e:
         return f"Error during GoFile upload: {e}"
-
 
 # Rename file handler with GoFile integration
 
@@ -366,7 +365,7 @@ async def driveleech(bot, msg: Message):
             await msg.reply_text(upload_result)
     else:
         try:
-            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=drive_progress, progress_args=("💠 Upload Started... ⚡", sts, time.time()))
+            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, time.time()))
         except Exception as e:
             return await sts.edit(f"Error: {e}")
 
