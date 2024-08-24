@@ -298,7 +298,7 @@ def split_file(file_path, split_size):
             chunk += 1
     return chunk
 
-@Client.on_message(filters.command("dleech") & filters.chat(GROUP))
+@Client.on_message(filters.command("driveleech") & filters.chat(GROUP))
 async def rename_leech(bot, msg: Message):
     global RENAME_ENABLED
 
@@ -352,40 +352,34 @@ async def rename_leech(bot, msg: Message):
                 pass
 
     if filesize > 2 * 1024 * 1024 * 1024:  # Filesize > 2GB
-        if STRING_SESSION:
-            client_to_use = app
-        else:
-            await sts.edit("🔄 Splitting the file... ✂️")
-            split_size = await get_split_size()
-            chunks = split_file(downloaded_file, split_size)
-            await sts.edit("💠 Uploading split files... ⚡")
+        await sts.edit("🔄 Splitting the file... ✂️")
+        split_size = await get_split_size()
+        chunks = split_file(downloaded_file, split_size)
+        await sts.edit("💠 Uploading split files... ⚡")
 
-            # Upload each split file
-            async with bot:
-                for i in range(chunks):
-                    chunk_file = f"{downloaded_file}.part{i}"
-                    try:
-                        await bot.send_document(
-                            msg.chat.id,
-                            document=chunk_file,
-                            thumb=og_thumbnail,
-                            caption=f"{new_name} (Part {i+1})\n\n🌟 Size: {humanbytes(os.path.getsize(chunk_file))}",
-                            progress=progress_message,
-                            progress_args=("💠 Upload Started... ⚡", sts, time.time())
-                        )
-                    except Exception as e:
-                        await sts.edit(f"Error: {e}")
-                        break
-            # Remove split files
-            for i in range(chunks):
-                os.remove(f"{downloaded_file}.part{i}")
+        # Upload each split file
+        for i in range(chunks):
+            chunk_file = f"{downloaded_file}.part{i}"
+            try:
+                await bot.send_document(
+                    msg.chat.id,
+                    document=chunk_file,
+                    thumb=og_thumbnail,
+                    caption=f"{new_name} (Part {i+1})\n\n🌟 Size: {humanbytes(os.path.getsize(chunk_file))}",
+                    progress=progress_message,
+                    progress_args=("💠 Upload Started... ⚡", sts, time.time())
+                )
+            except Exception as e:
+                await sts.edit(f"Error: {e}")
+                break
+
+        # Remove split files
+        for i in range(chunks):
+            os.remove(f"{downloaded_file}.part{i}")
     else:
-        client_to_use = bot  # Corrected the scope of this 'else'
-
-    async with client_to_use:
         c_time = time.time()
         try:
-            await client_to_use.send_document(
+            await bot.send_document(
                 msg.chat.id,
                 document=downloaded_file,
                 thumb=og_thumbnail,
