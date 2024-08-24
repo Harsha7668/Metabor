@@ -336,15 +336,15 @@ async def rename_leech(bot, msg: Message):
                 pass
 
     await sts.edit("💠 Uploading... ⚡")
-    c_time = time.time()
 
     # Replace Google Drive upload with GoFile upload for files above 2GB
     if os.path.getsize(downloaded_file) > FILE_SIZE_LIMIT:
-        file_link = await gofile_upload(bot, msg, downloaded_file, new_name, user_id, sts)
-        await msg.reply_text(f"File uploaded to GoFile!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
+        file_link = await gofile_upload(downloaded_file, new_name, user_id, sts)
+        if file_link:
+            await msg.reply_text(f"File uploaded to GoFile!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
     else:
         try:
-            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=drive_progress, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, time.time()))
         except Exception as e:
             return await sts.edit(f"Error: {e}")
 
@@ -352,15 +352,13 @@ async def rename_leech(bot, msg: Message):
     await sts.delete()
 
 
-async def gofile_upload(bot, msg: Message, file_path: str, file_name: str, user_id: int, sts: Message):
+async def gofile_upload(file_path: str, file_name: str, user_id: int, sts: Message):
     # Retrieve the user's Gofile API key from database
     gofile_api_key = await db.get_gofile_api_key(user_id)
 
     if not gofile_api_key:
         return await sts.edit("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
 
-    c_time = time.time()
-    
     try:
         async with aiohttp.ClientSession() as session:
             # Get the server to upload the file
@@ -400,7 +398,6 @@ async def gofile_upload(bot, msg: Message, file_path: str, file_name: str, user_
                 os.remove(file_path)
         except Exception as e:
             print(f"Error deleting file: {e}")
-
 
 
 @Client.on_message(filters.command('restartbot'))
