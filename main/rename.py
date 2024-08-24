@@ -282,11 +282,6 @@ async def download_file_from_drive(service, file_id, file_name, message):
 
 
 
-STRING_SESSION = ""
-    
-# Initialize the string session client
-string_session_client = Client("my_session", session_string=STRING_SESSION)
-
 
 # Function to split large files
 def split_file(file_path, split_size):
