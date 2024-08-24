@@ -353,7 +353,7 @@ async def rename_leech(bot, msg: Message):
 
     if filesize > 2 * 1024 * 1024 * 1024:  # Filesize > 2GB
         if STRING_SESSION:
-            client_to_use = string_session_client
+            client_to_use = app
         else:
             await sts.edit("🔄 Splitting the file... ✂️")
             split_size = await get_split_size()
@@ -4805,8 +4805,15 @@ async def process_media_and_change_metadata(bot, callback_query, multitask_selec
         os.remove(file_thumb)
     await sts.delete()
 
-               
-
+              
+"""
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
+"""
+
+if __name__ == '__main__':
+    app = Client("my_bot", bot_token=BOT_TOKEN, session_string=STRING_SESSION)
+    app.run()
+
+
