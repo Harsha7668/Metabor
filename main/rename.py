@@ -298,6 +298,7 @@ def split_file(file_path, split_size):
             chunk += 1
     return chunk
 
+
 @Client.on_message(filters.command("driveleech") & filters.chat(GROUP))
 async def rename_leech(bot, msg: Message):
     global RENAME_ENABLED
@@ -352,10 +353,18 @@ async def rename_leech(bot, msg: Message):
                 pass
 
     if filesize > 2 * 1024 * 1024 * 1024:  # Filesize > 2GB
-        await sts.edit("🔄 Splitting the file... ✂️")
+        try:
+            await sts.edit("🔄 Splitting the file... ✂️")
+        except AttributeError:
+            pass  # Handle or log the error
+
         split_size = await get_split_size()
         chunks = split_file(downloaded_file, split_size)
-        await sts.edit("💠 Uploading split files... ⚡")
+        
+        try:
+            await sts.edit("💠 Uploading split files... ⚡")
+        except AttributeError:
+            pass  # Handle or log the error
 
         # Upload each split file
         for i in range(chunks):
@@ -366,7 +375,7 @@ async def rename_leech(bot, msg: Message):
                     document=chunk_file,
                     thumb=og_thumbnail,
                     caption=f"{new_name} (Part {i+1})\n\n🌟 Size: {humanbytes(os.path.getsize(chunk_file))}",
-                    progress=progress_message,
+                    progress=drive_progress,
                     progress_args=("💠 Upload Started... ⚡", sts, time.time())
                 )
             except Exception as e:
@@ -384,15 +393,18 @@ async def rename_leech(bot, msg: Message):
                 document=downloaded_file,
                 thumb=og_thumbnail,
                 caption=cap,
-                progress=progress_message,
+                progress=drive_progress,
                 progress_args=("💠 Upload Started... ⚡", sts, c_time)
             )
         except Exception as e:
             return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded_file)
-    await sts.delete()
-
+    try:
+        await sts.delete()
+    except AttributeError:
+        pass  # Handle or log the error
+    
 async def get_split_size():
     """Return a universal split size for all users."""
     split_size = 2 * 1024 * 1024 * 1024  # 2GB in bytes
