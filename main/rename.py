@@ -4806,14 +4806,9 @@ async def process_media_and_change_metadata(bot, callback_query, multitask_selec
     await sts.delete()
 
               
-"""
-if __name__ == '__main__':
-    app = Client("my_bot", bot_token=BOT_TOKEN)
-    app.run()
-"""
 
 if __name__ == '__main__':
-    app = Client("my_bot", bot_token=BOT_TOKEN, session_string=STRING_SESSION)
+    app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
 
 
