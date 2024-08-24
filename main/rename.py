@@ -281,30 +281,14 @@ async def download_file_from_drive(service, file_id, file_name, message):
     return file_name
 
 
-
-
-# Function to split large files
-def split_file(file_path, split_size):
-    """Split file into chunks of split_size."""
-    with open(file_path, 'rb') as f:
-        chunk = 0
-        while True:
-            data = f.read(split_size)
-            if not data:
-                break
-            chunk_filename = f"{file_path}.part{chunk}"
-            with open(chunk_filename, 'wb') as chunk_file:
-                chunk_file.write(data)
-            chunk += 1
-    return chunk
-
-
 @Client.on_message(filters.command("driveleech") & filters.chat(GROUP))
 async def rename_leech(bot, msg: Message):
     global RENAME_ENABLED
 
     if not RENAME_ENABLED:
         return await msg.reply_text("Rename feature is currently disabled.")
+
+    user_id = msg.from_user.id
 
     if len(msg.command) < 2 or not msg.reply_to_message:
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
@@ -316,7 +300,7 @@ async def rename_leech(bot, msg: Message):
 
     new_name = msg.text.split(" ", 1)[1]
     sts = await msg.reply_text("🚀 Downloading... ⚡")
-
+    
     # Extract the Google Drive link from the caption or message text
     drive_url = reply.text or reply.caption
     file_id = extract_id_from_url(drive_url)
@@ -326,16 +310,15 @@ async def rename_leech(bot, msg: Message):
 
     # Download the file from Google Drive with progress updates
     downloaded_file = await download_file_from_drive(drive_service, file_id, new_name, sts)
-    filesize = os.path.getsize(downloaded_file)
+    filesize = humanbytes(os.path.getsize(downloaded_file))
 
-    # Determine the caption
     if CAPTION:
         try:
-            cap = CAPTION.format(file_name=new_name, file_size=humanbytes(filesize))
+            cap = CAPTION.format(file_name=new_name, file_size=filesize)
         except KeyError as e:
             return await sts.edit(text=f"Caption error: unexpected keyword ({e})")
     else:
-        cap = f"{new_name}\n\n🌟 Size: {humanbytes(filesize)}"
+        cap = f"{new_name}\n\n🌟 Size: {filesize}"
 
     # Retrieve thumbnail from the database
     thumbnail_file_id = await db.get_thumbnail(msg.from_user.id)
@@ -352,66 +335,76 @@ async def rename_leech(bot, msg: Message):
             except Exception:
                 pass
 
-    if filesize > 2 * 1024 * 1024 * 1024:  # Filesize > 2GB
-        try:
-            await sts.edit("🔄 Splitting the file... ✂️")
-        except AttributeError:
-            pass  # Handle or log the error
+    await sts.edit("💠 Uploading... ⚡")
+    c_time = time.time()
 
-        split_size = await get_split_size()
-        chunks = split_file(downloaded_file, split_size)
-        
-        try:
-            await sts.edit("💠 Uploading split files... ⚡")
-        except AttributeError:
-            pass  # Handle or log the error
-
-        # Upload each split file
-        for i in range(chunks):
-            chunk_file = f"{downloaded_file}.part{i}"
-            try:
-                await bot.send_document(
-                    msg.chat.id,
-                    document=chunk_file,
-                    thumb=og_thumbnail,
-                    caption=f"{new_name} (Part {i+1})\n\n🌟 Size: {humanbytes(os.path.getsize(chunk_file))}",
-                    progress=drive_progress,
-                    progress_args=("💠 Upload Started... ⚡", sts, time.time())
-                )
-            except Exception as e:
-                await sts.edit(f"Error: {e}")
-                break
-
-        # Remove split files
-        for i in range(chunks):
-            os.remove(f"{downloaded_file}.part{i}")
+    # Replace Google Drive upload with GoFile upload for files above 2GB
+    if os.path.getsize(downloaded_file) > FILE_SIZE_LIMIT:
+        file_link = await gofile_upload(bot, msg, downloaded_file, new_name, user_id, sts)
+        await msg.reply_text(f"File uploaded to GoFile!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
     else:
-        c_time = time.time()
         try:
-            await bot.send_document(
-                msg.chat.id,
-                document=downloaded_file,
-                thumb=og_thumbnail,
-                caption=cap,
-                progress=drive_progress,
-                progress_args=("💠 Upload Started... ⚡", sts, c_time)
-            )
+            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=drive_progress, progress_args=("💠 Upload Started... ⚡", sts, c_time))
         except Exception as e:
             return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded_file)
-    try:
-        await sts.delete()
-    except AttributeError:
-        pass  # Handle or log the error
+    await sts.delete()
+
+
+async def gofile_upload(bot, msg: Message, file_path: str, file_name: str, user_id: int, sts: Message):
+    # Retrieve the user's Gofile API key from database
+    gofile_api_key = await db.get_gofile_api_key(user_id)
+
+    if not gofile_api_key:
+        return await sts.edit("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
+
+    c_time = time.time()
     
-async def get_split_size():
-    """Return a universal split size for all users."""
-    split_size = 2 * 1024 * 1024 * 1024  # 2GB in bytes
-    return split_size
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Get the server to upload the file
+            async with session.get("https://api.gofile.io/getServer") as resp:
+                if resp.status != 200:
+                    return await sts.edit(f"Failed to get server. Status code: {resp.status}")
+
+                data = await resp.json()
+                server = data["data"]["server"]
+
+            # Upload the file to Gofile
+            with open(file_path, "rb") as file:
+                form_data = aiohttp.FormData()
+                form_data.add_field("file", file, filename=file_name)
+                form_data.add_field("token", gofile_api_key)
+
+                async with session.post(
+                    f"https://{server}.gofile.io/uploadFile",
+                    data=form_data
+                ) as resp:
+                    if resp.status != 200:
+                        return await sts.edit(f"Upload failed: Status code {resp.status}")
+
+                    response = await resp.json()
+                    if response["status"] == "ok":
+                        download_url = response["data"]["downloadPage"]
+                        return download_url
+                    else:
+                        await sts.edit(f"Upload failed: {response['message']}")
+
+    except Exception as e:
+        await sts.edit(f"Error during upload: {e}")
+
+    finally:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            print(f"Error deleting file: {e}")
+
+
 
 @Client.on_message(filters.command('restartbot'))
-async def font_message(app, message):
+async def restart_message(app, message):
     reply = await message.reply_text('Restarting...')
     textx = f"Done Restart...✅"
     await reply.edit_text(textx)
