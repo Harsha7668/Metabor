@@ -248,8 +248,11 @@ async def drive_progress(current, total, ud_type, message, start):
             text=f"{ud_type}\n\nProgress: {progress}",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
         )
-    except Exception as e:
-        print(f"Error editing message: {e}")
+    except FloodWait as e:
+        await asyncio.sleep(e.x)
+        await small_progress(current, total, ud_type, message, start)
+    except MessageNotModified:
+        pass  # Ignore 
         
 
 import io
