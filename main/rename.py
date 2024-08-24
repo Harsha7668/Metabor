@@ -306,7 +306,7 @@ def split_file(file_path, split_size):
             chunk += 1
     return chunk
 
-@Client.on_message(filters.command("driveleech") & filters.chat(GROUP))
+@Client.on_message(filters.command("dleech") & filters.chat(GROUP))
 async def rename_leech(bot, msg: Message):
     global RENAME_ENABLED
 
@@ -387,9 +387,9 @@ async def rename_leech(bot, msg: Message):
             # Remove split files
             for i in range(chunks):
                 os.remove(f"{downloaded_file}.part{i}")
-        else:
-            client_to_use = bot
-            
+    else:
+        client_to_use = bot  # Corrected the scope of this 'else'
+
     async with client_to_use:
         c_time = time.time()
         try:
