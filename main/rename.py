@@ -290,6 +290,7 @@ STRING_SESSION = ""
 # Initialize the string session client
 string_session_client = Client("my_session", api_id=API_ID, api_hash=API_HASH, session_string=STRING_SESSION)
 
+
 # Function to split large files
 def split_file(file_path, split_size):
     """Split file into chunks of split_size."""
@@ -311,8 +312,6 @@ async def rename_leech(bot, msg: Message):
 
     if not RENAME_ENABLED:
         return await msg.reply_text("Rename feature is currently disabled.")
-
-    user_id = msg.from_user.id
 
     if len(msg.command) < 2 or not msg.reply_to_message:
         return await msg.reply_text("Please reply to a file, video, or audio with the new filename and extension (e.g., .mkv, .mp4, .zip).")
@@ -363,10 +362,9 @@ async def rename_leech(bot, msg: Message):
     if filesize > 2 * 1024 * 1024 * 1024:  # Filesize > 2GB
         if STRING_SESSION:
             client_to_use = string_session_client
-            await sts.edit("💠 Uploading large file directly... ⚡")
         else:
             await sts.edit("🔄 Splitting the file... ✂️")
-            split_size = await get_split_size(user_id)
+            split_size = await get_split_size()
             chunks = split_file(downloaded_file, split_size)
             await sts.edit("💠 Uploading split files... ⚡")
 
@@ -380,7 +378,7 @@ async def rename_leech(bot, msg: Message):
                             document=chunk_file,
                             thumb=og_thumbnail,
                             caption=f"{new_name} (Part {i+1})\n\n🌟 Size: {humanbytes(os.path.getsize(chunk_file))}",
-                            progress=drive_progress,
+                            progress=progress_message,
                             progress_args=("💠 Upload Started... ⚡", sts, time.time())
                         )
                     except Exception as e:
@@ -389,6 +387,8 @@ async def rename_leech(bot, msg: Message):
             # Remove split files
             for i in range(chunks):
                 os.remove(f"{downloaded_file}.part{i}")
+        else:
+            client_to_use = bot
     else:
         client_to_use = bot
 
@@ -400,7 +400,7 @@ async def rename_leech(bot, msg: Message):
                 document=downloaded_file,
                 thumb=og_thumbnail,
                 caption=cap,
-                progress=drive_progress,
+                progress=progress_message,
                 progress_args=("💠 Upload Started... ⚡", sts, c_time)
             )
         except Exception as e:
@@ -409,16 +409,10 @@ async def rename_leech(bot, msg: Message):
     os.remove(downloaded_file)
     await sts.delete()
 
-async def get_split_size(user_id):
-    """Retrieve the split size based on user settings."""
-    if get_data()[user_id]['upload_tg']:
-        if get_data()[user_id]['split'] == '2GB':
-            split_size = 2 * 1024 * 1024 * 1024  # 2GB in bytes
-        else:
-            split_size = await check_size_limit()
-        return split_size
-    else:
-        return False
+async def get_split_size():
+    """Return a universal split size for all users."""
+    split_size = 2 * 1024 * 1024 * 1024  # 2GB in bytes
+    return split_size
 
 @Client.on_message(filters.command('restartbot'))
 async def font_message(app, message):
