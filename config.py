@@ -24,4 +24,3 @@ WEBHOOK = bool(os.environ.get("WEBHOOK", True))
 PORT = int(os.environ.get("PORT", "8081"))
 LOG_CHANNEL_ID = os.environ.get("LOG_CHANNEL_ID", -1002145984196)
 CHANNEL_ID = os.environ.get("CHANNEL_ID", -1002038048493)
-STRING_SESSION = ""
