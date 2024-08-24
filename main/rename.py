@@ -389,9 +389,7 @@ async def rename_leech(bot, msg: Message):
                 os.remove(f"{downloaded_file}.part{i}")
         else:
             client_to_use = bot
-    else:
-        client_to_use = bot
-
+            
     async with client_to_use:
         c_time = time.time()
         try:
