@@ -352,7 +352,7 @@ async def rename_leech(bot, msg: Message):
     await sts.delete()
 
 
-async def gofile_upload(file_path: str, file_name: str, user_id: int, sts: Message):
+async def gofile_upload(file_path: str, file_name: str):
     # Retrieve the user's Gofile API key from database
     gofile_api_key = await db.get_gofile_api_key(user_id)
 
