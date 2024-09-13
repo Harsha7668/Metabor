@@ -14,7 +14,7 @@ PROGRESS_BAR = """
 ├<b>⏱️**ETA** : {4}</b>
 ╰─────────────────⍟"""
 
-
+"""
 async def progress_message(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
@@ -49,8 +49,11 @@ async def progress_message(current, total, ud_type, message, start):
         except Exception as e:
             print(f"Error editing message: {e}")
             
-
 """
+
+
+from pyrogram.error import FloodWait, BadRequest
+
 async def progress_message(current, total, ud_type, message, start):
     now = time.time()
     diff = now - start
@@ -65,27 +68,31 @@ async def progress_message(current, total, ud_type, message, start):
         estimated_total_time = TimeFormatter(estimated_total_time_ms)
 
         progress = "{0}{1}".format(
-            ''.join(["■" for i in range(math.floor(percentage / 5))]),
-            ''.join(["□" for i in range(20 - math.floor(percentage / 5))])
+            ''.join(["▣" for i in range(math.floor(percentage / 5))]),
+            ''.join(["▢" for i in range(20 - math.floor(percentage / 5))])
         )
         tmp = progress + f"\nProgress: {round(percentage, 2)}%\n{humanbytes(current)} of {humanbytes(total)}\nSpeed: {speed}\nETA: {estimated_total_time if estimated_total_time != '' else '0 s'}"
 
         try:
             await message.edit(
-                text=f"{ud_type}\n\n" + tmp,
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Join Us 🌟", url="https://t.me/Sunrises24botupdates")]])
+                text=f"{ud_type}\n\n" + PROGRESS_BAR.format(
+                    round(percentage, 2),
+                    humanbytes(current),
+                    humanbytes(total),
+                    speed,
+                    estimated_total_time if estimated_total_time != '' else '0 s',
+                    progress
+                ),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Jᴏɪɴ Us 🌟", url="https://t.me/Sunrises24botupdates")]])
             )
         except FloodWait as e:
-            await asyncio.sleep(e.x)  # Pause for the required time
-            await message.edit(
-                text=f"{ud_type}\n\n" + tmp,
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🌟 Join Us 🌟", url="https://t.me/Sunrises24botupdates")]])
-            )
-        except MessageNotModified:
-            pass  # If the message content hasn't changed, just pass
-        except Exception as e:
-            print(f"Error editing message: {e}")
-"""
+            print(f"FloodWait: Waiting for {e.x} seconds.")
+            await asyncio.sleep(e.x)  # Wait for the FloodWait duration
+        except BadRequest as e:
+            if "Message is not modified" in str(e):
+                print("Message not modified, skipping update.")
+            else:
+                print(f"Error editing message: {e}")
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 @Client.on_callback_query(filters.regex("del"))
