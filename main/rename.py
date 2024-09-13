@@ -4749,6 +4749,68 @@ async def process_media_and_change_metadata(bot, callback_query, multitask_selec
         os.remove(file_thumb)
     await sts.delete()
 
+import os
+import requests
+import time
+from pyrogram import Client, filters
+
+# Filemoon API Key
+FILEMOON_API_KEY = "64633gpofv2n63lak2rdl"
+
+# Function to upload to Filemoon using API
+def upload_to_filemoon(file_path=None, remote_url=None):
+    if remote_url:
+        url = f"https://api.filemoon.sx/v1/url/upload?apikey={FILEMOON_API_KEY}&url={remote_url}"
+    else:
+        url = f"https://api.filemoon.sx/v1/upload?apikey={FILEMOON_API_KEY}"
+    
+    if file_path:
+        with open(file_path, 'rb') as f:
+            files = {'file': f}
+            response = requests.post(url, files=files)
+    else:
+        response = requests.get(url)
+    
+    if response.status_code == 200:
+        return response.json().get("url", "Upload failed.")
+    else:
+        return f"Error: {response.status_code}"
+
+@Client.on_message(filters.private & filters.command("upload"))
+async def upload_file(bot, msg):
+    if len(msg.command) < 2:
+        return await msg.reply_text("Please provide a URL or reply to a file for uploading.")
+
+    user_id = msg.from_user.id
+    reply = msg.reply_to_message
+
+    # Check if the user provided a remote URL
+    remote_url = msg.command[1] if not reply else None
+    
+    # If reply contains a document, download and upload it
+    if reply and (reply.document or reply.audio or reply.video):
+        media = reply.document or reply.audio or reply.video
+        new_name = media.file_name
+
+        sts = await msg.reply_text("🚀 Downloading... ⚡")
+        c_time = time.time()
+        downloaded = await reply.download(file_name=new_name, progress=progress_message, progress_args=("🚀 Download Started... ⚡️", sts, c_time))
+
+        await sts.edit("💠 Uploading to Filemoon... ⚡")
+        upload_link = upload_to_filemoon(file_path=downloaded)
+
+        await msg.reply_text(f"File uploaded to Filemoon!\n\n📁 **File Name:** {new_name}\n🔗 **Link:** {upload_link}")
+        os.remove(downloaded)
+
+    # Handle remote URL upload
+    elif remote_url:
+        sts = await msg.reply_text("💠 Uploading remote URL to Filemoon... ⚡")
+        upload_link = upload_to_filemoon(remote_url=remote_url)
+        await sts.edit(f"URL uploaded to Filemoon!\n\n🔗 **Link:** {upload_link}")
+
+    else:
+        await msg.reply_text("Please reply to a valid file or provide a valid URL.")
+
               
 
 if __name__ == '__main__':
