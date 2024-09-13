@@ -4759,7 +4759,8 @@ FILEMOON_API_KEY = "64633gpofv2n63lak2rdl"
 
 # Function to upload to Filemoon using API
 def upload_to_filemoon(file_path):
-    url = f"https://api.filemoon.sx/v1/upload?apikey={FILEMOON_API_KEY}"
+    # Updated URL as per request
+    url = f"https://filemoonapi.com/upload/01?apikey={FILEMOON_API_KEY}"
     
     with open(file_path, 'rb') as f:
         files = {'file': f}
