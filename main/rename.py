@@ -4758,7 +4758,16 @@ from pyrogram import Client, filters
 FILEMOON_API_KEY = "64633gpofv2n63lak2rdl"
 
 # Function to upload to Filemoon using API
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 def upload_to_filemoon(file_path=None, remote_url=None):
+    session = requests.Session()
+    retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])  # Adjust retries here
+    adapter = HTTPAdapter(max_retries=retries)
+    session.mount("https://", adapter)
+    
     if remote_url:
         url = f"https://api.filemoon.sx/v1/url/upload?apikey={FILEMOON_API_KEY}&url={remote_url}"
     else:
@@ -4767,14 +4776,14 @@ def upload_to_filemoon(file_path=None, remote_url=None):
     if file_path:
         with open(file_path, 'rb') as f:
             files = {'file': f}
-            response = requests.post(url, files=files)
+            response = session.post(url, files=files)
     else:
-        response = requests.get(url)
+        response = session.get(url)
     
     if response.status_code == 200:
         return response.json().get("url", "Upload failed.")
     else:
-        return f"Error: {response.status_code}"
+        return f"Error: {response.status_code} - {response.text}"
 
 @Client.on_message(filters.private & filters.command("upload"))
 async def upload_file(bot, msg):
