@@ -257,30 +257,6 @@ import os
 import time
 from googleapiclient.http import MediaIoBaseDownload
 
-async def download_file_from_drive(service, file_id, file_name, message):
-    request = service.files().get_media(fileId=file_id)
-    file_buffer = io.BytesIO()
-    downloader = MediaIoBaseDownload(file_buffer, request)
-
-    done = False
-    start_time = time.time()
-
-    while not done:
-        status, done = downloader.next_chunk()
-        if status:
-            current_size = status.resumable_progress
-            total_size = status.total_size
-
-            # Update progress message
-            await drive_progress(current_size, total_size, "🚀 Downloading from Google Drive... ⚡", message, start_time)
-
-    file_buffer.seek(0)
-    with open(file_name, 'wb') as f:
-        f.write(file_buffer.read())
-
-    return file_name
-
-
 @Client.on_message(filters.command("driveleech") & filters.chat(GROUP))
 async def rename_leech(bot, msg: Message):
     global RENAME_ENABLED
@@ -337,67 +313,39 @@ async def rename_leech(bot, msg: Message):
 
     await sts.edit("💠 Uploading... ⚡")
 
-    # Replace Google Drive upload with GoFile upload for files above 2GB
-    if os.path.getsize(downloaded_file) > FILE_SIZE_LIMIT:
-        file_link = await gofile_upload(downloaded_file, new_name, user_id, sts)
-        if file_link:
-            await msg.reply_text(f"File uploaded to GoFile!\n\n📁 **File Name:** {new_name}\n💾 **Size:** {filesize}\n🔗 **Link:** {file_link}")
-    else:
-        try:
-            await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, time.time()))
-        except Exception as e:
-            return await sts.edit(f"Error: {e}")
+    # Upload file directly to Telegram without GoFile
+    try:
+        await bot.send_document(msg.chat.id, document=downloaded_file, thumb=og_thumbnail, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, time.time()))
+    except Exception as e:
+        return await sts.edit(f"Error: {e}")
 
     os.remove(downloaded_file)
     await sts.delete()
+    
+async def download_file_from_drive(service, file_id, file_name, message):
+    request = service.files().get_media(fileId=file_id)
+    file_buffer = io.BytesIO()
+    downloader = MediaIoBaseDownload(file_buffer, request)
+
+    done = False
+    start_time = time.time()
+
+    while not done:
+        status, done = downloader.next_chunk()
+        if status:
+            current_size = status.resumable_progress
+            total_size = status.total_size
+
+            # Update progress message
+            await drive_progress(current_size, total_size, "🚀 Downloading from Google Drive... ⚡", message, start_time)
+
+    file_buffer.seek(0)
+    with open(file_name, 'wb') as f:
+        f.write(file_buffer.read())
+
+    return file_name
 
 
-async def gofile_upload(file_path: str, file_name: str):
-    # Retrieve the user's Gofile API key from database
-    gofile_api_key = await db.get_gofile_api_key(user_id)
-
-    if not gofile_api_key:
-        return await sts.edit("Gofile API key is not set. Use /gofilesetup {your_api_key} to set it.")
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            # Get the server to upload the file
-            async with session.get("https://api.gofile.io/getServer") as resp:
-                if resp.status != 200:
-                    return await sts.edit(f"Failed to get server. Status code: {resp.status}")
-
-                data = await resp.json()
-                server = data["data"]["server"]
-
-            # Upload the file to Gofile
-            with open(file_path, "rb") as file:
-                form_data = aiohttp.FormData()
-                form_data.add_field("file", file, filename=file_name)
-                form_data.add_field("token", gofile_api_key)
-
-                async with session.post(
-                    f"https://{server}.gofile.io/uploadFile",
-                    data=form_data
-                ) as resp:
-                    if resp.status != 200:
-                        return await sts.edit(f"Upload failed: Status code {resp.status}")
-
-                    response = await resp.json()
-                    if response["status"] == "ok":
-                        download_url = response["data"]["downloadPage"]
-                        return download_url
-                    else:
-                        await sts.edit(f"Upload failed: {response['message']}")
-
-    except Exception as e:
-        await sts.edit(f"Error during upload: {e}")
-
-    finally:
-        try:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        except Exception as e:
-            print(f"Error deleting file: {e}")
 
 
 @Client.on_message(filters.command('restartbot'))
