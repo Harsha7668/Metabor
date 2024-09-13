@@ -52,7 +52,7 @@ async def progress_message(current, total, ud_type, message, start):
 """
 
 
-from pyrogram.error import FloodWait, BadRequest
+from pyrogram.errors import FloodWait, BadRequest
 
 async def progress_message(current, total, ud_type, message, start):
     now = time.time()
