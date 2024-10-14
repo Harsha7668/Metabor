@@ -8,7 +8,7 @@ id_pattern = re.compile(r'^.\d+$')
 
 API_ID = int(os.environ.get("API_ID", "10811400"))
 API_HASH = os.environ.get("API_HASH", "191bf5ae7a6c39771e7b13cf4ffd1279")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "6487202001:AAEAKAPWqD44xgF4a-1DxgwVnXa35NBIvN4")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "6487202001:AAHeC7GVwruSWOxDsW3oWmGQmXbld_LslSM")
 ADMIN = int(os.environ.get("ADMIN", '6469754522'))
 FSUB_UPDATES = os.environ.get("FSUB_CHANNEL", "Sunrises24BotUpdates")
 FSUB_GROUP = os.environ.get("FSUB_GROUP", "Sunrises24BotSupport")
