@@ -148,11 +148,12 @@ async def add_credits(bot, msg: Message):
     await sts.delete()
 
 
-async def create_credits_subtitle(subtitle_file):
+
+async def create_credits_subtitle(subtitle_file, credits_text):
     # Create an .srt file with your custom naming credits and timing
     with open(subtitle_file, 'w') as f:
         f.write("1\n00:00:00,000 --> 00:00:03,000\nDownload new Movies & Series from our Telegram Channel\n\n")
-        f.write("2\n00:00:03,000 --> 00:00:05,000\n@SUNRISES24Rips\n\n")
+        f.write("2\n00:00:03,000 --> 00:00:05,000\n{credits_text}\n\n")
 
 def embed_subtitles(video_file, subtitle_file, output_file):
     # Use FFmpeg to embed the subtitles into the video and retain all audio streams
