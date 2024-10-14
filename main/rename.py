@@ -70,18 +70,16 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 import io
 
-
 @Client.on_message(filters.command("addcredits") & filters.chat(GROUP))
 async def add_credits(bot, msg: Message):
     reply = msg.reply_to_message
     if not reply:
-        return await msg.reply_text("Please reply to a video with the `addcredits` command\nFormat: `addcredits -n filename.mkv -t 'Your naming credits'`")
+        return await msg.reply_text("Please reply to a video with the `addcredits` command\nFormat: `addcredits -n filename.mkv`")
     
-    if len(msg.command) < 5 or msg.command[1] != "-n" or msg.command[3] != "-t":
-        return await msg.reply_text("Please provide the filename and credits text using the correct format\nFormat: `addcredits -n filename.mkv -t 'Your naming credits'`")
+    if len(msg.command) < 3 or msg.command[1] != "-n":
+        return await msg.reply_text("Please provide the filename using the correct format\nFormat: `addcredits -n filename.mkv`")
 
     output_filename = msg.command[2].strip()
-    credits_text = " ".join(msg.command[4:]).strip()
 
     if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
         return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
@@ -100,10 +98,10 @@ async def add_credits(bot, msg: Message):
 
     output_file = output_filename
 
-    # Create a new subtitle file (.srt) for the credits
+    # Create a new subtitle file (.srt) with custom credits
     subtitle_file = output_filename.replace('.mkv', '.srt').replace('.mp4', '.srt').replace('.avi', '.srt')
     try:
-        await create_credits_subtitle(subtitle_file, credits_text)
+        await create_credits_subtitle(subtitle_file)
     except Exception as e:
         await safe_edit_message(sts, f"Error creating subtitles: {e}")
         os.remove(downloaded)
@@ -148,12 +146,25 @@ async def add_credits(bot, msg: Message):
     await sts.delete()
 
 
+async def create_credits_subtitle(subtitle_file):
+    # Create an .srt file with the specific naming credits at the start
+    with open(subtitle_file, 'w') as f:
+        f.write("1\n00:00:00,000 --> 00:00:03,000\nDownload new Movies & Series from our Telegram Channel\n\n")
+        f.write("2\n00:00:03,000 --> 00:00:05,000\n@SUNRISES24Rips\n\n")
 
-async def create_credits_subtitle(subtitle_file, credits_text):
+
+def embed_subtitles(video_file, subtitle_file, output_file):
+    # Use FFmpeg to embed the subtitles into the video and retain all audio streams
+    command = f"ffmpeg -i '{video_file}' -vf subtitles='{subtitle_file}' -map 0 -c:v libx264 -c:a copy '{output_file}'"
+    os.system(command)
+
+
+
+async def create_credits_subtitle(subtitle_file):
     # Create an .srt file with your custom naming credits and timing
     with open(subtitle_file, 'w') as f:
         f.write("1\n00:00:00,000 --> 00:00:03,000\nDownload new Movies & Series from our Telegram Channel\n\n")
-        f.write("2\n00:00:03,000 --> 00:00:05,000\n{credits_text}\n\n")
+        f.write("2\n00:00:03,000 --> 00:00:05,000\n@SUNRISES24Rips\n\n")
 
 def embed_subtitles(video_file, subtitle_file, output_file):
     # Use FFmpeg to embed the subtitles into the video and retain all audio streams
