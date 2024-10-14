@@ -149,7 +149,7 @@ async def add_credits(bot, msg: Message):
 async def create_credits_subtitle(subtitle_file):
     # Create an .srt file with the specific naming credits at the start
     with open(subtitle_file, 'w') as f:
-        f.write("1\n00:00:00,000 --> 00:00:03,000\nDownload new Movies & Series from our Telegram Channel\n\n")
+        f.write("1\n00:00:00,000 --> 00:00:03,000\nDownload New Movies & Series From Our Telegram Channel\n\n")
         f.write("2\n00:00:03,000 --> 00:00:05,000\n@SUNRISES24Rips\n\n")
 
 
