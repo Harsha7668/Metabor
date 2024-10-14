@@ -81,8 +81,11 @@ async def add_credits(bot, msg: Message):
 
     output_filename = msg.command[2].strip()
 
-    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
-        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
+    # Ensure the filename ends with a valid video extension (.mkv, .mp4, .avi)
+    valid_extensions = ('.mkv', '.mp4', '.avi')
+    if not output_filename.lower().endswith(valid_extensions):
+        # If the extension is missing or invalid, append .mkv as a default
+        output_filename += '.mkv'
 
     media = reply.document or reply.video
     if not media:
