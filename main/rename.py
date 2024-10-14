@@ -71,7 +71,6 @@ from pyrogram.types import Message
 import io
 
 
-
 @Client.on_message(filters.command("addcredits") & filters.chat(GROUP))
 async def add_credits(bot, msg: Message):
     reply = msg.reply_to_message
@@ -149,16 +148,18 @@ async def add_credits(bot, msg: Message):
     await sts.delete()
 
 
-async def create_credits_subtitle(subtitle_file, credits_text):
-    # Create an .srt file with the naming credits at the start
+async def create_credits_subtitle(subtitle_file):
+    # Create an .srt file with your custom naming credits and timing
     with open(subtitle_file, 'w') as f:
-        f.write(f"1\n00:00:00,000 --> 00:00:05,000\n{credits_text}\n\n")
-
+        f.write("1\n00:00:00,000 --> 00:00:03,000\nDownload new Movies & Series from our Telegram Channel\n\n")
+        f.write("2\n00:00:03,000 --> 00:00:05,000\n@SUNRISES24Rips\n\n")
 
 def embed_subtitles(video_file, subtitle_file, output_file):
-    # Use FFmpeg to embed the subtitles into the video
-    command = f"ffmpeg -i '{video_file}' -vf subtitles='{subtitle_file}' '{output_file}'"
+    # Use FFmpeg to embed the subtitles into the video and retain all audio streams
+    command = f"ffmpeg -i '{video_file}' -vf subtitles='{subtitle_file}' -map 0 -c:v libx264 -c:a copy '{output_file}'"
     os.system(command)
+
+
 
 
 
