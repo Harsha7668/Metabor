@@ -70,6 +70,98 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 import io
 
+
+
+@Client.on_message(filters.command("addcredits") & filters.chat(GROUP))
+async def add_credits(bot, msg: Message):
+    reply = msg.reply_to_message
+    if not reply:
+        return await msg.reply_text("Please reply to a video with the `addcredits` command\nFormat: `addcredits -n filename.mkv -t 'Your naming credits'`")
+    
+    if len(msg.command) < 5 or msg.command[1] != "-n" or msg.command[3] != "-t":
+        return await msg.reply_text("Please provide the filename and credits text using the correct format\nFormat: `addcredits -n filename.mkv -t 'Your naming credits'`")
+
+    output_filename = msg.command[2].strip()
+    credits_text = " ".join(msg.command[4:]).strip()
+
+    if not output_filename.lower().endswith(('.mkv', '.mp4', '.avi')):
+        return await msg.reply_text("Invalid file extension. Please use a valid video file extension (e.g., .mkv, .mp4, .avi).")
+
+    media = reply.document or reply.video
+    if not media:
+        return await msg.reply_text("Please reply to a valid video file with the `addcredits` command.")
+    
+    sts = await msg.reply_text("🚀 Downloading video... ⚡")
+    c_time = time.time()
+    try:
+        downloaded = await reply.download(progress=progress_message, progress_args=("🚀 Download Started... ⚡", sts, c_time))
+    except Exception as e:
+        await safe_edit_message(sts, f"Error downloading media: {e}")
+        return
+
+    output_file = output_filename
+
+    # Create a new subtitle file (.srt) for the credits
+    subtitle_file = output_filename.replace('.mkv', '.srt').replace('.mp4', '.srt').replace('.avi', '.srt')
+    try:
+        await create_credits_subtitle(subtitle_file, credits_text)
+    except Exception as e:
+        await safe_edit_message(sts, f"Error creating subtitles: {e}")
+        os.remove(downloaded)
+        return
+
+    await safe_edit_message(sts, "💠 Embedding subtitles... ⚡")
+    try:
+        embed_subtitles(downloaded, subtitle_file, output_file)
+    except Exception as e:
+        await safe_edit_message(sts, f"Error embedding subtitles: {e}")
+        os.remove(downloaded)
+        os.remove(subtitle_file)
+        return
+
+    filesize = os.path.getsize(output_file)
+    filesize_human = humanbytes(filesize)
+    cap = f"{output_filename}\n\n🌟 Size: {filesize_human}"
+
+    await safe_edit_message(sts, "💠 Uploading... ⚡")
+    c_time = time.time()
+
+    if filesize > FILE_SIZE_LIMIT:
+        file_link = await upload_to_google_drive(output_file, output_filename, sts)
+        button = [[InlineKeyboardButton("☁️ CloudUrl ☁️", url=f"{file_link}")]]
+        await msg.reply_text(
+            f"**File successfully added credits and uploaded to Google Drive!**\n\n"
+            f"**Google Drive Link**: [View File]({file_link})\n\n"
+            f"**Uploaded File**: {output_filename}\n"
+            f"**Request User:** {msg.from_user.mention}\n\n"
+            f"**Size**: {filesize_human}",
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+    else:
+        try:
+            await bot.send_document(msg.chat.id, document=output_file, caption=cap, progress=progress_message, progress_args=("💠 Upload Started... ⚡", sts, c_time))
+        except Exception as e:
+            return await safe_edit_message(sts, f"Error: {e}")
+
+    os.remove(downloaded)
+    os.remove(output_file)
+    os.remove(subtitle_file)
+    await sts.delete()
+
+
+async def create_credits_subtitle(subtitle_file, credits_text):
+    # Create an .srt file with the naming credits at the start
+    with open(subtitle_file, 'w') as f:
+        f.write(f"1\n00:00:00,000 --> 00:00:05,000\n{credits_text}\n\n")
+
+
+def embed_subtitles(video_file, subtitle_file, output_file):
+    # Use FFmpeg to embed the subtitles into the video
+    command = f"ffmpeg -i '{video_file}' -vf subtitles='{subtitle_file}' '{output_file}'"
+    os.system(command)
+
+
+
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 RENAME_ENABLED = True
 FILE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024  # 2GB
